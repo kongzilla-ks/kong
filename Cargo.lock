@@ -1734,9 +1734,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73fea8450eea4bac3940448fb7ae50d91f034f941199fcd9d909a5a07aa455f0"
+checksum = "26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -2124,10 +2124,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "122efbcb0af5280d408a75a57b7dc6e9d92893bf6ed9cc98fe4dcff51f18b67c"
 dependencies = [
  "candid",
- "ic-cdk-macros",
- "ic0",
+ "ic-cdk-macros 0.17.1",
+ "ic0 0.23.0",
  "serde",
  "serde_bytes",
+ "slotmap",
+]
+
+[[package]]
+name = "ic-cdk"
+version = "0.18.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d5997f241642ba53f7249618f8a05cfa1cd77f67ac4dbbab66f2611769d447b"
+dependencies = [
+ "candid",
+ "ic-cdk-executor",
+ "ic-cdk-macros 0.18.4",
+ "ic-error-types",
+ "ic-management-canister-types",
+ "ic0 0.25.1",
+ "serde",
+ "serde_bytes",
+ "slotmap",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "ic-cdk-executor"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f3586c51b6b3809b69c79e97de172b4649f56094e8c8bc1ce2e41a29f20ed5f"
+dependencies = [
  "slotmap",
 ]
 
@@ -2146,14 +2173,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-cdk-macros"
+version = "0.18.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1c52b98db56a0f885915f250744d0d74da9e6d008ede6f5dde8dcde80bbcf56"
+dependencies = [
+ "candid",
+ "darling",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
+]
+
+[[package]]
 name = "ic-cdk-timers"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb8fd812a9e26f6aa00594546f8fbf4d4853f39c3ba794c8ff11ecf86fd3c9e4"
 dependencies = [
  "futures",
- "ic-cdk",
- "ic0",
+ "ic-cdk 0.17.1",
+ "ic0 0.23.0",
+ "serde",
+ "serde_bytes",
+ "slotmap",
+]
+
+[[package]]
+name = "ic-cdk-timers"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06eca8e4f5077b92b192ff74a4d6066f3651eb2cc60c00c5d390d022332827a3"
+dependencies = [
+ "candid",
+ "futures",
+ "ic-cdk 0.18.4",
+ "ic0 0.25.1",
  "serde",
  "serde_bytes",
  "slotmap",
@@ -2183,6 +2238,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ic-error-types"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbeeb3d91aa179d6496d7293becdacedfc413c825cac79fd54ea1906f003ee55"
+dependencies = [
+ "serde",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
 name = "ic-ledger-types"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2191,7 +2257,22 @@ dependencies = [
  "candid",
  "crc32fast",
  "hex",
- "ic-cdk",
+ "ic-cdk 0.17.1",
+ "serde",
+ "serde_bytes",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "ic-ledger-types"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "feb52826a353b583012628af6da762b52672350686c3275234febfadeca965ea"
+dependencies = [
+ "candid",
+ "crc32fast",
+ "hex",
+ "ic-cdk 0.18.4",
  "serde",
  "serde_bytes",
  "sha2 0.10.9",
@@ -2274,6 +2355,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8de254dd67bbd58073e23dc1c8553ba12fa1dc610a19de94ad2bbcd0460c067f"
 
 [[package]]
+name = "ic0"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39a4ced1c92f952a12e554742ffa7d21752a02450930c3b76bea78a2f1b7ab16"
+
+[[package]]
 name = "ic_bls12_381"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2310,8 +2397,8 @@ dependencies = [
  "getrandom 0.2.15",
  "hex",
  "hex-literal",
- "ic-cdk",
- "ic-cdk-timers",
+ "ic-cdk 0.17.1",
+ "ic-cdk-timers 0.11.0",
  "ic-certified-map",
  "rand 0.9.1",
  "rand_chacha 0.9.0",
@@ -2336,7 +2423,7 @@ dependencies = [
  "candid",
  "hex",
  "ic-agent 0.40.0",
- "ic-cdk",
+ "ic-cdk 0.17.1",
  "ic-certified-map",
  "ic-stable-structures",
  "ic_siws",
@@ -2620,7 +2707,7 @@ version = "0.1.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38f262f097c174adebe41eb73d66ae9c06b2844fb0da69969647bbddd9b0538a"
 dependencies = [
- "getrandom 0.3.2",
+ "getrandom 0.3.3",
  "libc",
 ]
 
@@ -2693,10 +2780,10 @@ dependencies = [
  "futures",
  "getrandom 0.2.15",
  "ic-agent 0.40.0",
- "ic-cdk",
- "ic-cdk-macros",
- "ic-cdk-timers",
- "ic-ledger-types",
+ "ic-cdk 0.17.1",
+ "ic-cdk-macros 0.17.1",
+ "ic-cdk-timers 0.12.1",
+ "ic-ledger-types 0.15.0",
  "ic-management-canister-types",
  "ic-stable-structures",
  "icrc-ledger-types",
@@ -2721,10 +2808,10 @@ name = "kong_data"
 version = "0.0.21"
 dependencies = [
  "candid",
- "ic-cdk",
- "ic-cdk-macros",
- "ic-cdk-timers",
- "ic-ledger-types",
+ "ic-cdk 0.17.1",
+ "ic-cdk-macros 0.17.1",
+ "ic-cdk-timers 0.11.0",
+ "ic-ledger-types 0.14.0",
  "ic-stable-structures",
  "icrc-ledger-types",
  "num",
@@ -2743,9 +2830,9 @@ version = "0.0.19"
 dependencies = [
  "candid",
  "futures",
- "ic-cdk",
- "ic-cdk-macros",
- "ic-ledger-types",
+ "ic-cdk 0.17.1",
+ "ic-cdk-macros 0.17.1",
+ "ic-ledger-types 0.14.0",
  "ic-stable-structures",
  "icrc-ledger-types",
  "kong_lib",
@@ -2758,9 +2845,9 @@ name = "kong_lib"
 version = "0.0.20"
 dependencies = [
  "candid",
- "ic-cdk",
- "ic-cdk-timers",
- "ic-ledger-types",
+ "ic-cdk 0.17.1",
+ "ic-cdk-timers 0.11.0",
+ "ic-ledger-types 0.14.0",
  "ic-stable-structures",
  "icrc-ledger-types",
  "num",
@@ -3517,8 +3604,8 @@ dependencies = [
  "candid-extractor",
  "ciborium",
  "flate2",
- "ic-cdk",
- "ic-cdk-macros",
+ "ic-cdk 0.17.1",
+ "ic-cdk-macros 0.17.1",
  "ic-stable-structures",
  "icrc-ledger-types",
  "lazy_static",
@@ -3634,7 +3721,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b820744eb4dc9b57a3398183639c511b5a26d2ed702cedd3febaa1393caa22cc"
 dependencies = [
  "bytes",
- "getrandom 0.3.2",
+ "getrandom 0.3.3",
  "rand 0.9.1",
  "ring 0.17.14",
  "rustc-hash 2.1.1",
@@ -3764,7 +3851,7 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99d9a13982dcf210057a8a78572b2217b667c3beacbf3a0d8b454f6f82837d38"
 dependencies = [
- "getrandom 0.3.2",
+ "getrandom 0.3.3",
 ]
 
 [[package]]
@@ -6087,7 +6174,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7437ac7763b9b123ccf33c338a5cc1bac6f69b45a136c19bdd8a65e3916435bf"
 dependencies = [
  "fastrand",
- "getrandom 0.3.2",
+ "getrandom 0.3.3",
  "once_cell",
  "rustix 1.0.7",
  "windows-sys 0.59.0",
@@ -6484,8 +6571,8 @@ dependencies = [
  "candid",
  "chrono",
  "ciborium",
- "ic-cdk",
- "ic-cdk-macros",
+ "ic-cdk 0.17.1",
+ "ic-cdk-macros 0.17.1",
  "ic-stable-structures",
  "icrc-ledger-types",
  "lazy_static",

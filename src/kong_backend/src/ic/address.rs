@@ -28,8 +28,7 @@ mod tests {
     use ic_agent::{identity::BasicIdentity, Identity};
     use ic_ledger_types::AccountIdentifier;
     use icrc_ledger_types::icrc1::account::Account;
-    use rand::thread_rng;
-    use rand::Rng;
+    use rand::{thread_rng, Rng};
 
     #[test]
     fn test_display_account_id() {

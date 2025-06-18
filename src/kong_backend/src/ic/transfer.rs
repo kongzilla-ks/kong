@@ -31,9 +31,9 @@ pub async fn icp_transfer(
         created_at_time: created_at_time.cloned(),
     };
 
-    match transfer(*token.canister_id().ok_or("Invalid principal id")?, transfer_args)
+    match transfer(*token.canister_id().ok_or("Invalid principal id")?, &transfer_args)
         .await
-        .map_err(|e| e.1)?
+        .map_err(|e| e.to_string())?
     {
         Ok(block_id) => Ok(Nat::from(block_id)),
         Err(e) => Err(e.to_string())?,

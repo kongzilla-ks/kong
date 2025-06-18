@@ -315,7 +315,7 @@ async fn verify_transfer_with_query_blocks(
         start: nat_to_u64(block_id).ok_or_else(|| format!("ICP ledger block id {:?} not found", block_id))?,
         length: 1,
     };
-    match query_blocks(canister_id, block_args).await {
+    match query_blocks(canister_id, &block_args).await {
         Ok(query_response) => {
             let blocks: Vec<Block> = query_response.blocks;
             let backend_account_id = AccountIdentifier::new(
@@ -360,7 +360,7 @@ async fn verify_transfer_with_query_blocks(
 
             Err(format!("Failed to verify {} transfer block id {}", token.symbol(), block_id))?
         }
-        Err(e) => Err(e.1)?,
+        Err(e) => Err(e.to_string())?,
     }
 }
 
