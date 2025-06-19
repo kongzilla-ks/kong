@@ -1,7 +1,6 @@
 use wildmatch::WildMatch;
 
 use crate::chains::chains::IC_CHAIN;
-use crate::ic::address_helpers::is_principal_id;
 use crate::ic::network::ICNetwork;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_memory::TOKEN_MAP;
@@ -62,17 +61,15 @@ pub fn get_chain(token: &str) -> Option<String> {
     }
 }
 
-/// extract the address from token string
+/// extract the address from token string. Strips the chain prefix if present.
+/// Note: this function doesn't do any validation on the address and should be done by the caller on the result Ok(String)
+/// This is to prevent multiple calls to Principal::from_text()
 pub fn get_address(token: &str) -> Option<String> {
     let address = match get_chain(token) {
         Some(chain) => token.strip_prefix(&format!("{}.", chain))?,
         None => token,
     };
-    if is_principal_id(address) {
-        Some(address.to_string())
-    } else {
-        None
-    }
+    Some(address.to_string())
 }
 
 pub fn get_by_token_id(token_id: u32) -> Option<StableToken> {
@@ -289,27 +286,5 @@ mod tests {
         // Test with whitespace
         assert_eq!(get_chain(&format!(" {}", IC_CHAIN)), None);
         assert_eq!(get_chain(&format!("{} ", IC_CHAIN)), None);
-    }
-
-    #[test]
-    fn test_get_address() {
-        let valid_principal = "ryjl3-tyaaa-aaaaa-aaaba-cai";
-        let valid_principal_with_chain = format!("{}.", IC_CHAIN) + valid_principal;
-        let invalid_principal = "not-a-principal";
-
-        assert_eq!(get_address(valid_principal), Some(valid_principal.to_string()));
-        assert_eq!(get_address(&valid_principal_with_chain), Some(valid_principal.to_string()));
-
-        assert_eq!(get_address(&format!("{}.", valid_principal)), None); // Invalid format
-        assert_eq!(get_address(&format!("{}.", IC_CHAIN)), None);
-        assert_eq!(get_address(&format!("{}.", LP_CHAIN)), None);
-
-        let with_lp_prefix = format!("{}.", LP_CHAIN) + valid_principal;
-        assert_eq!(get_address(&with_lp_prefix), None);
-
-        // Invalid principal formats
-        assert_eq!(get_address("not-a-principal"), None);
-        assert_eq!(get_address(""), None);
-        assert_eq!(get_address(&format!("{}.{}", IC_CHAIN, invalid_principal)), None);
     }
 }

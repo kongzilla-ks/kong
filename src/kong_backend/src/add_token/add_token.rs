@@ -61,10 +61,10 @@ async fn add_token(args: AddTokenArgs) -> Result<AddTokenReply, String> {
 /// - Inserting the token into the token map fails.
 /// - Retrieving the inserted token fails.
 pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
-    // Retrieves the address of the token.
+    // Retrieves the address of the token
     let address = token_map::get_address(token).ok_or_else(|| format!("Invalid address {}", token))?;
 
-    // Converts the address to a `Principal`.
+    // Valid and converts the address to a Principal ID
     let canister_id = Principal::from_text(address).map_err(|e| format!("Invalid canister id {}: {}", token, e))?;
 
     let ic_token = StableToken::IC(ICToken::new(&canister_id).await?);
