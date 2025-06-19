@@ -16,7 +16,6 @@ prod = []
 [dependencies]
 candid = "0.10.10"
 futures = "0.3.30"
-getrandom = { version = "0.2.15", features = ["custom"] }
 ic-cdk = { version = "0.17.0", features = ["transform-closure"] }
 ic-cdk-timers = "0.12.1"
 ic-ledger-types = "0.15.0"
@@ -26,6 +25,7 @@ icrc-ledger-types = "0.1.6"
 num = "0.4.3"
 num-bigint = "0.4.4"
 num-traits = "0.2.19"
+getrandom = { version = "0.2.15", features = ["js"] }
 rand = "0.8.5"
 regex = "1.10.6"
 serde = "1.0.210"
