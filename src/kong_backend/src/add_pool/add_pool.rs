@@ -6,8 +6,9 @@ use super::add_pool_args::AddPoolArgs;
 use super::add_pool_reply::AddPoolReply;
 use super::add_pool_reply_helpers::{to_add_pool_reply, to_add_pool_reply_failed};
 
-use crate::add_token::add_token::{add_ic_token, add_lp_token};
-use crate::chains::chains::IC_CHAIN;
+use crate::add_token::add_token::{add_ic_token, add_lp_token, add_solana_token};
+use crate::add_token::add_token_args::AddTokenArgs;
+use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::helpers::nat_helpers::{nat_add, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero};
 use crate::ic::{
     address::Address,
@@ -35,6 +36,9 @@ use crate::stable_transfer::transfer_map;
 use crate::stable_transfer::tx_id::TxId;
 use crate::stable_tx::{add_pool_tx::AddPoolTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
+use crate::swap::create_solana_swap_job::create_solana_swap_job;
+
+use super::pool_payment_verifier::{PoolPaymentVerifier, PoolPaymentVerification};
 
 enum TokenIndex {
     Token0,
@@ -53,10 +57,11 @@ enum TokenIndex {
 /// * `Err(String)` - An error message if the operation fails.
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_pool(args: AddPoolArgs) -> Result<AddPoolReply, String> {
+    let args_clone = args.clone();
     let (user_id, token_0, add_amount_0, tx_id_0, token_1, add_amount_1, tx_id_1, lp_fee_bps, kong_fee_bps, add_lp_token_amount) =
         check_arguments(&args).await?;
     let ts = ICNetwork::get_time();
-    let request_id = request_map::insert(&StableRequest::new(user_id, &Request::AddPool(args), ts));
+    let request_id = request_map::insert(&StableRequest::new(user_id, &Request::AddPool(args_clone), ts));
 
     let result = match process_add_pool(
         request_id,
@@ -71,6 +76,7 @@ pub async fn add_pool(args: AddPoolArgs) -> Result<AddPoolReply, String> {
         kong_fee_bps,
         &add_lp_token_amount,
         ts,
+        &args,
     )
     .await
     {
@@ -115,9 +121,23 @@ async fn check_arguments(
         Err("Invalid zero amounts".to_string())?
     }
 
+    // Check if either token is a Solana token
+    let has_solana_token = token_map::get_chain(&args.token_0)
+        .map(|chain| chain == SOL_CHAIN)
+        .unwrap_or(false) || 
+        token_map::get_chain(&args.token_1)
+        .map(|chain| chain == SOL_CHAIN)
+        .unwrap_or(false);
+
     let lp_fee_bps = match args.lp_fee_bps {
         Some(lp_fee_bps) => lp_fee_bps,
-        None => kong_settings_map::get().default_lp_fee_bps,
+        None => {
+            if has_solana_token {
+                100 // 1% fee for pools with Solana tokens
+            } else {
+                kong_settings_map::get().default_lp_fee_bps // Default 0.3% for IC-only pools
+            }
+        }
     };
 
     let default_kong_fee_bps = kong_settings_map::get().default_kong_fee_bps;
@@ -126,19 +146,16 @@ async fn check_arguments(
         Err(format!("LP fee cannot be less than Kong fee of {}", kong_fee_bps))?
     }
 
-    // check tx_id_0 and tx_id_1 are valid block index Nat
+    // Extract the block indices for IC tokens only
+    // For cross-chain tokens with TransactionId, we'll use the original args.tx_id_0/1 in verify_cross_chain_transfer
     let tx_id_0 = match &args.tx_id_0 {
-        Some(tx_id_0) => match tx_id_0 {
-            TxId::BlockIndex(block_id) => Some(block_id).cloned(),
-            _ => Err("Unsupported tx_id_0".to_string())?,
-        },
+        Some(TxId::BlockIndex(block_id)) => Some(block_id.clone()),
+        Some(TxId::TransactionId(_)) => None, // Cross-chain tx will use args.tx_id_0 directly
         None => None,
     };
     let tx_id_1 = match &args.tx_id_1 {
-        Some(tx_id_1) => match tx_id_1 {
-            TxId::BlockIndex(block_id) => Some(block_id).cloned(),
-            _ => Err("Unsupported tx_id_1".to_string())?,
-        },
+        Some(TxId::BlockIndex(block_id)) => Some(block_id.clone()),
+        Some(TxId::TransactionId(_)) => None, // Cross-chain tx will use args.tx_id_1 directly
         None => None,
     };
 
@@ -158,9 +175,22 @@ async fn check_arguments(
     let token_0 = match token_map::get_by_token(&args.token_0) {
         Ok(token) => token, // token_0 exists already
         Err(_) => {
-            // token_0 needs to be added. Only IC tokens of format IC.CanisterId supported
+            // token_0 needs to be added. Support IC and Solana tokens
             match token_map::get_chain(&args.token_0) {
                 Some(chain) if chain == IC_CHAIN => add_ic_token(&args.token_0).await?,
+                Some(chain) if chain == SOL_CHAIN => {
+                    // For Solana tokens, create AddTokenArgs with default values
+                    let add_token_args = AddTokenArgs {
+                        token: args.token_0.clone(),
+                        name: None,
+                        symbol: None,
+                        decimals: None,
+                        fee: None,
+                        program_id: None,
+                        total_supply: None,
+                    };
+                    add_solana_token(&add_token_args).await?
+                }
                 Some(_) | None => Err("Token_0 chain not supported")?,
             }
         }
@@ -221,6 +251,7 @@ async fn process_add_pool(
     kong_fee_bps: u8,
     add_lp_token_amount: &Nat,
     ts: u64,
+    args: &AddPoolArgs,
 ) -> Result<AddPoolReply, String> {
     let caller_id = ICNetwork::caller_id();
     let kong_backend = kong_settings_map::get().kong_backend;
@@ -228,41 +259,78 @@ async fn process_add_pool(
 
     request_map::update_status(request_id, StatusCode::Start, None);
 
-    let transfer_0 = match tx_id_0 {
-        Some(block_id) => verify_transfer_token(request_id, &TokenIndex::Token0, token_0, block_id, amount_0, &mut transfer_ids, ts).await,
-        None => {
-            transfer_from_token(
-                request_id,
-                &caller_id,
-                &TokenIndex::Token0,
-                token_0,
-                amount_0,
-                &kong_backend,
-                &mut transfer_ids,
-                ts,
-            )
-            .await
-        }
-    };
-
-    let transfer_1 = match tx_id_1 {
-        Some(block_id) => verify_transfer_token(request_id, &TokenIndex::Token1, token_1, block_id, amount_1, &mut transfer_ids, ts).await,
-        None => {
-            //  if transfer_token_0 failed, no need to icrc2_transfer_from token_1
-            if transfer_0.is_err() {
-                Err("Token_0 transfer failed".to_string())
-            } else {
+    // Check if this is a cross-chain transfer based on signature presence
+    let transfer_0 = if args.signature_0.is_some() {
+        // Cross-chain payment path - use payment verifier
+        ic_cdk::println!("DEBUG: Entering cross-chain path for token_0 with signature: {:?}", args.signature_0);
+        ic_cdk::println!("DEBUG: tx_id_0 from args: {:?}", args.tx_id_0);
+        verify_cross_chain_transfer(
+            request_id,
+            &TokenIndex::Token0,
+            token_0,
+            amount_0,
+            args.signature_0.as_ref().unwrap(),
+            &args.tx_id_0,
+            args.timestamp,
+            &mut transfer_ids,
+            ts,
+            args,
+        ).await
+    } else {
+        // IC-only path (backward compatible)
+        match tx_id_0 {
+            Some(block_id) => verify_transfer_token(request_id, &TokenIndex::Token0, token_0, block_id, amount_0, &mut transfer_ids, ts).await,
+            None => {
                 transfer_from_token(
                     request_id,
                     &caller_id,
-                    &TokenIndex::Token1,
-                    token_1,
-                    amount_1,
+                    &TokenIndex::Token0,
+                    token_0,
+                    amount_0,
                     &kong_backend,
                     &mut transfer_ids,
                     ts,
                 )
                 .await
+            }
+        }
+    };
+
+    let transfer_1 = if args.signature_1.is_some() {
+        // Cross-chain payment path - use payment verifier
+        verify_cross_chain_transfer(
+            request_id,
+            &TokenIndex::Token1,
+            token_1,
+            amount_1,
+            args.signature_1.as_ref().unwrap(),
+            &args.tx_id_1,
+            args.timestamp,
+            &mut transfer_ids,
+            ts,
+            args,
+        ).await
+    } else {
+        // IC-only path (backward compatible)
+        match tx_id_1 {
+            Some(block_id) => verify_transfer_token(request_id, &TokenIndex::Token1, token_1, block_id, amount_1, &mut transfer_ids, ts).await,
+            None => {
+                //  if transfer_token_0 failed, no need to icrc2_transfer_from token_1
+                if transfer_0.is_err() {
+                    Err("Token_0 transfer failed".to_string())
+                } else {
+                    transfer_from_token(
+                        request_id,
+                        &caller_id,
+                        &TokenIndex::Token1,
+                        token_1,
+                        amount_1,
+                        &kong_backend,
+                        &mut transfer_ids,
+                        ts,
+                    )
+                    .await
+                }
             }
         }
     };
@@ -615,40 +683,98 @@ async fn return_token(
         TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::ReturnToken1, None),
     };
 
-    let amount_0_with_gas = nat_subtract(amount, &token.fee()).unwrap_or(nat_zero());
-    match icrc1_transfer(&amount_0_with_gas, to_principal_id, token, None).await {
-        Ok(block_id) => {
-            let transfer_id = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: false,
-                amount: amount_0_with_gas,
-                token_id: token.token_id(),
-                tx_id: TxId::BlockIndex(block_id),
-                ts,
-            });
-            transfer_ids.push(transfer_id);
-            match token_index {
-                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::ReturnToken0Success, None),
-                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::ReturnToken1Success, None),
-            };
+    // Check if this is a Solana token - if so, create a swap job instead of direct transfer
+    if token.chain() == SOL_CHAIN {
+        // For Solana tokens, we need to create a swap job that will be processed by kong_rpc
+        let to_address = Address::PrincipalId(*to_principal_id);
+        match create_solana_swap_job(request_id, user_id, token, amount, &to_address).await {
+            Ok(job_id) => {
+                let transfer_id = transfer_map::insert(&StableTransfer {
+                    transfer_id: 0,
+                    request_id,
+                    is_send: false,
+                    amount: amount.clone(),
+                    token_id: token.token_id(),
+                    tx_id: TxId::TransactionId(format!("job_{}", job_id)),
+                    ts,
+                });
+                transfer_ids.push(transfer_id);
+                match token_index {
+                    TokenIndex::Token0 => request_map::update_status(
+                        request_id, 
+                        StatusCode::ReturnToken0Success, 
+                        Some(&format!("Solana swap job #{} created", job_id))
+                    ),
+                    TokenIndex::Token1 => request_map::update_status(
+                        request_id, 
+                        StatusCode::ReturnToken1Success, 
+                        Some(&format!("Solana swap job #{} created", job_id))
+                    ),
+                };
+            }
+            Err(e) => {
+                // If job creation fails, save as claim for manual processing
+                let claim = StableClaim::new(
+                    user_id,
+                    token.token_id(),
+                    amount,
+                    Some(request_id),
+                    Some(Address::PrincipalId(*to_principal_id)),
+                    ts,
+                );
+                let claim_id = claim_map::insert(&claim);
+                claim_ids.push(claim_id);
+                match token_index {
+                    TokenIndex::Token0 => request_map::update_status(
+                        request_id,
+                        StatusCode::ReturnToken0Failed,
+                        Some(&format!("Saved as claim #{}. Error creating swap job: {}", claim_id, e)),
+                    ),
+                    TokenIndex::Token1 => request_map::update_status(
+                        request_id,
+                        StatusCode::ReturnToken1Failed,
+                        Some(&format!("Saved as claim #{}. Error creating swap job: {}", claim_id, e)),
+                    ),
+                };
+            }
         }
-        Err(e) => {
-            let claim = StableClaim::new(
-                user_id,
-                token.token_id(),
-                amount,
-                Some(request_id),
-                Some(Address::PrincipalId(*to_principal_id)),
-                ts,
-            );
-            let claim_id = claim_map::insert(&claim);
-            claim_ids.push(claim_id);
-            let message = format!("Saved as claim #{}. {}", claim_id, e);
-            match token_index {
-                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::ReturnToken0Failed, Some(&message)),
-                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::ReturnToken1Failed, Some(&message)),
-            };
+    } else {
+        // IC token - use existing transfer logic
+        let amount_0_with_gas = nat_subtract(amount, &token.fee()).unwrap_or(nat_zero());
+        match icrc1_transfer(&amount_0_with_gas, to_principal_id, token, None).await {
+            Ok(block_id) => {
+                let transfer_id = transfer_map::insert(&StableTransfer {
+                    transfer_id: 0,
+                    request_id,
+                    is_send: false,
+                    amount: amount_0_with_gas,
+                    token_id: token.token_id(),
+                    tx_id: TxId::BlockIndex(block_id),
+                    ts,
+                });
+                transfer_ids.push(transfer_id);
+                match token_index {
+                    TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::ReturnToken0Success, None),
+                    TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::ReturnToken1Success, None),
+                };
+            }
+            Err(e) => {
+                let claim = StableClaim::new(
+                    user_id,
+                    token.token_id(),
+                    amount,
+                    Some(request_id),
+                    Some(Address::PrincipalId(*to_principal_id)),
+                    ts,
+                );
+                let claim_id = claim_map::insert(&claim);
+                claim_ids.push(claim_id);
+                let message = format!("Saved as claim #{}. {}", claim_id, e);
+                match token_index {
+                    TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::ReturnToken0Failed, Some(&message)),
+                    TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::ReturnToken1Failed, Some(&message)),
+                };
+            }
         }
     }
 }
@@ -688,5 +814,74 @@ fn archive_to_kong_data(request_id: u64) -> Result<(), String> {
         _ => return Err("Invalid reply type".to_string()),
     }
 
+    Ok(())
+}
+
+/// Verify cross-chain transfer using signature verification
+#[allow(clippy::too_many_arguments)]
+async fn verify_cross_chain_transfer(
+    request_id: u64,
+    token_index: &TokenIndex,
+    token: &StableToken,
+    amount: &Nat,
+    signature: &str,
+    tx_id: &Option<TxId>,
+    _timestamp: Option<u64>,
+    transfer_ids: &mut Vec<u64>,
+    ts: u64,
+    args: &AddPoolArgs,
+) -> Result<(), String> {
+    ic_cdk::println!("DEBUG verify_cross_chain_transfer: Received tx_id: {:?}", tx_id);
+    ic_cdk::println!("DEBUG verify_cross_chain_transfer: Token: {:?}, Amount: {:?}", token.symbol(), amount);
+    match token_index {
+        TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0, None),
+        TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1, None),
+    };
+    
+    // Ensure we have a transaction ID and extract the actual TxId
+    let tx_id_value = tx_id.as_ref()
+        .ok_or_else(|| {
+            // Debug: check what we received
+            match token_index {
+                TokenIndex::Token0 => format!("Transaction ID (tx_id_0) is required for cross-chain transfers. Received: {:?}, args.tx_id_0: {:?}", tx_id, args.tx_id_0),
+                TokenIndex::Token1 => format!("Transaction ID (tx_id_1) is required for cross-chain transfers. Received: {:?}, args.tx_id_1: {:?}", tx_id, args.tx_id_1),
+            }
+        })?
+        .clone();
+    
+    // Use the pool-specific payment verifier
+    let verifier = PoolPaymentVerifier::new(ICNetwork::caller());
+    let verification = verifier.verify_pool_payment(args, token, amount, &tx_id_value, signature)
+        .await
+        .map_err(|e| {
+            let error_msg = format!("Cross-chain pool verification failed: {}", e);
+            match token_index {
+                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Failed, Some(&error_msg)),
+                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Failed, Some(&error_msg)),
+            };
+            error_msg
+        })?;
+    
+    // Create transfer record based on verification result
+    let final_tx_id = match verification {
+        PoolPaymentVerification::SolanaPayment { tx_signature, .. } => TxId::TransactionId(tx_signature),
+    };
+    
+    let transfer_id = transfer_map::insert(&StableTransfer {
+        transfer_id: 0,
+        request_id,
+        is_send: true,
+        amount: amount.clone(),
+        token_id: token.token_id(),
+        tx_id: final_tx_id,
+        ts,
+    });
+    transfer_ids.push(transfer_id);
+    
+    match token_index {
+        TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Success, None),
+        TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Success, None),
+    };
+    
     Ok(())
 }

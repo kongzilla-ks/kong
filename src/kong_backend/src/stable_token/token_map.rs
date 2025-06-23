@@ -1,6 +1,6 @@
 use wildmatch::WildMatch;
 
-use crate::chains::chains::IC_CHAIN;
+use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::ic::network::ICNetwork;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_memory::TOKEN_MAP;
@@ -8,6 +8,7 @@ use crate::stable_token::stable_token::{StableToken, StableTokenId};
 
 use super::ic_token::ICToken;
 use super::lp_token::LPToken;
+use super::solana_token::SolanaToken;
 use super::token::Token;
 use super::token_map;
 
@@ -57,6 +58,7 @@ pub fn address_with_chain(address: &str) -> Result<String, String> {
 pub fn get_chain(token: &str) -> Option<String> {
     match token.split_once('.') {
         Some((prefix, _)) if prefix == IC_CHAIN => Some(IC_CHAIN.to_string()),
+        Some((prefix, _)) if prefix == SOL_CHAIN => Some(SOL_CHAIN.to_string()),
         _ => None,
     }
 }
@@ -65,11 +67,17 @@ pub fn get_chain(token: &str) -> Option<String> {
 /// Note: this function doesn't do any validation on the address and should be done by the caller on the result Ok(String)
 /// This is to prevent multiple calls to Principal::from_text()
 pub fn get_address(token: &str) -> Option<String> {
-    let address = match get_chain(token) {
-        Some(chain) => token.strip_prefix(&format!("{}.", chain))?,
-        None => token,
+    let (chain, address) = match token.split_once('.') {
+        Some((chain, addr)) => (Some(chain), addr),
+        None => (None, token),
     };
-    Some(address.to_string())
+    
+    match chain {
+        Some(IC_CHAIN) => Some(address.to_string()),
+        Some(SOL_CHAIN) => Some(address.to_string()), // Solana addresses are base58 strings
+        None => Some(address.to_string()),
+        _ => None,
+    }
 }
 
 pub fn get_by_token_id(token_id: u32) -> Option<StableToken> {
@@ -175,6 +183,7 @@ pub fn insert(token: &StableToken) -> Result<u32, String> {
         let insert_token = match token {
             StableToken::LP(token) => StableToken::LP(LPToken { token_id, ..token.clone() }),
             StableToken::IC(token) => StableToken::IC(ICToken { token_id, ..token.clone() }),
+            StableToken::Solana(token) => StableToken::Solana(SolanaToken { token_id, ..token.clone() }),
         };
         map.insert(StableTokenId(token_id), insert_token.clone());
         insert_token
@@ -196,6 +205,7 @@ pub fn remove(token_id: u32) -> Result<(), String> {
     let remove_token = match token {
         StableToken::IC(token) => &StableToken::IC(ICToken { is_removed: true, ..token }),
         StableToken::LP(token) => &StableToken::LP(LPToken { is_removed: true, ..token }),
+        StableToken::Solana(_token) => return Err("Cannot remove Solana tokens".to_string()), // TODO: Add is_removed field to SolanaToken
     };
     update(remove_token);
 
@@ -215,6 +225,7 @@ pub fn unremove(token_id: u32) -> Result<(), String> {
             is_removed: false,
             ..token
         }),
+        StableToken::Solana(_token) => return Err("Cannot unremove Solana tokens".to_string()), // TODO: Add is_removed field to SolanaToken
     };
     update(unremove_token);
 
