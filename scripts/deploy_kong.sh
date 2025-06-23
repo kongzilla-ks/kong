@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# note: quick hot changes with existing LP pools
+# cargo clean:   Bash(dfx deploy kong_backend --upgrade-unchanged)
 # Setup directories
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
@@ -47,14 +49,13 @@ fi
 
 # Setup local network if needed
 if [ "${NETWORK}" == "local" ]; then
-    dfx stop
+    dfx killall
     # Full clean of local network state
     rm -rf "${DFX_ROOT}/local" 2>/dev/null
     echo "Waiting for dfx to start..."
     dfx start --clean --background
     # Clean previous canister IDs
     rm -f "${DFX_ROOT}/local/canister_ids.json" 2>/dev/null
-    #dfx identity --network local deploy-wallet
 fi
 
 # Check required identities for local and staging networks
@@ -90,16 +91,9 @@ else
     exit 1
 fi
 
-# Deploy internet identity canister
-[ "${NETWORK}" == "local" ] && dfx deploy internet_identity --network "${NETWORK}"
-
-# Deploy core canisters
+# Deploy core canisters - limited to kong_backend only
 CORE_CANISTERS_SCRIPTS=(
     "deploy_kong_backend.sh"
-    "deploy_kong_data.sh"
-    "deploy_kong_svelte.sh"
-    "deploy_prediction_markets.sh"
-    "deploy_trollbox.sh"
 )
 
 for script in "${CORE_CANISTERS_SCRIPTS[@]}"; do
@@ -124,7 +118,9 @@ if [[ "${NETWORK}" =~ ^(local|staging)$ ]]; then
     for script in "${LEDGER_SCRIPTS[@]}"; do
         [ -f "${script}" ] && {
             echo "Running ${script}"
-            bash "${script}" "${NETWORK}"
+            if ! bash "${script}" "${NETWORK}"; then
+                echo "Warning: ${script} failed, continuing with deployment"
+            fi
         } || echo "Warning: ${script} not found"
     done
 
@@ -148,6 +144,29 @@ if [[ "${NETWORK}" =~ ^(local|staging)$ ]]; then
         echo "Deploying tokens and creating liquidity pools..."
         bash "${SCRIPT_DIR}/deploy_tokens_pools.sh" "${NETWORK}"
     } || echo "Warning: deploy_tokens_pools.sh not found"
+
+    # Add Solana tokens
+    [ -f "${SCRIPT_DIR}/add_solana_token.sh" ] && {
+        echo "Adding SOL token..."
+        bash "${SCRIPT_DIR}/add_solana_token.sh" "${NETWORK}"
+    } || echo "Warning: add_solana_token.sh not found"
+
+    [ -f "${SCRIPT_DIR}/add_solana_usdc.sh" ] && {
+        echo "Adding USDC (Solana) token..."
+        bash "${SCRIPT_DIR}/add_solana_usdc.sh" "${NETWORK}"
+    } || echo "Warning: add_solana_usdc.sh not found"
+
+    # Create Solana pools
+    [ -f "${SCRIPT_DIR}/add_sol_pool.sh" ] && {
+        echo "Creating SOL/ksUSDT pool..."
+        bash "${SCRIPT_DIR}/add_sol_pool.sh" "${NETWORK}"
+    } || echo "Warning: add_sol_pool.sh not found"
+
+    # create spl usdc pool
+    [ -f "${SCRIPT_DIR}/add_usdc_pool.sh" ] && {
+        echo "Creating USDC/ksUSDT pool..."
+        bash "${SCRIPT_DIR}/add_usdc_pool.sh" "${NETWORK}"
+    } || echo "Warning: add_usdc_pool.sh not found"
 fi
 
 if [[ "${NETWORK}" == "ic" ]]; then
@@ -155,3 +174,4 @@ if [[ "${NETWORK}" == "ic" ]]; then
     echo "SHA256 for kong_backend.wasm.gz:"
     sha256sum "${DFX_ROOT}"/ic/canisters/kong_backend/kong_backend.wasm.gz
 fi
+

@@ -15,11 +15,12 @@ const PRINCIPAL_ID_REGEX: &str = r"^([a-z0-9]{5}-){10}[a-z0-9]{3}$|^([a-z0-9]{5}
 static ACCOUNT_ID_LOCK: OnceLock<Regex> = OnceLock::new();
 const ACCOUNT_ID_REGEX: &str = r"^[a-f0-9]{64}$";
 
-/// Represents an address which can be either an Account ID or a Principal ID.
+/// Represents an address which can be either an Account ID, a Principal ID, or a Solana Address.
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub enum Address {
     AccountId(AccountIdentifier),
     PrincipalId(Account),
+    SolanaAddress(String),
 }
 
 impl Display for Address {
@@ -27,6 +28,7 @@ impl Display for Address {
         match self {
             Address::AccountId(account_id) => write!(f, "{}", account_id),
             Address::PrincipalId(principal_id) => write!(f, "{}", principal_id),
+            Address::SolanaAddress(address) => write!(f, "{}", address),
         }
     }
 }
