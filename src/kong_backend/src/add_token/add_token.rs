@@ -1,10 +1,6 @@
 use candid::{Nat, Principal};
 use ic_cdk::update;
 
-use super::add_token_args::AddTokenArgs;
-use super::add_token_reply::AddTokenReply;
-use super::add_token_reply_helpers::to_add_token_reply;
-
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_token::ic_token::ICToken;
@@ -12,6 +8,10 @@ use crate::stable_token::lp_token::LPToken;
 use crate::stable_token::solana_token::SolanaToken;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token_map;
+
+use super::add_token_args::AddTokenArgs;
+use super::add_token_reply::AddTokenReply;
+use super::add_token_reply_helpers::to_add_token_reply;
 
 /// Adds a token to Kong
 ///
@@ -88,9 +88,8 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
 /// * `Err(String)` - An error message if the operation fails.
 pub async fn add_solana_token(args: &AddTokenArgs) -> Result<StableToken, String> {
     // Extract mint address from token string (format: SOL.MintAddress)
-    let mint_address = token_map::get_address(&args.token)
-        .ok_or_else(|| format!("Invalid address {}", args.token))?;
-    
+    let mint_address = token_map::get_address(&args.token).ok_or_else(|| format!("Invalid address {}", args.token))?;
+
     // Only allow hardcoded SOL and USDC tokens
     // Note: USDC mint address changes based on environment:
     // - Production: Uses mainnet USDC (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
@@ -101,7 +100,7 @@ pub async fn add_solana_token(args: &AddTokenArgs) -> Result<StableToken, String
             "Solana".to_string(),
             "SOL".to_string(),
             9u8,
-            Nat::from(5000u64), // 0.005 SOL
+            Nat::from(5000u64),                             // 0.005 SOL
             "11111111111111111111111111111111".to_string(), // System program
         ),
         // USDC on Solana mainnet (production only)
@@ -110,7 +109,7 @@ pub async fn add_solana_token(args: &AddTokenArgs) -> Result<StableToken, String
             "USD Coin".to_string(),
             "USDC".to_string(),
             6u8,
-            Nat::from(5000u64), // 0.005 SOL for transfer fee
+            Nat::from(5000u64),                                        // 0.005 SOL for transfer fee
             "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(), // SPL Token program
         ),
         // USDC on Solana devnet (local/staging only)
@@ -119,7 +118,7 @@ pub async fn add_solana_token(args: &AddTokenArgs) -> Result<StableToken, String
             "USD Coin".to_string(),
             "USDC".to_string(),
             6u8,
-            Nat::from(5000u64), // 0.005 SOL for transfer fee
+            Nat::from(5000u64),                                        // 0.005 SOL for transfer fee
             "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(), // SPL Token program
         ),
         _ => {
@@ -131,7 +130,7 @@ pub async fn add_solana_token(args: &AddTokenArgs) -> Result<StableToken, String
             return Err("Only SOL and USDC Solana tokens are supported".to_string());
         }
     };
-    
+
     let solana_token = StableToken::Solana(SolanaToken {
         token_id: 0, // Will be set by insert
         name,
@@ -140,12 +139,12 @@ pub async fn add_solana_token(args: &AddTokenArgs) -> Result<StableToken, String
         fee,
         mint_address: mint_address.to_string(),
         program_id,
-        total_supply: None, // We don't track total supply for now
+        total_supply: None,                                               // We don't track total supply for now
         is_spl_token: mint_address != "11111111111111111111111111111111", // False for native SOL
     });
-    
+
     let token_id = token_map::insert(&solana_token)?;
-    
+
     // Retrieves the inserted token by its token_id
     token_map::get_by_token_id(token_id).ok_or_else(|| format!("Failed to add Solana token {}", args.token))
 }

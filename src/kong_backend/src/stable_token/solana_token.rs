@@ -1,6 +1,8 @@
 use candid::{CandidType, Nat};
 use serde::{Deserialize, Serialize};
 
+use crate::chains::chains::SOL_CHAIN;
+
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct SolanaToken {
     pub token_id: u32,
@@ -12,7 +14,7 @@ pub struct SolanaToken {
     pub program_id: String,        // SPL Token program ID
     pub total_supply: Option<Nat>, // Total supply on Solana
     #[serde(default = "default_is_spl_token")]
-    pub is_spl_token: bool,        // True for SPL tokens, false for native SOL
+    pub is_spl_token: bool, // True for SPL tokens, false for native SOL
 }
 
 fn default_is_spl_token() -> bool {
@@ -21,6 +23,6 @@ fn default_is_spl_token() -> bool {
 
 impl SolanaToken {
     pub fn chain(&self) -> String {
-        "SOL".to_string()
+        SOL_CHAIN.to_string()
     }
 }

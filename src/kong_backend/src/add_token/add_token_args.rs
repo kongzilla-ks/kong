@@ -2,7 +2,7 @@ use candid::{CandidType, Nat};
 use serde::{Deserialize, Serialize};
 
 /// Arguments for adding a token.
-#[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
+#[derive(CandidType, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AddTokenArgs {
     pub token: String,
     // Optional fields for Solana tokens
@@ -18,18 +18,4 @@ pub struct AddTokenArgs {
     pub program_id: Option<String>,
     #[serde(default)]
     pub total_supply: Option<Nat>,
-}
-
-impl Default for AddTokenArgs {
-    fn default() -> Self {
-        Self {
-            token: String::new(),
-            name: None,
-            symbol: None,
-            decimals: None,
-            fee: None,
-            program_id: None,
-            total_supply: None,
-        }
-    }
 }
