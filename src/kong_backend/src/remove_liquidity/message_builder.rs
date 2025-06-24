@@ -3,26 +3,28 @@ use serde::{Deserialize, Serialize};
 
 use crate::ic::network::ICNetwork;
 
-use super::add_liquidity_args::AddLiquidityArgs;
+use super::remove_liquidity_args::RemoveLiquidityArgs;
 
-/// A structure representing the canonical message format for signing liquidity additions
+/// A structure representing the canonical message format for signing liquidity removals
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CanonicalAddLiquidityMessage {
+pub struct CanonicalRemoveLiquidityMessage {
     pub token_0: String,
-    pub amount_0: Nat,
     pub token_1: String,
-    pub amount_1: Nat,
+    pub remove_lp_token_amount: Nat,
+    pub payout_address_0: Option<String>,
+    pub payout_address_1: Option<String>,
     pub timestamp: u64,
 }
 
-impl CanonicalAddLiquidityMessage {
-    /// Create a canonical message from AddLiquidityArgs
-    pub fn from_add_liquidity_args(args: &AddLiquidityArgs) -> Self {
+impl CanonicalRemoveLiquidityMessage {
+    /// Create a canonical message from RemoveLiquidityArgs
+    pub fn from_remove_liquidity_args(args: &RemoveLiquidityArgs) -> Self {
         Self {
             token_0: args.token_0.clone(),
-            amount_0: args.amount_0.clone(),
             token_1: args.token_1.clone(),
-            amount_1: args.amount_1.clone(),
+            remove_lp_token_amount: args.remove_lp_token_amount.clone(),
+            payout_address_0: args.payout_address_0.clone(),
+            payout_address_1: args.payout_address_1.clone(),
             timestamp: args
                 .timestamp
                 .unwrap_or_else(|| ICNetwork::get_time() / 1_000_000), // Use current IC time in milliseconds if not provided

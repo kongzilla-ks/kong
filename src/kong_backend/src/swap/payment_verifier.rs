@@ -2,7 +2,7 @@
 //! Handles verification of incoming payments for swaps
 
 use anyhow::Result;
-use candid::Principal;
+use candid::{Nat, Principal};
 use num_traits::ToPrimitive;
 
 use crate::ic::network::ICNetwork;
@@ -19,15 +19,15 @@ use super::verify_canonical_message::verify_canonical_message;
 pub enum PaymentVerification {
     /// ICP payment verified via transfer
     IcpPayment {
-        block_index: u64,
+        block_index: Nat,
         from_principal: Principal,
-        amount: u64,
+        amount: Nat,
     },
     /// Solana/SPL payment verified via signature and transaction
     SolanaPayment {
         tx_signature: String,
         from_address: String,
-        amount: u64,
+        amount: Nat,
     },
 }
 
@@ -47,7 +47,7 @@ impl PaymentVerifier {
         &self,
         args: &SwapArgs,
         pay_token: &StableToken,
-        pay_amount: u64,
+        pay_amount: &Nat,
     ) -> Result<PaymentVerification, String> {
         // Check if this is cross-chain based on signature presence
         if args.signature.is_some() {
@@ -76,7 +76,7 @@ impl PaymentVerifier {
         &self,
         args: &SwapArgs,
         pay_token: &StableToken,
-        pay_amount: u64,
+        pay_amount: &Nat,
     ) -> Result<PaymentVerification, String> {
         let pay_tx_id = args.pay_tx_id.as_ref()
             .ok_or_else(|| "Transaction ID (pay_tx_id) is required for token payments".to_string())?;
@@ -87,19 +87,19 @@ impl PaymentVerifier {
         };
 
         // Verify the transfer on the token's ledger
-        verify_transfer(pay_token, &block_index, &pay_amount.into()).await
+        verify_transfer(pay_token, &block_index, pay_amount).await
             .map_err(|e| format!("Transfer verification failed: {}", e))?;
 
         Ok(PaymentVerification::IcpPayment {
-            block_index: block_index.0.to_u64().unwrap_or(0),
+            block_index,
             from_principal: self.caller,
-            amount: pay_amount,
+            amount: pay_amount.clone(),
         })
     }
 }
 
 /// Verify Solana payment by checking signature and transaction data
-async fn verify_solana_payment(args: &SwapArgs, pay_amount: u64, sol_token: &crate::stable_token::solana_token::SolanaToken) -> Result<PaymentVerification, String> {
+async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &crate::stable_token::solana_token::SolanaToken) -> Result<PaymentVerification, String> {
     // For cross-chain, signature is required
     let signature = args.signature.as_ref()
         .ok_or_else(|| "Signature is required for Solana/SPL swap methods".to_string())?;
@@ -160,7 +160,7 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: u64, sol_token: &cra
     Ok(PaymentVerification::SolanaPayment {
         tx_signature: tx_signature_str,
         from_address: sender_pubkey,
-        amount: pay_amount,
+        amount: pay_amount.clone(),
     })
 }
 
@@ -199,7 +199,7 @@ async fn extract_sender_from_transaction(tx_signature: &str, is_spl_token: bool)
 async fn verify_solana_transaction(
     tx_signature: &str,
     expected_sender: &str,
-    expected_amount: u64,
+    expected_amount: &Nat,
     is_spl_token: bool,
 ) -> Result<(), String> {
     let transaction = get_solana_transaction(tx_signature.to_string())
@@ -243,10 +243,12 @@ async fn verify_solana_transaction(
             .and_then(|v| v.as_u64())
             .ok_or("Transaction metadata missing amount")?;
             
-        if actual_amount != expected_amount {
+        // API boundary: Solana returns u64 amounts, so we must convert for comparison
+        let expected_amount_u64 = expected_amount.0.to_u64().ok_or("Expected amount too large for Solana (max ~18.4e18)")?;
+        if actual_amount != expected_amount_u64 {
             return Err(format!(
                 "Transaction amount mismatch. Expected: {}, Got: {}",
-                expected_amount, actual_amount
+                expected_amount_u64, actual_amount
             ));
         }
     } else {
@@ -260,7 +262,7 @@ async fn verify_solana_transaction(
 async fn verify_cross_chain_ic_payment(
     args: &SwapArgs,
     pay_token: &StableToken,
-    pay_amount: u64,
+    pay_amount: &Nat,
 ) -> Result<PaymentVerification, String> {
     // For cross-chain IC payments, we need:
     // 1. A transaction ID to verify the payment
@@ -278,7 +280,7 @@ async fn verify_cross_chain_ic_payment(
     };
     
     // First verify the transfer on-chain
-    verify_transfer(pay_token, &block_index, &pay_amount.into()).await
+    verify_transfer(pay_token, &block_index, pay_amount).await
         .map_err(|e| format!("Transfer verification failed: {}", e))?;
     
     // For cross-chain IC payments, we would need to extract the sender from the IC transaction

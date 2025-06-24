@@ -60,9 +60,10 @@ pub async fn create_solana_swap_job(
         // Get the job ID
         let job_id = get_next_solana_swap_job_id();
 
-        // Convert amount to u64
+        // API boundary: Solana blockchain requires u64 amounts (max ~18.4e18 lamports)
+        // This is acceptable since Solana tokens have at most 9 decimals
         let amount_u64 = receive_amount.0.to_u64()
-            .ok_or("Amount too large for Solana transfer")?;
+            .ok_or("Amount too large for Solana transfer (max ~18.4e18)")?;
 
         // Build transaction instructions based on token type
         let instructions = if sol_token.mint_address == "11111111111111111111111111111111" {

@@ -13,11 +13,27 @@ pub struct AddLiquidityArgs {
     pub token_1: String,
     pub amount_1: Nat,
     pub tx_id_1: Option<TxId>,
-    // Cross-chain signature support (like add_pool)
+    // Cross-chain signature support (following issue #6 spec)
     #[serde(default)]
-    pub signature_0: Option<String>,  // Ed25519 signature for token_0 if Solana
+    pub signature_0: Option<String>,     // Ed25519 signature for token_0 transfer
     #[serde(default)]
-    pub signature_1: Option<String>,  // Ed25519 signature for token_1 if Solana
-    #[serde(default)]
-    pub timestamp: Option<u64>,       // Required when signatures present
+    pub signature_1: Option<String>,     // Ed25519 signature for token_1 transfer
+    #[serde(default)] 
+    pub timestamp: Option<u64>,          // Required when signatures are present (milliseconds)
+}
+
+impl Default for AddLiquidityArgs {
+    fn default() -> Self {
+        Self {
+            token_0: String::new(),
+            amount_0: Nat::from(0u64),
+            tx_id_0: None,
+            token_1: String::new(),
+            amount_1: Nat::from(0u64),
+            tx_id_1: None,
+            signature_0: None,
+            signature_1: None,
+            timestamp: None,
+        }
+    }
 }

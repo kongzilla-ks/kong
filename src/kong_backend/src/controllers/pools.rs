@@ -93,6 +93,9 @@ async fn remove_lps_from_pool(symbol: String) -> Result<String, String> {
             remove_lp_token_amount,
             payout_address_0: None,
             payout_address_1: None,
+            signature_0: None,
+            signature_1: None,
+            timestamp: None,
         };
         match Principal::from_text(principal_id) {
             Ok(principal) => {

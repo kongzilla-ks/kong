@@ -20,7 +20,7 @@ pub enum LiquidityPaymentVerification {
     SolanaPayment {
         tx_signature: String,
         from_address: String,
-        amount: u64,
+        amount: Nat,
     },
 }
 
@@ -92,13 +92,12 @@ async fn verify_solana_liquidity_payment(
     }
 
     // Verify the actual Solana transaction
-    let amount_u64 = amount.0.to_u64().ok_or("Amount too large")?;
-    verify_solana_transaction(&tx_signature_str, &sender_pubkey, amount_u64, is_spl_token).await?;
+    verify_solana_transaction(&tx_signature_str, &sender_pubkey, amount, is_spl_token).await?;
     
     Ok(LiquidityPaymentVerification::SolanaPayment {
         tx_signature: tx_signature_str,
         from_address: sender_pubkey,
-        amount: amount_u64,
+        amount: amount.clone(),
     })
 }
 
@@ -136,7 +135,7 @@ async fn extract_sender_from_transaction(tx_signature: &str, is_spl_token: bool)
 async fn verify_solana_transaction(
     tx_signature: &str,
     expected_sender: &str,
-    expected_amount: u64,
+    expected_amount: &Nat,
     is_spl_token: bool,
 ) -> Result<(), String> {
     let transaction = get_solana_transaction(tx_signature.to_string())
@@ -180,10 +179,11 @@ async fn verify_solana_transaction(
             .and_then(|v| v.as_u64())
             .ok_or("Transaction metadata missing amount")?;
             
-        if actual_amount != expected_amount {
+        let expected_amount_u64 = expected_amount.0.to_u64().ok_or("Expected amount too large")?;
+        if actual_amount != expected_amount_u64 {
             return Err(format!(
                 "Transaction amount mismatch. Expected: {}, Got: {}",
-                expected_amount, actual_amount
+                expected_amount_u64, actual_amount
             ));
         }
     } else {

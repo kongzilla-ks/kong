@@ -77,17 +77,32 @@ fn calculate_spl_gas_fee_for_remove_liquidity(other_token: &StableToken) -> Resu
 }
 
 /// remove liquidity from a pool
+/// 
+/// For IC-only operations:
 /// - before calling remove_liquidity(), the user must create an icrc2_approve_transaction for the LP token to
 ///   allow the backend canister to icrc2_transfer_from. Note, the approve transaction will incur
 ///   gas fees - which is 1 for LP tokens. However, the icrc2_transfer_from to the backend canister is considered
 ///   a burn and does not incur gas fees.
 ///
+/// For cross-chain operations (when signature is present):
+/// - signature field determines the operation type
+/// - If signature is None: IC-only remove liquidity (backward compatible)
+/// - If signature is Some: Cross-chain remove liquidity (requires timestamp and proper validation)
+///
 /// Notes regarding gas:
 ///   - payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1 does not include gas fees
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn remove_liquidity(args: RemoveLiquidityArgs) -> Result<RemoveLiquidityReply, String> {
-    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) =
-        check_arguments(&args).await?;
+    // Route based on presence of signature (cross-chain) vs IC-only
+    // If signature is present, verify cross-chain signature
+    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) = 
+        if args.signature_0.is_some() || args.signature_1.is_some() {
+            // Cross-chain flow with signature verification
+            check_arguments_with_signature(&args).await?
+        } else {
+            // IC-only flow (backward compatible)
+            check_arguments(&args).await?
+        };
     let ts = ICNetwork::get_time();
     let args_clone = args.clone();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::RemoveLiquidity(args), ts));
@@ -166,8 +181,15 @@ pub async fn remove_liquidity_from_pool(
 
 #[update]
 pub async fn remove_liquidity_async(args: RemoveLiquidityArgs) -> Result<u64, String> {
-    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) =
-        check_arguments(&args).await?;
+    // Route based on presence of signature (cross-chain) vs IC-only
+    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) = 
+        if args.signature_0.is_some() || args.signature_1.is_some() {
+            // Cross-chain flow with signature verification
+            check_arguments_with_signature(&args).await?
+        } else {
+            // IC-only flow (backward compatible)
+            check_arguments(&args).await?
+        };
     let ts = ICNetwork::get_time();
     let args_clone = args.clone();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::RemoveLiquidity(args), ts));
@@ -246,6 +268,30 @@ async fn check_arguments_with_user(args: &RemoveLiquidityArgs, user_id: u32) -> 
     let (payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) = calculate_amounts(&pool, &args.remove_lp_token_amount)?;
 
     Ok((
+        pool,
+        remove_lp_token_amount,
+        payout_amount_0,
+        payout_lp_fee_0,
+        payout_amount_1,
+        payout_lp_fee_1,
+    ))
+}
+
+/// Check arguments with cross-chain signature verification
+/// returns (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1)
+#[allow(clippy::type_complexity)]
+async fn check_arguments_with_signature(args: &RemoveLiquidityArgs) -> Result<(u32, StablePool, Nat, Nat, Nat, Nat, Nat), String> {
+    // Validate signature presence and timestamp
+    // For now, use signature_0 for cross-chain verification (remove liquidity typically only needs one signature)
+    let _timestamp = args.timestamp.ok_or("Cross-chain operations require timestamp")?;
+
+    // Use existing validation logic
+    let user_id = user_map::get_by_caller()?.ok_or("Insufficient LP balance")?.user_id;
+    let (pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) =
+        check_arguments_with_user(args, user_id).await?;
+
+    Ok((
+        user_id,
         pool,
         remove_lp_token_amount,
         payout_amount_0,

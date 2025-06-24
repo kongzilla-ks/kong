@@ -1,4 +1,4 @@
-use num_traits::ToPrimitive;
+use candid::Nat;
 use serde::{Deserialize, Serialize};
 
 use crate::ic::network::ICNetwork;
@@ -9,10 +9,10 @@ use super::swap_args::SwapArgs;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalSwapMessage {
     pub pay_token: String,
-    pub pay_amount: u64,
+    pub pay_amount: Nat,
     pub pay_address: String,
     pub receive_token: String,
-    pub receive_amount: u64,
+    pub receive_amount: Nat,
     pub receive_address: String,
     pub max_slippage: f64,
     pub timestamp: u64,
@@ -26,14 +26,14 @@ impl CanonicalSwapMessage {
     pub fn from_swap_args(args: &SwapArgs) -> Self {
         Self {
             pay_token: args.pay_token.clone(),
-            pay_amount: args.pay_amount.0.to_u64().expect("Amount too large"),
+            pay_amount: args.pay_amount.clone(),
             pay_address: String::new(), // Will be filled by with_sender for cross-chain
             receive_token: args.receive_token.clone(),
             receive_amount: args
                 .receive_amount
                 .as_ref()
-                .map(|n| n.0.to_u64().expect("Amount too large"))
-                .unwrap_or(0),
+                .cloned()
+                .unwrap_or_else(|| Nat::from(0u64)),
             receive_address: args.receive_address.clone().unwrap_or_default(),
             max_slippage: args.max_slippage.unwrap_or(1.0),
             timestamp: args

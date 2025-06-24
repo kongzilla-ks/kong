@@ -80,18 +80,18 @@ async fn check_arguments(args: &AddLiquidityArgs) -> Result<(u32, StablePool, Na
     if token_0.is_removed() {
         Err("Token_0 is suspended or removed".to_string())?
     }
-    // Check for ICRC2 support or Solana signature
+    // Check token_0 verification requirements based on chain
     if token_0.chain() == SOL_CHAIN {
         if args.signature_0.is_none() {
-            Err("Token_0: Solana tokens require signature for verification".to_string())?
+            Err("Token_0: Solana tokens require signature_0 for verification".to_string())?
         }
         if args.tx_id_0.is_none() {
-            Err("Token_0: Solana tokens require tx_id for verification".to_string())?
+            Err("Token_0: Solana tokens require tx_id_0 for verification".to_string())?
         }
     } else {
-        // IC tokens
+        // IC token_0 - uses ICRC2 approve (caller() verification)
         if args.tx_id_0.is_some() {
-            Err("Token_0: IC tokens use ICRC2 approve, not tx_id".to_string())?
+            Err("Token_0: IC tokens use ICRC2 approve, not tx_id_0".to_string())?
         }
         if !token_0.is_icrc2() {
             Err("Token_0: IC token must support ICRC2".to_string())?
@@ -102,18 +102,18 @@ async fn check_arguments(args: &AddLiquidityArgs) -> Result<(u32, StablePool, Na
     if token_1.is_removed() {
         Err("Token_1 is suspended or removed".to_string())?
     }
-    // Check for ICRC2 support or Solana signature
+    // Check token_1 verification requirements based on chain
     if token_1.chain() == SOL_CHAIN {
         if args.signature_1.is_none() {
-            Err("Token_1: Solana tokens require signature for verification".to_string())?
+            Err("Token_1: Solana tokens require signature_1 for verification".to_string())?
         }
         if args.tx_id_1.is_none() {
-            Err("Token_1: Solana tokens require tx_id for verification".to_string())?
+            Err("Token_1: Solana tokens require tx_id_1 for verification".to_string())?
         }
     } else {
-        // IC tokens
+        // IC token_1 - uses ICRC2 approve (caller() verification)
         if args.tx_id_1.is_some() {
-            Err("Token_1: IC tokens use ICRC2 approve, not tx_id".to_string())?
+            Err("Token_1: IC tokens use ICRC2 approve, not tx_id_1".to_string())?
         }
         if !token_1.is_icrc2() {
             Err("Token_1: IC token must support ICRC2".to_string())?
@@ -177,7 +177,7 @@ pub fn calculate_amounts(token_0: &str, amount_0: &Nat, token_1: &str, amount_1:
     // convert amount_0 and reserve_0 to token_1 decimal precision
     let amount_0_in_token_1_decimals = nat_to_decimal_precision(amount_0, token_0.decimals(), token_1.decimals());
     let reserve_0_in_token_1_decimals = nat_to_decimal_precision(&reserve_0, token_0.decimals(), token_1.decimals());
-    // amount_0 * reserve_1 - do the multiplication first before divison to avoid loss of precision
+    // amount_0 * reserve_1 - do the multiplication first before division to avoid loss of precision
     let numerator_in_token_1_decimals = nat_multiply(&amount_0_in_token_1_decimals, &reserve_1);
     let amount_1_in_token_1_decimals =
         nat_divide(&numerator_in_token_1_decimals, &reserve_0_in_token_1_decimals).ok_or("Invalid amount_1")?;
@@ -222,9 +222,7 @@ async fn process_add_liquidity(
     args: &AddLiquidityArgs,
     ts: u64,
 ) -> Result<AddLiquidityReply, String> {
-    // Token0
     let token_0 = pool.token_0();
-    // Token1
     let token_1 = pool.token_1();
 
     let caller_id = ICNetwork::caller_id();
@@ -238,9 +236,9 @@ async fn process_add_liquidity(
         // Verify Solana payment with signature
         let verifier = LiquidityPaymentVerifier::new(ICNetwork::caller());
         let tx_id_0 = args.tx_id_0.as_ref().ok_or("Token_0: Solana tokens require tx_id")?;
-        let signature_0 = args.signature_0.as_ref().ok_or("Token_0: Solana tokens require signature")?;
+        let signature = args.signature_0.as_ref().ok_or("Token_0: Solana tokens require signature")?;
         
-        verifier.verify_liquidity_payment(&args, &token_0, add_amount_0, tx_id_0, signature_0).await
+        verifier.verify_liquidity_payment(&args, &token_0, add_amount_0, tx_id_0, signature).await
             .map_err(|e| format!("Token_0 Solana payment verification failed. {}", e))?;
         
         // Record the transfer
@@ -276,9 +274,9 @@ async fn process_add_liquidity(
         // Verify Solana payment with signature
         let verifier = LiquidityPaymentVerifier::new(ICNetwork::caller());
         let tx_id_1 = args.tx_id_1.as_ref().ok_or("Token_1: Solana tokens require tx_id".to_string());
-        let signature_1 = args.signature_1.as_ref().ok_or("Token_1: Solana tokens require signature".to_string());
+        let signature = args.signature_1.as_ref().ok_or("Token_1: Solana tokens require signature".to_string());
         
-        match (tx_id_1, signature_1) {
+        match (tx_id_1, signature) {
             (Ok(tx_id), Ok(sig)) => {
                 match verifier.verify_liquidity_payment(&args, &token_1, add_amount_1, tx_id, sig).await {
                     Ok(_) => {
@@ -353,7 +351,7 @@ async fn process_add_liquidity(
             }
         };
 
-    // succcesful, add tx and update request with reply
+    // successful, add tx and update request with reply
     let add_liquidity_tx = AddLiquidityTx::new_success(
         pool.pool_id,
         user_id,
@@ -395,7 +393,7 @@ pub async fn transfer_from_token(
 
     match icrc2_transfer_from(token, amount, from_principal_id, to_principal_id).await {
         Ok(block_id) => {
-            // insert_transfer() will use the latest state of TRANSFER_MAP so no reentrancy issues after icrc2_transfer_from()
+            // insert_transfer() will use the latest state of TRANSFER_MAP so no re-entrance issues after icrc2_transfer_from()
             // as icrc2_transfer_from() does a new transfer so block_id should be new
             let transfer_id = transfer_map::insert(&StableTransfer {
                 transfer_id: 0,

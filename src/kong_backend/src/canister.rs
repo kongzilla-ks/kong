@@ -136,7 +136,63 @@ fn inspect_message() {
         ic_cdk::trap(&format!("{} must be called as query", method_name));
     }
 
+    // Add anti-spam filtering for swap operations
+    if method_name == "swap" || method_name == "swap_async" {
+        if let Err(e) = validate_swap_request() {
+            ic_cdk::trap(&e);
+        }
+    }
+
     ic_cdk::api::call::accept_message();
+}
+
+/// Basic validation for swap requests to prevent spam before heavy processing
+fn validate_swap_request() -> Result<(), String> {
+    // Get the raw argument bytes for basic validation
+    let args_bytes = ic_cdk::api::call::arg_data_raw();
+    
+    // Basic size check - prevent extremely large payloads
+    if args_bytes.len() > 10_000 {
+        return Err("Request payload too large".to_string());
+    }
+    
+    // Try to decode swap args for basic validation
+    match decode_one::<SwapArgs>(&args_bytes) {
+        Ok(args) => {
+            // Basic parameter validation
+            if args.pay_token.is_empty() || args.receive_token.is_empty() {
+                return Err("Invalid token parameters".to_string());
+            }
+            
+            // Amount validation - prevent zero or extremely large amounts
+            if args.pay_amount == Nat::from(0_u8) {
+                return Err("Pay amount cannot be zero".to_string());
+            }
+            
+            // Basic rate limiting - allow more frequent calls for authenticated users
+            if let Err(e) = check_rate_limit() {
+                return Err(e);
+            }
+            
+            Ok(())
+        }
+        Err(_) => Err("Invalid swap arguments format".to_string()),
+    }
+}
+
+/// Simple rate limiting based on caller frequency
+fn check_rate_limit() -> Result<(), String> {
+    // For now, just implement a basic check
+    // In a full implementation, this would track call frequency per caller
+    // and enforce stricter limits for anonymous users vs authenticated users
+    
+    // TODO: Implement proper rate limiting with:
+    // - Per-caller tracking
+    // - Different limits for anonymous vs authenticated users  
+    // - Time-based windows (requests per hour)
+    // - Cleanup of old rate limit data
+    
+    Ok(())
 }
 
 #[query]
