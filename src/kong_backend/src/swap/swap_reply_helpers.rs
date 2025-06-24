@@ -1,9 +1,6 @@
 use candid::Nat;
 use num::{BigRational, Zero};
 
-use super::swap_calc::SwapCalc;
-use super::swap_reply::{SwapReply, SwapTxReply};
-
 use crate::helpers::math_helpers::price_rounded;
 use crate::helpers::nat_helpers::nat_zero;
 use crate::stable_pool::pool_map;
@@ -13,6 +10,9 @@ use crate::stable_token::token_map;
 use crate::stable_tx::status_tx::StatusTx;
 use crate::stable_tx::swap_tx::SwapTx;
 use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+
+use super::swap_calc::SwapCalc;
+use super::swap_reply::{SwapReply, SwapTxReply};
 
 fn to_swap_tx_reply(swap: &SwapCalc, ts: u64) -> Option<SwapTxReply> {
     let pool = pool_map::get_by_pool_id(swap.pool_id)?;

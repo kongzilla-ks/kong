@@ -1,8 +1,6 @@
 use candid::Nat;
 use icrc_ledger_types::icrc1::account::Account;
 
-use super::swap_reply_helpers::to_swap_reply_failed;
-
 use crate::helpers::nat_helpers::{nat_subtract, nat_zero};
 use crate::ic::{address::Address, transfer::icrc1_transfer};
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
@@ -11,6 +9,8 @@ use crate::stable_request::request_map;
 use crate::stable_request::status::StatusCode;
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
+
+use super::swap_reply_helpers::to_swap_reply_failed;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn return_pay_token(

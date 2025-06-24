@@ -1,10 +1,10 @@
 use candid::Nat;
 
-use super::swap_amounts::swap_amounts;
-use super::swap_calc::SwapCalc;
-
 use crate::helpers::nat_helpers::{nat_is_zero, nat_to_decimals_f64};
 use crate::stable_token::{stable_token::StableToken, token::Token};
+
+use super::swap_amounts::swap_amounts;
+use super::swap_calc::SwapCalc;
 
 pub fn calculate_amounts(
     pay_token: &StableToken,

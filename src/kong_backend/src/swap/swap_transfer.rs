@@ -1,4 +1,16 @@
 use candid::Nat;
+use num_traits::ToPrimitive;
+
+use crate::helpers::nat_helpers::nat_is_zero;
+use crate::ic::address::{get_address, Address};
+use crate::ic::network::ICNetwork;
+use crate::ic::verify_transfer::verify_transfer;
+use crate::stable_kong_settings::kong_settings_map;
+use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
+use crate::stable_token::token::Token;
+use crate::stable_token::{stable_token::StableToken, token_map};
+use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
+use crate::stable_user::user_map;
 
 use super::archive_to_kong_data::archive_to_kong_data;
 use super::payment_verifier::{PaymentVerification, PaymentVerifier};
@@ -9,31 +21,22 @@ use super::swap_calc::SwapCalc;
 use super::swap_reply::SwapReply;
 use super::update_liquidity_pool::update_liquidity_pool;
 
-use crate::helpers::nat_helpers::nat_is_zero;
-use crate::ic::address::{get_address, Address};
-use crate::ic::network::ICNetwork;
-use crate::ic::verify_transfer::verify_transfer;
-use num_traits::ToPrimitive;
-use crate::stable_token::token::Token;
-use crate::stable_kong_settings::kong_settings_map;
-use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
-use crate::stable_token::{stable_token::StableToken, token_map};
-use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
-use crate::stable_user::user_map;
-
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
-    // as user has transferred the pay token, we need to log the request immediately and verify the transfer
-    // make sure user is registered, if not create a new user with referred_by if specified
+    // user has transferred the pay token
+    // get the user_id. if new user, insert into user_map
     let user_id = user_map::insert(args.referred_by.as_deref())?;
     let ts = ICNetwork::get_time();
+    // insert request into request_map so we have immediate record of this
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
-    let mut transfer_ids = Vec::new();
-
+    // check arguments and verify the pay token transfer
     let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.inspect_err(|_| {
+        // if any arguments are invalid, no token to refund and return failed request status
         request_map::update_status(request_id, StatusCode::Failed, None);
         let _ = archive_to_kong_data(request_id);
     })?;
 
+    // initialize transfer_ids to keep track of transfers
+    let mut transfer_ids = Vec::new();
     let (receive_token, receive_amount_with_fees_and_gas, to_address, mid_price, price, slippage, swaps) = process_swap(
         request_id,
         user_id,
@@ -77,7 +80,6 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
     let user_id = user_map::insert(args.referred_by.as_deref())?;
     let ts = ICNetwork::get_time();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
-
     let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.inspect_err(|_| {
         request_map::update_status(request_id, StatusCode::Failed, None);
         let _ = archive_to_kong_data(request_id);
@@ -143,7 +145,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
     match &pay_token {
         StableToken::Solana(sol_token) => {
             ICNetwork::info_log(&format!(
-                "DEBUG: Pay token lookup for '{}' found Solana token: mint={}, is_spl_token={}", 
+                "DEBUG: Pay token lookup for '{}' found Solana token: mint={}, is_spl_token={}",
                 &args.pay_token, sol_token.mint_address, sol_token.is_spl_token
             ));
         }
@@ -156,17 +158,18 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
 
     // Debug log
     ICNetwork::info_log(&format!("swap_transfer: signature present: {}", args.signature.is_some()));
-    
+
     // Check if this is a cross-chain swap based on signature presence
     if args.signature.is_some() {
         // Cross-chain payment path - use payment verifier
         let verifier = PaymentVerifier::new(ICNetwork::caller());
-        let verification = verifier.verify_payment(args, &pay_token, pay_amount.0.to_u64().ok_or("Invalid pay amount")?)
+        let verification = verifier
+            .verify_payment(args, &pay_token, pay_amount.0.to_u64().ok_or("Invalid pay amount")?)
             .await
             .inspect_err(|e| {
                 request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(e));
             })?;
-        
+
         match verification {
             PaymentVerification::SolanaPayment { tx_signature, .. } => {
                 // For Solana payments, we create a transfer record with the transaction hash

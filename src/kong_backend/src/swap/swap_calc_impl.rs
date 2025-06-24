@@ -2,12 +2,12 @@ use candid::Nat;
 use num::rational::{BigRational, Ratio};
 use num::BigInt;
 
-use super::swap_calc::SwapCalc;
-
 use crate::helpers::nat_helpers::{nat_add, nat_is_zero, nat_subtract, nat_to_bigint, nat_to_decimal_precision, nat_zero};
 use crate::stable_pool::pool_map;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
+
+use super::swap_calc::SwapCalc;
 
 impl SwapCalc {
     /// this is the net amount the user will receive after the fees and gas are taken off

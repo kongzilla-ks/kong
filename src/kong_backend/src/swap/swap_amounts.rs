@@ -3,8 +3,6 @@ use num::rational::BigRational;
 use num::{FromPrimitive, One, Zero};
 use num_traits::ToPrimitive;
 
-use super::swap_calc::SwapCalc;
-
 use crate::helpers::math_helpers::price_rounded;
 use crate::helpers::math_helpers::round_f64;
 use crate::helpers::nat_helpers::nat_zero;
@@ -17,6 +15,8 @@ use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
 use crate::stable_user::user_map;
+
+use super::swap_calc::SwapCalc;
 
 /// calculate the receive_amount of a swap using mid price
 /// returns the receive_amount
