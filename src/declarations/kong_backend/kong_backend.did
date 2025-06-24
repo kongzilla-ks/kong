@@ -212,6 +212,7 @@ type MessagesResult = variant { Ok : vec MessagesReply; Err : text };
 type TokenReply = variant {
     LP : LPTokenReply;
     IC : ICTokenReply;
+    Solana : SolanaTokenReply;
 };
 type LPTokenReply = record {
     token_id : nat32;
@@ -237,6 +238,18 @@ type ICTokenReply = record {
     icrc2 : bool;
     icrc3 : bool;
     is_removed : bool;
+};
+type SolanaTokenReply = record {
+    token_id : nat32;
+    chain : text;
+    mint_address : text;
+    program_id : text;
+    name : text;
+    symbol : text;
+    decimals : nat8;
+    fee : nat;
+    total_supply : opt nat;
+    is_spl_token : bool;
 };
 type TokensResult = variant { Ok : vec TokenReply; Err : text };
 
@@ -319,6 +332,7 @@ type AddTokenArgs = record {
 };
 type AddTokenReply = variant {
     IC : ICTokenReply;
+    Solana : SolanaTokenReply;
 };
 type AddTokenResult = variant { Ok : AddTokenReply; Err : text };
 
@@ -338,6 +352,9 @@ type AddPoolArgs = record {
     amount_1 : nat;
     tx_id_1 : opt TxId;
     lp_fee_bps : opt nat8;
+    signature_0 : opt text;
+    signature_1 : opt text;
+    timestamp : opt nat64;
 };
 type AddPoolReply = record {
     tx_id : nat64;
@@ -387,6 +404,9 @@ type AddLiquidityArgs = record {
     token_1 : text;
     amount_1 : nat;
     tx_id_1 : opt TxId;
+    signature_0 : opt text;
+    signature_1 : opt text;
+    timestamp : opt nat64;
 };
 type AddLiquidityReply = record {
     tx_id : nat64;
@@ -430,6 +450,8 @@ type RemoveLiquidityArgs = record {
     token_0 : text;
     token_1 : text;
     remove_lp_token_amount : nat;
+    payout_address_0 : opt text;
+    payout_address_1 : opt text;
 };
 type RemoveLiquidityReply = record {
     tx_id : nat64;
@@ -494,6 +516,8 @@ type SwapArgs = record {
     receive_address : opt text;
     max_slippage : opt float64;
     referred_by : opt text;
+    signature : opt text;
+    timestamp : opt nat64;
 };
 type SwapTxReply = record {
     pool_symbol : text;
@@ -658,6 +682,15 @@ service : {
 
     // send LP tokens to another user
     send : (SendArgs) -> (SendResult);
+
+    // Solana functions
+    get_solana_address : () -> (variant { Ok : text; Err : text }) query;
+    
+    // Solana proxy endpoints (called by kong_rpc)
+    notify_solana_transfer : (text, opt text) -> (variant { Ok; Err : text });
+    update_solana_latest_blockhash : (text) -> (variant { Ok; Err : text });
+    update_solana_swap : (nat64, text, bool, opt text) -> (variant { Ok; Err : text });
+    cleanup_expired_solana_jobs : () -> (variant { Ok : nat32; Err : text });
 
     // admin functions
     check_pools : () -> (CheckPoolsResult);

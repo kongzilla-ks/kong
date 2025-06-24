@@ -4,10 +4,13 @@ export const idlFactory = ({ IDL }) => {
     'BlockIndex' : IDL.Nat,
   });
   const AddLiquidityArgs = IDL.Record({
+    'signature_0' : IDL.Opt(IDL.Text),
+    'signature_1' : IDL.Opt(IDL.Text),
     'token_0' : IDL.Text,
     'token_1' : IDL.Text,
     'amount_0' : IDL.Nat,
     'amount_1' : IDL.Nat,
+    'timestamp' : IDL.Opt(IDL.Nat64),
     'tx_id_0' : IDL.Opt(TxId),
     'tx_id_1' : IDL.Opt(TxId),
   });
@@ -69,10 +72,13 @@ export const idlFactory = ({ IDL }) => {
     'Err' : IDL.Text,
   });
   const AddPoolArgs = IDL.Record({
+    'signature_0' : IDL.Opt(IDL.Text),
+    'signature_1' : IDL.Opt(IDL.Text),
     'token_0' : IDL.Text,
     'token_1' : IDL.Text,
     'amount_0' : IDL.Nat,
     'amount_1' : IDL.Nat,
+    'timestamp' : IDL.Opt(IDL.Nat64),
     'tx_id_0' : IDL.Opt(TxId),
     'tx_id_1' : IDL.Opt(TxId),
     'lp_fee_bps' : IDL.Opt(IDL.Nat8),
@@ -115,7 +121,22 @@ export const idlFactory = ({ IDL }) => {
     'is_removed' : IDL.Bool,
     'symbol' : IDL.Text,
   });
-  const AddTokenReply = IDL.Variant({ 'IC' : ICTokenReply });
+  const SolanaTokenReply = IDL.Record({
+    'fee' : IDL.Nat,
+    'decimals' : IDL.Nat8,
+    'token_id' : IDL.Nat32,
+    'chain' : IDL.Text,
+    'name' : IDL.Text,
+    'program_id' : IDL.Text,
+    'is_spl_token' : IDL.Bool,
+    'mint_address' : IDL.Text,
+    'total_supply' : IDL.Opt(IDL.Nat),
+    'symbol' : IDL.Text,
+  });
+  const AddTokenReply = IDL.Variant({
+    'IC' : ICTokenReply,
+    'Solana' : SolanaTokenReply,
+  });
   const AddTokenResult = IDL.Variant({
     'Ok' : AddTokenReply,
     'Err' : IDL.Text,
@@ -260,6 +281,8 @@ export const idlFactory = ({ IDL }) => {
   const RemoveLiquidityArgs = IDL.Record({
     'token_0' : IDL.Text,
     'token_1' : IDL.Text,
+    'payout_address_0' : IDL.Opt(IDL.Text),
+    'payout_address_1' : IDL.Opt(IDL.Text),
     'remove_lp_token_amount' : IDL.Nat,
   });
   const RemoveLiquidityReply = IDL.Record({
@@ -310,11 +333,13 @@ export const idlFactory = ({ IDL }) => {
   });
   const SwapArgs = IDL.Record({
     'receive_token' : IDL.Text,
+    'signature' : IDL.Opt(IDL.Text),
     'max_slippage' : IDL.Opt(IDL.Float64),
     'pay_amount' : IDL.Nat,
     'referred_by' : IDL.Opt(IDL.Text),
     'receive_amount' : IDL.Opt(IDL.Nat),
     'receive_address' : IDL.Opt(IDL.Text),
+    'timestamp' : IDL.Opt(IDL.Nat64),
     'pay_token' : IDL.Text,
     'pay_tx_id' : IDL.Opt(TxId),
   });
@@ -439,7 +464,11 @@ export const idlFactory = ({ IDL }) => {
     'total_supply' : IDL.Nat,
     'symbol' : IDL.Text,
   });
-  const TokenReply = IDL.Variant({ 'IC' : ICTokenReply, 'LP' : LPTokenReply });
+  const TokenReply = IDL.Variant({
+    'IC' : ICTokenReply,
+    'LP' : LPTokenReply,
+    'Solana' : SolanaTokenReply,
+  });
   const TokensResult = IDL.Variant({
     'Ok' : IDL.Vec(TokenReply),
     'Err' : IDL.Text,
@@ -498,6 +527,16 @@ export const idlFactory = ({ IDL }) => {
     'check_pools' : IDL.Func([], [CheckPoolsResult], []),
     'claim' : IDL.Func([IDL.Nat64], [ClaimResult], []),
     'claims' : IDL.Func([IDL.Text], [ClaimsResult], ['query']),
+    'cleanup_expired_solana_jobs' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Nat32, 'Err' : IDL.Text })],
+        [],
+      ),
+    'get_solana_address' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
+        ['query'],
+      ),
     'get_user' : IDL.Func([], [UserResult], ['query']),
     'icrc10_supported_standards' : IDL.Func(
         [],
@@ -511,6 +550,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'icrc28_trusted_origins' : IDL.Func([], [Icrc28TrustedOriginsResponse], []),
+    'notify_solana_transfer' : IDL.Func(
+        [IDL.Text, IDL.Opt(IDL.Text)],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'pools' : IDL.Func([IDL.Opt(IDL.Text)], [PoolsResult], ['query']),
     'remove_liquidity' : IDL.Func(
         [RemoveLiquidityArgs],
@@ -537,6 +581,16 @@ export const idlFactory = ({ IDL }) => {
       ),
     'swap_async' : IDL.Func([SwapArgs], [SwapAsyncResult], []),
     'tokens' : IDL.Func([IDL.Opt(IDL.Text)], [TokensResult], ['query']),
+    'update_solana_latest_blockhash' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'update_solana_swap' : IDL.Func(
+        [IDL.Nat64, IDL.Text, IDL.Bool, IDL.Opt(IDL.Text)],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'update_token' : IDL.Func([UpdateTokenArgs], [UpdateTokenResult], []),
     'user_balances' : IDL.Func([IDL.Text], [UserBalancesResult], ['query']),
     'validate_add_liquidity' : IDL.Func([], [ValidateAddLiquidityResult], []),

@@ -1,10 +1,10 @@
 import { API_URL } from "$lib/api/index";
-import { auth, requireWalletConnection } from "$lib/stores/auth";
+import { auth, swapActor, requireWalletConnection } from "$lib/stores/auth";
 import { IcrcService } from "$lib/services/icrc/IcrcService";
 import { toastStore } from "$lib/stores/toastStore";
 import { IcrcToken } from "$lib/models/tokens/IcrcToken";
 import { canisters, type CanisterType } from "$lib/config/auth.config";
-import type { AddLiquiditAmountsResult } from "../../../../declarations/kong_backend/kong_backend.did";
+import type { AddLiquiditAmountsResult, RemoveLiquidityAmountsReply } from "../../../../declarations/kong_backend/kong_backend.did";
 
 export const fetchPools = async (params?: any): Promise<{pools: BE.Pool[], total_count: number, total_pages: number, page: number, limit: number}> => {
   try {
@@ -161,11 +161,19 @@ export const fetchPoolBalanceHistory = async (poolId: string | number): Promise<
 export const fetchPoolTotals = async (): Promise<{total_volume_24h: number, total_tvl: number, total_fees_24h: number}> => {
   try {
     const response = await fetch(`${API_URL}/api/pools/totals`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error response: ${errorText}`);
+      throw new Error(`Failed to fetch pool totals: ${response.status} ${response.statusText}`);
+    }
+    
     const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error fetching pool totals:', error);
-    throw error;
+    // Return default values to prevent UI breakage
+    return { total_volume_24h: 0, total_tvl: 0, total_fees_24h: 0 };
   }
 }
 
@@ -178,11 +186,7 @@ export async function calculateLiquidityAmounts(
   token1Symbol: string,
 ): Promise<AddLiquiditAmountsResult> {
   try {
-    const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: true,
-    });
+    const actor = swapActor({anon: true});
     const result = await actor.add_liquidity_amounts(
       "IC." + token0Symbol,
       amount0,
@@ -214,18 +218,14 @@ export async function calculateRemoveLiquidityAmounts(
         ? BigInt(Math.floor(lpTokenAmount * 1e8))
         : lpTokenAmount;
 
-    const actor = await auth.pnp.getActor({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: true,
-      requiresSigning: false,
-    });
-
+    const actor = swapActor({anon: true});
     const result = await (actor as any).remove_liquidity_amounts(
       "IC." + token0CanisterId,
       "IC." + token1CanisterId,
       lpTokenBigInt,
     );
+
+    console.log("result", result);
 
     if (!result.Ok) {
       throw new Error(result.Err || "Failed to calculate removal amounts");
@@ -275,12 +275,7 @@ export async function addLiquidity(params: {
           params.token_1,
           params.amount_1,
         ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
+        swapActor({anon: false, requiresSigning: false}),
       ]);
 
       // For ICRC2 tokens, we don't need to pass transfer block indexes
@@ -288,6 +283,9 @@ export async function addLiquidity(params: {
       tx_id_1 = [];
       actor = actorResult;
     } else {
+      console.log("token_0", params.token_0);
+      console.log("token_1", params.token_1);
+      console.log("adding icrc1 lp");
       // Handle ICRC1 tokens
       const [transfer0Result, transfer1Result, actorResult] = await Promise.all([
         IcrcService.transfer(
@@ -300,12 +298,7 @@ export async function addLiquidity(params: {
           canisters.kongBackend.canisterId,
           params.amount_1,
         ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
+        swapActor({anon: false, requiresSigning: false}),
       ]);
 
       // Keep block IDs as BigInt
@@ -360,12 +353,7 @@ export async function pollRequestStatus(
     toastId = toastStore.info("Processing transaction..."); // Generic initial message
 
     while (attempts < MAX_ATTEMPTS) {
-      const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-        canisterId: canisters.kongBackend.canisterId,
-        idl: canisters.kongBackend.idl,
-        anon: true,
-        requiresSigning: false,
-      });
+      const actor = swapActor({anon: true});
       const result = await actor.requests([requestId]);
 
       if ('Err' in result) {
@@ -482,7 +470,6 @@ export async function removeLiquidity(params: {
   lpTokenAmount: number | bigint;
 }): Promise<string> {
   requireWalletConnection();
-  console.log("Removing liquidity", params);
   try {
     // Ensure we're using BigInt for the amount
     const lpTokenBigInt =
@@ -490,12 +477,7 @@ export async function removeLiquidity(params: {
         ? BigInt(Math.floor(params.lpTokenAmount * 1e8))
         : params.lpTokenAmount;
 
-    const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: false,
-      requiresSigning: false,
-    });
+    const actor = swapActor({anon: false, requiresSigning: false});
     const result = await (actor as any).remove_liquidity_async({
       token_0: "IC." + params.token0,
       token_1: "IC." + params.token1,
@@ -546,12 +528,7 @@ export async function createPool(params: {
           params.token_1,
           params.amount_1,
         ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
+        swapActor({anon: false, requiresSigning: false}),
       ]);
 
       // For ICRC2 tokens, we don't need to pass transfer block indexes
@@ -571,12 +548,7 @@ export async function createPool(params: {
           canisters.kongBackend.canisterId,
           params.amount_1,
         ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
+        swapActor({anon: false, requiresSigning: false}),
       ]);
 
       // Keep block IDs as BigInt
@@ -621,12 +593,7 @@ export async function sendLpTokens(params: {
       ? BigInt(Math.floor(params.amount * 1e8))
       : params.amount;
 
-    const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: false,
-      requiresSigning: false,
-    });
+    const actor = swapActor({anon: false, requiresSigning: false});
 
     const result = await actor.send({
       token: params.token,

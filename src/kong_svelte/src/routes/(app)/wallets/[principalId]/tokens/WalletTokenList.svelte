@@ -6,7 +6,7 @@
     formatToNonZeroDecimal,
   } from "$lib/utils/numberFormatUtils";
   import { flip } from "svelte/animate";
-  import { WalletDataService, walletDataStore } from "$lib/services/wallet";
+  import { walletDataStore } from "$lib/services/wallet";
   import { ArrowUp, ArrowDown, Coins } from "lucide-svelte";
   import LoadingIndicator from "$lib/components/common/LoadingIndicator.svelte";
   import { tooltip } from "$lib/actions/tooltip";
@@ -85,8 +85,8 @@
 
   function getPriceChangeColor(change: string) {
     const num = Number(change);
-    if (num > 0) return "text-kong-text-accent-green";
-    if (num < 0) return "text-kong-text-accent-red";
+    if (num > 0) return "text-kong-success";
+    if (num < 0) return "text-kong-error";
     return "text-kong-text-secondary";
   }
 
@@ -127,7 +127,7 @@
   <div class="max-h-[600px] overflow-y-auto">
     {#if isLoadingBalances}
       <div class="text-center py-8">
-        <LoadingIndicator text="Loading token balances..." size={24} />
+        <LoadingIndicator message="Loading token balances..." />
       </div>
     {:else if formattedTokens.length === 0}
       <div class="text-center py-8 text-kong-text-secondary">
@@ -143,7 +143,7 @@
         {#each formattedTokens as token (token.address)}
           <div
             animate:flip={{ duration: 300 }}
-            class="sm:grid sm:grid-cols-[2fr,1.5fr,1fr,1fr,1fr] sm:gap-4 sm:items-center p-4 hover:bg-kong-bg-dark/30 transition-colors cursor-pointer"
+            class="sm:grid sm:grid-cols-[2fr,1.5fr,1fr,1fr,1fr] sm:gap-4 sm:items-center p-4 hover:bg-kong-bg-primary/30 transition-colors cursor-pointer"
           >
             <!-- Mobile View - Card-like layout -->
             <div class="flex flex-col gap-3 sm:hidden">

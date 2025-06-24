@@ -6,6 +6,7 @@ use super::add_liquidity_transfer::{add_liquidity_transfer, add_liquidity_transf
 use super::add_liquidity_transfer_from::{add_liquidity_transfer_from, add_liquidity_transfer_from_async};
 
 use crate::ic::guards::not_in_maintenance_mode;
+use crate::stable_token::token::Token;
 
 pub enum TokenIndex {
     Token0,

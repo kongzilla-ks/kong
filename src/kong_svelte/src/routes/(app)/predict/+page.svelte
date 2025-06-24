@@ -24,29 +24,29 @@
   import { walletProviderStore } from "$lib/stores/walletProviderStore";
 
   // Modal state
-  let showBetModal = false;
-  let selectedMarket: any = null;
-  let betAmount = 0;
-  let selectedOutcome: number | null = null;
-  let betError: string | null = null;
-  let isBetting = false;
-  let isApprovingAllowance = false;
+  let showBetModal = $state(false);
+  let selectedMarket = $state<any>(null);
+  let betAmount = $state(0);
+  let selectedOutcome = $state<number | null>(null);
+  let betError = $state<string | null>(null);
+  let isBetting = $state(false);
+  let isApprovingAllowance = $state(false);
 
-  let recentBets: any[] = [];
-  let previousBets: any[] = [];
-  let isInitialLoad = true;
-  let loadingBets = false;
-  let isUserAdmin = false;
+  let recentBets = $state<any[]>([]);
+  let previousBets = $state<any[]>([]);
+  let isInitialLoad = $state(true);
+  let loadingBets = $state(false);
+  let isUserAdmin = $state(false);
 
   // UI state for dropdowns
-  let statusDropdownOpen = false;
-  let sortDropdownOpen = false;
+  let statusDropdownOpen = $state(false);
+  let sortDropdownOpen = $state(false);
 
   // Store the market and outcome to open after authentication
-  let pendingMarket: any = null;
-  let pendingOutcome: number | null = null;
-  let tokens = [];
-  let kongToken = null;
+  let pendingMarket = $state<any>(null);
+  let pendingOutcome = $state<number | null>(null);
+  let tokens = $state([]);
+  let kongToken = $state(null);
 
   onDestroy(() => {
     // Stop the polling task
@@ -105,11 +105,13 @@
     return `${bet.timestamp}-${bet.user}`;
   }
 
-  $: if ($auth.isConnected) {
-    isAdmin($auth.account.owner).then((isAdmin) => {
-      isUserAdmin = isAdmin;
-    });
-  }
+  $effect(() => {
+    if ($auth.isConnected) {
+      isAdmin($auth.account.owner).then((isAdmin) => {
+        isUserAdmin = isAdmin;
+      });
+    }
+  });
 
   onMount(async () => {
     // Initialize market store
@@ -135,7 +137,7 @@
   // Debounced market refresh to prevent too frequent updates
   const debouncedRefreshMarkets = debounce(() => {
     marketStore.refreshMarkets();
-  }, 1000);
+  }, 10000);
 
   function openBetModal(market: any, outcomeIndex?: number) {
     // Check if user is authenticated
@@ -196,7 +198,7 @@
       }
 
       // Convert bet amount to scaled token units
-      const scaledAmount = toScaledAmount(amount, kongToken.decimals);
+      const scaledAmount = toScaledAmount(amount.toString(), kongToken.decimals);
 
       await placeBet(
         kongToken,
@@ -239,20 +241,14 @@
     { value: "pool_asc", label: "Pool Size (Low to High)" },
   ];
 
-  // Get current option label
-  function getCurrentStatusLabel() {
-    return (
-      statusOptions.find((option) => option.value === $marketStore.statusFilter)
-        ?.label || "All"
-    );
-  }
+  // Get current option label - make reactive with $derived
+  const currentStatusLabel = $derived(
+    statusOptions.find((option) => option.value === $marketStore.statusFilter)?.label || "All"
+  );
 
-  function getCurrentSortLabel() {
-    return (
-      sortOptions.find((option) => option.value === $marketStore.sortOption)
-        ?.label || "Pool Size (High to Low)"
-    );
-  }
+  const currentSortLabel = $derived(
+    sortOptions.find((option) => option.value === $marketStore.sortOption)?.label || "Pool Size (High to Low)"
+  );
 </script>
 
 <svelte:head>
@@ -279,7 +275,7 @@
             theme="accent-green"
             variant="solid"
             size="md"
-            on:click={() => goto("/predict/create")}
+            onclick={() => goto("/predict/create")}
           >
             Create Market
           </ButtonV2>
@@ -289,7 +285,7 @@
             theme="secondary"
             variant="solid"
             size="md"
-            on:click={() => goto("/predict/history")}
+            onclick={() => goto("/predict/history")}
           >
             Prediction History
           </ButtonV2>
@@ -304,7 +300,7 @@
         {#each $marketStore.categories as category}
           <span
             class="cursor-pointer"
-            on:click={() =>
+            onclick={() =>
               marketStore.setCategory(category === "All" ? null : category)}
           >
             {#if $marketStore.selectedCategory === category || (category === "All" && $marketStore.selectedCategory === null)}
@@ -335,14 +331,14 @@
         >
           <button
             class="flex items-center justify-between w-full px-3 py-1.5 rounded text-xs font-medium bg-kong-surface-dark text-kong-text-primary hover:bg-kong-bg-light/30 transition-colors border border-kong-border/50"
-            on:click={(e) => {
+            onclick={(e) => {
               e.stopPropagation();
               statusDropdownOpen = !statusDropdownOpen;
               sortDropdownOpen = false;
             }}
           >
             <span class="whitespace-nowrap overflow-hidden text-ellipsis">
-              Status: {getCurrentStatusLabel()}
+              Status: {currentStatusLabel}
             </span>
             <ChevronDown class="w-3 h-3 ml-1 flex-shrink-0" />
           </button>
@@ -357,7 +353,7 @@
                   option.value
                     ? 'bg-kong-accent-green/20 text-kong-accent-green font-medium'
                     : 'text-kong-text-primary'}"
-                  on:click={() => {
+                  onclick={() => {
                     marketStore.setStatusFilter(option.value as StatusFilter);
                     statusDropdownOpen = false;
                   }}
@@ -376,14 +372,14 @@
         >
           <button
             class="flex items-center justify-between w-full px-3 py-1.5 rounded text-xs font-medium bg-kong-surface-dark text-kong-text-primary hover:bg-kong-bg-light/30 transition-colors border border-kong-border/50"
-            on:click={(e) => {
+            onclick={(e) => {
               e.stopPropagation();
               sortDropdownOpen = !sortDropdownOpen;
               statusDropdownOpen = false;
             }}
           >
             <span class="whitespace-nowrap overflow-hidden text-ellipsis">
-              Sort: {getCurrentSortLabel()}
+              Sort: {currentSortLabel}
             </span>
             <ChevronDown class="w-3 h-3 ml-1 flex-shrink-0" />
           </button>
@@ -398,7 +394,7 @@
                   option.value
                     ? 'bg-kong-accent-green/20 text-kong-accent-green font-medium'
                     : 'text-kong-text-primary'}"
-                  on:click={() => {
+                  onclick={() => {
                     marketStore.setSortOption(option.value as SortOption);
                     sortDropdownOpen = false;
                   }}
@@ -429,11 +425,11 @@
               <MarketSection
                 markets={$marketStore.statusFilter === "resolved"
                   ? $filteredMarkets.resolved.filter(
-                      (market) => "Closed" in (market as any).status,
+                      (market) => "Closed" in market.status,
                     )
                   : $marketStore.statusFilter === "voided"
                     ? $filteredMarkets.resolved.filter(
-                        (market) => "Voided" in (market as any).status,
+                        (market) => "Voided" in market.status,
                       )
                     : $marketStore.statusFilter === "expired"
                       ? $filteredMarkets.expired_unresolved
@@ -456,7 +452,7 @@
                   <p class="text-lg">No markets available</p>
                   <p class="text-sm mt-2">
                     {$marketStore.statusFilter !== "all"
-                      ? `Try changing the status filter from "${getCurrentStatusLabel()}" to "All".`
+                      ? `Try changing the status filter from "${currentStatusLabel}" to "All".`
                       : "Check back later for new prediction markets."}
                   </p>
                 </div>

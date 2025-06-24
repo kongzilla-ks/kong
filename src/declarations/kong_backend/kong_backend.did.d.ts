@@ -19,10 +19,13 @@ export interface AddLiquidityAmountsReply {
   'fee_1' : bigint,
 }
 export interface AddLiquidityArgs {
+  'signature_0' : [] | [string],
+  'signature_1' : [] | [string],
   'token_0' : string,
   'token_1' : string,
   'amount_0' : bigint,
   'amount_1' : bigint,
+  'timestamp' : [] | [bigint],
   'tx_id_0' : [] | [TxId],
   'tx_id_1' : [] | [TxId],
 }
@@ -49,10 +52,13 @@ export interface AddLiquidityReply {
 export type AddLiquidityResult = { 'Ok' : AddLiquidityReply } |
   { 'Err' : string };
 export interface AddPoolArgs {
+  'signature_0' : [] | [string],
+  'signature_1' : [] | [string],
   'token_0' : string,
   'token_1' : string,
   'amount_0' : bigint,
   'amount_1' : bigint,
+  'timestamp' : [] | [bigint],
   'tx_id_0' : [] | [TxId],
   'tx_id_1' : [] | [TxId],
   'lp_fee_bps' : [] | [number],
@@ -83,7 +89,8 @@ export interface AddPoolReply {
 export type AddPoolResult = { 'Ok' : AddPoolReply } |
   { 'Err' : string };
 export interface AddTokenArgs { 'token' : string }
-export type AddTokenReply = { 'IC' : ICTokenReply };
+export type AddTokenReply = { 'IC' : ICTokenReply } |
+  { 'Solana' : SolanaTokenReply };
 export type AddTokenResult = { 'Ok' : AddTokenReply } |
   { 'Err' : string };
 export interface CheckPoolsReply {
@@ -239,6 +246,8 @@ export type RemoveLiquidityAmountsResult = {
 export interface RemoveLiquidityArgs {
   'token_0' : string,
   'token_1' : string,
+  'payout_address_0' : [] | [string],
+  'payout_address_1' : [] | [string],
   'remove_lp_token_amount' : bigint,
 }
 export type RemoveLiquidityAsyncResult = { 'Ok' : bigint } |
@@ -300,6 +309,18 @@ export interface SendReply {
 }
 export type SendResult = { 'Ok' : SendReply } |
   { 'Err' : string };
+export interface SolanaTokenReply {
+  'fee' : bigint,
+  'decimals' : number,
+  'token_id' : number,
+  'chain' : string,
+  'name' : string,
+  'program_id' : string,
+  'is_spl_token' : boolean,
+  'mint_address' : string,
+  'total_supply' : [] | [bigint],
+  'symbol' : string,
+}
 export interface SwapAmountsReply {
   'txs' : Array<SwapAmountsTxReply>,
   'receive_chain' : string,
@@ -332,11 +353,13 @@ export interface SwapAmountsTxReply {
 }
 export interface SwapArgs {
   'receive_token' : string,
+  'signature' : [] | [string],
   'max_slippage' : [] | [number],
   'pay_amount' : bigint,
   'referred_by' : [] | [string],
   'receive_amount' : [] | [bigint],
   'receive_address' : [] | [string],
+  'timestamp' : [] | [bigint],
   'pay_token' : string,
   'pay_tx_id' : [] | [TxId],
 }
@@ -380,7 +403,8 @@ export interface SwapTxReply {
   'gas_fee' : bigint,
 }
 export type TokenReply = { 'IC' : ICTokenReply } |
-  { 'LP' : LPTokenReply };
+  { 'LP' : LPTokenReply } |
+  { 'Solana' : SolanaTokenReply };
 export type TokensResult = { 'Ok' : Array<TokenReply> } |
   { 'Err' : string };
 export interface TransferIdReply {
@@ -474,6 +498,16 @@ export interface _SERVICE {
   'check_pools' : ActorMethod<[], CheckPoolsResult>,
   'claim' : ActorMethod<[bigint], ClaimResult>,
   'claims' : ActorMethod<[string], ClaimsResult>,
+  'cleanup_expired_solana_jobs' : ActorMethod<
+    [],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'get_solana_address' : ActorMethod<
+    [],
+    { 'Ok' : string } |
+      { 'Err' : string }
+  >,
   'get_user' : ActorMethod<[], UserResult>,
   'icrc10_supported_standards' : ActorMethod<
     [],
@@ -485,6 +519,11 @@ export interface _SERVICE {
     icrc21_consent_message_response
   >,
   'icrc28_trusted_origins' : ActorMethod<[], Icrc28TrustedOriginsResponse>,
+  'notify_solana_transfer' : ActorMethod<
+    [string, [] | [string]],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'pools' : ActorMethod<[[] | [string]], PoolsResult>,
   'remove_liquidity' : ActorMethod<
     [RemoveLiquidityArgs],
@@ -504,6 +543,16 @@ export interface _SERVICE {
   'swap_amounts' : ActorMethod<[string, bigint, string], SwapAmountsResult>,
   'swap_async' : ActorMethod<[SwapArgs], SwapAsyncResult>,
   'tokens' : ActorMethod<[[] | [string]], TokensResult>,
+  'update_solana_latest_blockhash' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'update_solana_swap' : ActorMethod<
+    [bigint, string, boolean, [] | [string]],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'update_token' : ActorMethod<[UpdateTokenArgs], UpdateTokenResult>,
   'user_balances' : ActorMethod<[string], UserBalancesResult>,
   'validate_add_liquidity' : ActorMethod<[], ValidateAddLiquidityResult>,
