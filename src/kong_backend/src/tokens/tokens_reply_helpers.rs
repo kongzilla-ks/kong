@@ -1,13 +1,12 @@
-use super::tokens_reply::TokensReply;
+use crate::stable_lp_token::lp_token_map;
+use crate::stable_token::stable_token::StableToken;
+use crate::stable_token::stable_token::StableToken::{Solana, IC, LP};
+use crate::stable_token::token::Token;
 
 use super::ic_reply::ICReply;
 use super::lp_reply::LPReply;
 use super::solana_reply::SolanaReply;
-
-use crate::stable_lp_token::lp_token_map;
-use crate::stable_token::stable_token::StableToken;
-use crate::stable_token::stable_token::StableToken::{IC, LP, Solana};
-use crate::stable_token::token::Token;
+use super::tokens_reply::TokensReply;
 
 pub fn to_token_reply(token: &StableToken) -> TokensReply {
     let token_id = token.token_id();

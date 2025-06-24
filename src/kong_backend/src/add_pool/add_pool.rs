@@ -2,10 +2,6 @@ use candid::Nat;
 use ic_cdk::update;
 use icrc_ledger_types::icrc1::account::Account;
 
-use super::add_pool_args::AddPoolArgs;
-use super::add_pool_reply::AddPoolReply;
-use super::add_pool_reply_helpers::{to_add_pool_reply, to_add_pool_reply_failed};
-
 use crate::add_token::add_token::{add_ic_token, add_lp_token, add_solana_token};
 use crate::add_token::add_token_args::AddTokenArgs;
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
@@ -38,7 +34,10 @@ use crate::stable_tx::{add_pool_tx::AddPoolTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
 use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
-use super::pool_payment_verifier::{PoolPaymentVerifier, PoolPaymentVerification};
+use super::add_pool_args::AddPoolArgs;
+use super::add_pool_reply::AddPoolReply;
+use super::add_pool_reply_helpers::{to_add_pool_reply, to_add_pool_reply_failed};
+use super::pool_payment_verifier::{PoolPaymentVerification, PoolPaymentVerifier};
 
 enum TokenIndex {
     Token0,
@@ -122,12 +121,8 @@ async fn check_arguments(
     }
 
     // Check if either token is a Solana token
-    let has_solana_token = token_map::get_chain(&args.token_0)
-        .map(|chain| chain == SOL_CHAIN)
-        .unwrap_or(false) || 
-        token_map::get_chain(&args.token_1)
-        .map(|chain| chain == SOL_CHAIN)
-        .unwrap_or(false);
+    let has_solana_token = token_map::get_chain(&args.token_0).map(|chain| chain == SOL_CHAIN).unwrap_or(false)
+        || token_map::get_chain(&args.token_1).map(|chain| chain == SOL_CHAIN).unwrap_or(false);
 
     let lp_fee_bps = match args.lp_fee_bps {
         Some(lp_fee_bps) => lp_fee_bps,
@@ -262,7 +257,10 @@ async fn process_add_pool(
     // Check if this is a cross-chain transfer based on signature presence
     let transfer_0 = if args.signature_0.is_some() {
         // Cross-chain payment path - use payment verifier
-        ic_cdk::println!("DEBUG: Entering cross-chain path for token_0 with signature: {:?}", args.signature_0);
+        ic_cdk::println!(
+            "DEBUG: Entering cross-chain path for token_0 with signature: {:?}",
+            args.signature_0
+        );
         ic_cdk::println!("DEBUG: tx_id_0 from args: {:?}", args.tx_id_0);
         verify_cross_chain_transfer(
             request_id,
@@ -275,11 +273,14 @@ async fn process_add_pool(
             &mut transfer_ids,
             ts,
             args,
-        ).await
+        )
+        .await
     } else {
         // IC-only path (backward compatible)
         match tx_id_0 {
-            Some(block_id) => verify_transfer_token(request_id, &TokenIndex::Token0, token_0, block_id, amount_0, &mut transfer_ids, ts).await,
+            Some(block_id) => {
+                verify_transfer_token(request_id, &TokenIndex::Token0, token_0, block_id, amount_0, &mut transfer_ids, ts).await
+            }
             None => {
                 transfer_from_token(
                     request_id,
@@ -309,11 +310,14 @@ async fn process_add_pool(
             &mut transfer_ids,
             ts,
             args,
-        ).await
+        )
+        .await
     } else {
         // IC-only path (backward compatible)
         match tx_id_1 {
-            Some(block_id) => verify_transfer_token(request_id, &TokenIndex::Token1, token_1, block_id, amount_1, &mut transfer_ids, ts).await,
+            Some(block_id) => {
+                verify_transfer_token(request_id, &TokenIndex::Token1, token_1, block_id, amount_1, &mut transfer_ids, ts).await
+            }
             None => {
                 //  if transfer_token_0 failed, no need to icrc2_transfer_from token_1
                 if transfer_0.is_err() {
@@ -701,14 +705,14 @@ async fn return_token(
                 transfer_ids.push(transfer_id);
                 match token_index {
                     TokenIndex::Token0 => request_map::update_status(
-                        request_id, 
-                        StatusCode::ReturnToken0Success, 
-                        Some(&format!("Solana swap job #{} created", job_id))
+                        request_id,
+                        StatusCode::ReturnToken0Success,
+                        Some(&format!("Solana swap job #{} created", job_id)),
                     ),
                     TokenIndex::Token1 => request_map::update_status(
-                        request_id, 
-                        StatusCode::ReturnToken1Success, 
-                        Some(&format!("Solana swap job #{} created", job_id))
+                        request_id,
+                        StatusCode::ReturnToken1Success,
+                        Some(&format!("Solana swap job #{} created", job_id)),
                     ),
                 };
             }
@@ -832,26 +836,38 @@ async fn verify_cross_chain_transfer(
     args: &AddPoolArgs,
 ) -> Result<(), String> {
     ic_cdk::println!("DEBUG verify_cross_chain_transfer: Received tx_id: {:?}", tx_id);
-    ic_cdk::println!("DEBUG verify_cross_chain_transfer: Token: {:?}, Amount: {:?}", token.symbol(), amount);
+    ic_cdk::println!(
+        "DEBUG verify_cross_chain_transfer: Token: {:?}, Amount: {:?}",
+        token.symbol(),
+        amount
+    );
     match token_index {
         TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0, None),
         TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1, None),
     };
-    
+
     // Ensure we have a transaction ID and extract the actual TxId
-    let tx_id_value = tx_id.as_ref()
+    let tx_id_value = tx_id
+        .as_ref()
         .ok_or_else(|| {
             // Debug: check what we received
             match token_index {
-                TokenIndex::Token0 => format!("Transaction ID (tx_id_0) is required for cross-chain transfers. Received: {:?}, args.tx_id_0: {:?}", tx_id, args.tx_id_0),
-                TokenIndex::Token1 => format!("Transaction ID (tx_id_1) is required for cross-chain transfers. Received: {:?}, args.tx_id_1: {:?}", tx_id, args.tx_id_1),
+                TokenIndex::Token0 => format!(
+                    "Transaction ID (tx_id_0) is required for cross-chain transfers. Received: {:?}, args.tx_id_0: {:?}",
+                    tx_id, args.tx_id_0
+                ),
+                TokenIndex::Token1 => format!(
+                    "Transaction ID (tx_id_1) is required for cross-chain transfers. Received: {:?}, args.tx_id_1: {:?}",
+                    tx_id, args.tx_id_1
+                ),
             }
         })?
         .clone();
-    
+
     // Use the pool-specific payment verifier
     let verifier = PoolPaymentVerifier::new(ICNetwork::caller());
-    let verification = verifier.verify_pool_payment(args, token, amount, &tx_id_value, signature)
+    let verification = verifier
+        .verify_pool_payment(args, token, amount, &tx_id_value, signature)
         .await
         .map_err(|e| {
             let error_msg = format!("Cross-chain pool verification failed: {}", e);
@@ -861,12 +877,12 @@ async fn verify_cross_chain_transfer(
             };
             error_msg
         })?;
-    
+
     // Create transfer record based on verification result
     let final_tx_id = match verification {
         PoolPaymentVerification::SolanaPayment { tx_signature, .. } => TxId::TransactionId(tx_signature),
     };
-    
+
     let transfer_id = transfer_map::insert(&StableTransfer {
         transfer_id: 0,
         request_id,
@@ -877,11 +893,11 @@ async fn verify_cross_chain_transfer(
         ts,
     });
     transfer_ids.push(transfer_id);
-    
+
     match token_index {
         TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Success, None),
         TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Success, None),
     };
-    
+
     Ok(())
 }
