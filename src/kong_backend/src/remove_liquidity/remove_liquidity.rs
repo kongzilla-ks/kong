@@ -21,6 +21,9 @@ use crate::swap::create_solana_swap_job::create_solana_swap_job;
 use crate::solana::utils::validation;
 use crate::stable_tx::{remove_liquidity_tx::RemoveLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
+use crate::swap::verify_canonical_message::verify_canonical_message;
+
+use super::message_builder::CanonicalRemoveLiquidityMessage;
 
 enum TokenIndex {
     Token0,
@@ -282,11 +285,40 @@ async fn check_arguments_with_user(args: &RemoveLiquidityArgs, user_id: u32) -> 
 #[allow(clippy::type_complexity)]
 async fn check_arguments_with_signature(args: &RemoveLiquidityArgs) -> Result<(u32, StablePool, Nat, Nat, Nat, Nat, Nat), String> {
     // Validate signature presence and timestamp
-    // For now, use signature_0 for cross-chain verification (remove liquidity typically only needs one signature)
-    let _timestamp = args.timestamp.ok_or("Cross-chain operations require timestamp")?;
+    let timestamp = args.timestamp.ok_or("Cross-chain operations require timestamp")?;
+    
+    // For remove liquidity, we need to determine which signature to use and which address to verify against
+    // Logic: 
+    // - If payout_address_0 is Solana address and signature_0 present → verify signature_0 against payout_address_0
+    // - If payout_address_1 is Solana address and signature_1 present → verify signature_1 against payout_address_1
+    // - The signature proves the user controls the payout address
+    
+    let (signature, payout_address) = if let (Some(sig_0), Some(addr_0)) = (&args.signature_0, &args.payout_address_0) {
+        // Use signature_0 with payout_address_0
+        (sig_0, addr_0)
+    } else if let (Some(sig_1), Some(addr_1)) = (&args.signature_1, &args.payout_address_1) {
+        // Use signature_1 with payout_address_1  
+        (sig_1, addr_1)
+    } else {
+        return Err("Cross-chain remove liquidity requires signature and corresponding payout address".to_string());
+    };
 
-    // Use existing validation logic
-    let user_id = user_map::get_by_caller()?.ok_or("Insufficient LP balance")?.user_id;
+    // Verify the canonical message signature
+    let canonical_message = CanonicalRemoveLiquidityMessage::from_remove_liquidity_args(args);
+    let message_str = canonical_message.to_signing_message();
+    
+    verify_canonical_message(&message_str, payout_address, signature)
+        .map_err(|e| format!("Signature verification failed: {}", e))?;
+
+    // Check timestamp freshness (5 minutes)
+    let current_time_ms = ICNetwork::get_time() / 1_000_000;
+    let age_ms = current_time_ms.saturating_sub(timestamp);
+    if age_ms > 300_000 {
+        return Err(format!("Signature timestamp too old: {} ms", age_ms));
+    }
+
+    // For cross-chain operations, we allow anonymous users (signature is the authentication)
+    let user_id = user_map::insert(None)?;
     let (pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) =
         check_arguments_with_user(args, user_id).await?;
 

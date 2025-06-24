@@ -49,24 +49,18 @@ impl PaymentVerifier {
         pay_token: &StableToken,
         pay_amount: &Nat,
     ) -> Result<PaymentVerification, String> {
-        // Check if this is cross-chain based on signature presence
-        if args.signature.is_some() {
-            // Cross-chain payment - verify signature regardless of token type
-            match pay_token {
-                StableToken::Solana(sol_token) => verify_solana_payment(args, pay_amount, sol_token).await,
-                StableToken::IC(_) => {
-                    // IC token with signature - still needs signature verification for cross-chain
-                    // This is a rare case but supported for completeness
-                    verify_cross_chain_ic_payment(args, pay_token, pay_amount).await
-                }
-                StableToken::LP(_) => Err("LP tokens cannot be used as payment".to_string()),
+        // Payment verification based on token type
+        match pay_token {
+            StableToken::IC(_) => {
+                // IC tokens use standard transfer verification, no signature needed
+                self.verify_ic_payment(args, pay_token, pay_amount).await
             }
-        } else {
-            // IC-only path (backward compatible)
-            match pay_token {
-                StableToken::IC(_) => self.verify_ic_payment(args, pay_token, pay_amount).await,
-                StableToken::LP(_) => Err("LP tokens cannot be used as payment".to_string()),
-                StableToken::Solana(_) => Err("Solana tokens require signature for cross-chain swaps".to_string()),
+            StableToken::Solana(sol_token) => {
+                // Solana tokens require signature verification
+                verify_solana_payment(args, pay_amount, sol_token).await
+            }
+            StableToken::LP(_) => {
+                Err("LP tokens cannot be used as payment".to_string())
             }
         }
     }
@@ -100,9 +94,9 @@ impl PaymentVerifier {
 
 /// Verify Solana payment by checking signature and transaction data
 async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &crate::stable_token::solana_token::SolanaToken) -> Result<PaymentVerification, String> {
-    // For cross-chain, signature is required
+    // Solana tokens require signature
     let signature = args.signature.as_ref()
-        .ok_or_else(|| "Signature is required for Solana/SPL swap methods".to_string())?;
+        .ok_or_else(|| "Signature is required for Solana/SPL tokens".to_string())?;
     
     // Get transaction ID
     let tx_id = args.pay_tx_id.as_ref()
@@ -258,35 +252,3 @@ async fn verify_solana_transaction(
     Ok(())
 }
 
-/// Verify cross-chain IC payment with signature
-async fn verify_cross_chain_ic_payment(
-    args: &SwapArgs,
-    pay_token: &StableToken,
-    pay_amount: &Nat,
-) -> Result<PaymentVerification, String> {
-    // For cross-chain IC payments, we need:
-    // 1. A transaction ID to verify the payment
-    // 2. A signature to verify the sender
-    
-    let _signature = args.signature.as_ref()
-        .ok_or_else(|| "Signature is required for cross-chain payments".to_string())?;
-    
-    let tx_id = args.pay_tx_id.as_ref()
-        .ok_or_else(|| "Transaction ID (pay_tx_id) is required for IC token payments".to_string())?;
-
-    let block_index = match tx_id {
-        TxId::BlockIndex(index) => index.clone(),
-        TxId::TransactionId(_) => return Err("IC tokens require BlockIndex, not TransactionId".to_string()),
-    };
-    
-    // First verify the transfer on-chain
-    verify_transfer(pay_token, &block_index, pay_amount).await
-        .map_err(|e| format!("Transfer verification failed: {}", e))?;
-    
-    // For cross-chain IC payments, we would need to extract the sender from the IC transaction
-    // and verify the signature. Since IC transactions don't have a simple sender field like Solana,
-    // this is a complex operation that would require querying the ledger.
-    // For now, we'll return an error indicating this is not yet supported.
-    
-    Err("Cross-chain IC token payments with signatures are not yet implemented. Please use standard IC transfer without signature.".to_string())
-}

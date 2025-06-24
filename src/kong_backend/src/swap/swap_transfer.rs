@@ -25,15 +25,10 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
     // make sure user is registered, if not create a new user with referred_by if specified
     
-    // Check if this is a Solana swap with signature to allow anonymous users
-    let allow_anonymous = if args.signature.is_some() {
-        // Quick check if pay_token is Solana without full validation
-        match token_map::get_by_token(&args.pay_token) {
-            Ok(token) => token.chain() == SOL_CHAIN,
-            Err(_) => false,
-        }
-    } else {
-        false
+    // Check if this is a Solana swap to allow anonymous users
+    let allow_anonymous = match token_map::get_by_token(&args.pay_token) {
+        Ok(token) => token.chain() == SOL_CHAIN,
+        Err(_) => false,
     };
     
     let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
@@ -167,18 +162,11 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
     let pay_amount = args.pay_amount.clone();
 
     // Debug log
-    ICNetwork::info_log(&format!("swap_transfer: signature present: {}", args.signature.is_some()));
+    ICNetwork::info_log(&format!("swap_transfer: token chain: {}", pay_token.chain()));
     
-    // Check if this is a cross-chain swap based on signature presence
-    if args.signature.is_some() {
-        // Validate that pay_token is on Solana chain when signature is present
-        if pay_token.chain() != SOL_CHAIN {
-            let error_msg = "Solana tokens require signature for cross-chain swaps";
-            request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(error_msg));
-            return Err(error_msg.to_string());
-        }
-        
-        // Cross-chain payment path - use payment verifier
+    // Check token type to determine payment verification path
+    if pay_token.chain() == SOL_CHAIN {
+        // Solana tokens require signature verification
         let verifier = PaymentVerifier::new(ICNetwork::caller());
         let verification = verifier.verify_payment(args, &pay_token, &pay_amount)
             .await
@@ -217,14 +205,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
             }
         }
     } else {
-        // IC-only path (backward compatible) - original flow
-        // Validate that IC tokens don't have signatures
-        if pay_token.chain() == SOL_CHAIN {
-            let error_msg = "Solana tokens require signature for cross-chain swaps";
-            request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(error_msg));
-            return Err(error_msg.to_string());
-        }
-        
+        // IC token path - verify transfer without signature
         // For IC tokens, we need a valid block index
         let transfer_id = match &args.pay_tx_id {
             Some(pay_tx_id) => match pay_tx_id {
