@@ -27,6 +27,55 @@ enum TokenIndex {
     Token1,
 }
 
+/// Check if a token is an SPL token that requires gas fee deduction from the other side
+fn is_spl_requiring_gas_deduction(token: &StableToken) -> bool {
+    match token {
+        StableToken::Solana(solana_token) => {
+            // SPL tokens have fee = 0 and symbol != "SOL"
+            solana_token.is_spl_token && solana_token.symbol != "SOL" && nat_is_zero(&solana_token.fee)
+        }
+        _ => false,
+    }
+}
+
+/// Calculate SPL gas fee in the other token's denomination
+/// Returns the gas fee amount that should be deducted from the other token's payout
+fn calculate_spl_gas_fee_for_remove_liquidity(other_token: &StableToken) -> Result<Nat, String> {
+    // Fixed SPL gas fee: approximately $0.50 worth
+    // Convert to other token denomination based on typical rates
+    
+    match other_token {
+        StableToken::IC(ic_token) => {
+            match ic_token.symbol.as_str() {
+                "ICP" => {
+                    // Assume 1 ICP = $10 (adjustable based on market)
+                    // $0.50 / $10 = 0.05 ICP = 5,000,000 e8s (ICP has 8 decimals)
+                    Ok(Nat::from(5_000_000_u64))
+                }
+                "ckUSDT" => {
+                    // $0.50 = 500,000 e6s (ckUSDT has 6 decimals)
+                    Ok(Nat::from(500_000_u64))
+                }
+                _ => {
+                    // For other tokens, use a default equivalent to $0.50 in smallest units
+                    let decimals = ic_token.decimals;
+                    let base_amount = 50_u64; // Base amount for $0.50
+                    let multiplier = 10_u64.pow(decimals.saturating_sub(2) as u32); // Adjust for decimals
+                    Ok(Nat::from(base_amount * multiplier))
+                }
+            }
+        }
+        StableToken::Solana(_) => {
+            // If other token is also Solana, use a fixed SOL amount
+            Ok(Nat::from(5000_u64)) // 0.000005 SOL in lamports
+        }
+        StableToken::LP(_) => {
+            // LP tokens shouldn't be used in liquidity removal
+            Ok(nat_zero())
+        }
+    }
+}
+
 /// remove liquidity from a pool
 /// - before calling remove_liquidity(), the user must create an icrc2_approve_transaction for the LP token to
 ///   allow the backend canister to icrc2_transfer_from. Note, the approve transaction will incur
@@ -208,9 +257,11 @@ async fn check_arguments_with_user(args: &RemoveLiquidityArgs, user_id: u32) -> 
 
 pub fn calculate_amounts(pool: &StablePool, remove_lp_token_amount: &Nat) -> Result<(Nat, Nat, Nat, Nat), String> {
     // Token0
+    let token_0 = pool.token_0();
     let balance_0 = &pool.balance_0;
     let lp_fee_0 = &pool.lp_fee_0;
     // Token1
+    let token_1 = pool.token_1();
     let balance_1 = &pool.balance_1;
     let lp_fee_1 = &pool.lp_fee_1;
     // LP token
@@ -222,18 +273,60 @@ pub fn calculate_amounts(pool: &StablePool, remove_lp_token_amount: &Nat) -> Res
     // we split the calculations for balance and fees
     // amount_0 = balance_0 * remove_lp_token_amount / lp_total_supply
     let numerator = nat_multiply(balance_0, remove_lp_token_amount);
-    let payout_amount_0 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP token amount_0")?;
+    let mut payout_amount_0 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP token amount_0")?;
     // payout_lp_fee_0 = lp_fee_0 * remove_lp_token_amount / lp_total_supply
     let numerator = nat_multiply(lp_fee_0, remove_lp_token_amount);
-    let payout_lp_fee_0 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP lp_fee_0")?;
+    let mut payout_lp_fee_0 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP lp_fee_0")?;
 
     // calculate user's payout in token_1
     // amount_1 = balance_1 * remove_lp_token_amount / lp_total_supply
     let numerator = nat_multiply(balance_1, remove_lp_token_amount);
-    let payout_amount_1 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP token amount_1")?;
+    let mut payout_amount_1 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP token amount_1")?;
     // payout_lp_fee_1 = lp_fee_1 * remove_lp_token_amount / lp_total_supply
     let numerator = nat_multiply(lp_fee_1, remove_lp_token_amount);
-    let payout_lp_fee_1 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP lp_fee_1")?;
+    let mut payout_lp_fee_1 = nat_divide(&numerator, &lp_total_supply).ok_or("Invalid LP lp_fee_1")?;
+
+    // Apply SPL gas fee deduction if either token is an SPL token
+    // Deduct SPL gas fees from the ICP/ckUSDT side (the other token)
+    if is_spl_requiring_gas_deduction(&token_0) {
+        // Token_0 is SPL, deduct gas fee from token_1 (ICP/ckUSDT)
+        match calculate_spl_gas_fee_for_remove_liquidity(&token_1) {
+            Ok(spl_gas_fee) => {
+                let total_payout_1 = nat_add(&payout_amount_1, &payout_lp_fee_1);
+                if spl_gas_fee <= total_payout_1 {
+                    // Deduct proportionally from both amount and lp_fee
+                    let ratio_amount = nat_divide(&nat_multiply(&payout_amount_1, &Nat::from(10000_u32)), &total_payout_1).unwrap_or(nat_zero());
+                    let fee_deduction_amount = nat_divide(&nat_multiply(&spl_gas_fee, &ratio_amount), &Nat::from(10000_u32)).unwrap_or(nat_zero());
+                    let fee_deduction_lp = nat_subtract(&spl_gas_fee, &fee_deduction_amount).unwrap_or(nat_zero());
+                    
+                    payout_amount_1 = nat_subtract(&payout_amount_1, &fee_deduction_amount).unwrap_or(nat_zero());
+                    payout_lp_fee_1 = nat_subtract(&payout_lp_fee_1, &fee_deduction_lp).unwrap_or(nat_zero());
+                }
+            }
+            Err(_) => {
+                // If SPL gas fee calculation fails, continue without deduction
+            }
+        }
+    } else if is_spl_requiring_gas_deduction(&token_1) {
+        // Token_1 is SPL, deduct gas fee from token_0 (ICP/ckUSDT)
+        match calculate_spl_gas_fee_for_remove_liquidity(&token_0) {
+            Ok(spl_gas_fee) => {
+                let total_payout_0 = nat_add(&payout_amount_0, &payout_lp_fee_0);
+                if spl_gas_fee <= total_payout_0 {
+                    // Deduct proportionally from both amount and lp_fee
+                    let ratio_amount = nat_divide(&nat_multiply(&payout_amount_0, &Nat::from(10000_u32)), &total_payout_0).unwrap_or(nat_zero());
+                    let fee_deduction_amount = nat_divide(&nat_multiply(&spl_gas_fee, &ratio_amount), &Nat::from(10000_u32)).unwrap_or(nat_zero());
+                    let fee_deduction_lp = nat_subtract(&spl_gas_fee, &fee_deduction_amount).unwrap_or(nat_zero());
+                    
+                    payout_amount_0 = nat_subtract(&payout_amount_0, &fee_deduction_amount).unwrap_or(nat_zero());
+                    payout_lp_fee_0 = nat_subtract(&payout_lp_fee_0, &fee_deduction_lp).unwrap_or(nat_zero());
+                }
+            }
+            Err(_) => {
+                // If SPL gas fee calculation fails, continue without deduction
+            }
+        }
+    }
 
     Ok((payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1))
 }

@@ -15,7 +15,7 @@ pub struct AddTokenArgs {
     #[serde(default)]
     pub fee: Option<Nat>,
     #[serde(default)]
-    pub program_id: Option<String>,
+    pub solana_program_id: Option<String>,
     #[serde(default)]
-    pub total_supply: Option<Nat>,
+    pub solana_mint_address: Option<String>,
 }

@@ -636,8 +636,8 @@ pub fn run_pool_test(config: PoolTestConfig) -> Result<()> {
             symbol: None,
             decimals: None,
             fee: None,
-            program_id: None,
-            total_supply: None,
+            solana_program_id: None,
+            solana_mint_address: None,
         };
         let args_a = encode_one(&add_token_a_args).expect("Failed to encode add_token arguments");
         let response_a = setup.ic
@@ -651,8 +651,8 @@ pub fn run_pool_test(config: PoolTestConfig) -> Result<()> {
             symbol: None,
             decimals: None,
             fee: None,
-            program_id: None,
-            total_supply: None,
+            solana_program_id: None,
+            solana_mint_address: None,
         };
         let args_b = encode_one(&add_token_b_args).expect("Failed to encode add_token arguments");
         let response_b = setup.ic

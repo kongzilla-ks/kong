@@ -114,6 +114,16 @@ async fn set_timer_processes() {
             archive_tx_map();
         });
     });
+
+    // start the background timer to cleanup old Solana notifications
+    let _ = set_timer_interval(Duration::from_secs(3600), || {  // Clean up every hour
+        ic_cdk::spawn(async {
+            let removed_count = crate::stable_memory::cleanup_old_notifications();
+            if removed_count > 0 {
+                crate::ic::network::ICNetwork::info_log(&format!("Cleaned up {} old Solana notifications", removed_count));
+            }
+        });
+    });
 }
 
 /// inspect all ingress messages to the canister that are called as updates

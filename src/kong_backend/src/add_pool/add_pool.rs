@@ -186,8 +186,8 @@ async fn check_arguments(
                         symbol: None,
                         decimals: None,
                         fee: None,
-                        program_id: None,
-                        total_supply: None,
+                        solana_program_id: None,
+                        solana_mint_address: None,
                     };
                     add_solana_token(&add_token_args).await?
                 }

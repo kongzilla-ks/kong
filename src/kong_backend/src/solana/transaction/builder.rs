@@ -52,13 +52,9 @@ pub struct SplTransferWithAtaParams<'a> {
 }
 
 impl TransactionBuilder {
-    /// Create a new transaction builder
-    pub fn new() -> Self {
-        TransactionBuilder
-    }
 
     /// Get the latest blockhash, using the one in stable memory if recent
-    async fn get_recent_blockhash(&self) -> Result<String> {
+    async fn get_recent_blockhash() -> Result<String> {
         let latest_blockhash = with_solana_latest_blockhash(|cell| cell.get().clone());
         if latest_blockhash.blockhash.is_empty() {
             return Err(SolanaError::BlockhashError("No blockhash found in stable memory".to_string()))?;
@@ -85,7 +81,6 @@ impl TransactionBuilder {
     ///
     /// Transaction instructions ready for signing
     pub async fn build_transfer_sol_transaction(
-        &self,
         from_address: &str,
         to_address: &str,
         lamports: u64,
@@ -95,16 +90,16 @@ impl TransactionBuilder {
         validation::validate_addresses(&[from_address, to_address])?;
 
         // Create the transfer instructions
-        let transfer_instruction = self.create_transfer_sol_instruction(from_address, to_address, lamports)?;
+        let transfer_instruction = Self::create_transfer_sol_instruction(from_address, to_address, lamports)?;
         let mut instructions = vec![transfer_instruction];
         
         // Add memo instruction if provided
         if let Some(memo_text) = memo {
-            let memo_instruction = self.create_memo_instruction(from_address, &memo_text)?;
+            let memo_instruction = Self::create_memo_instruction(from_address, &memo_text)?;
             instructions.push(memo_instruction);
         }
 
-        let recent_blockhash = self.get_recent_blockhash().await?;
+        let recent_blockhash = Self::get_recent_blockhash().await?;
         Ok(TransactionInstructions {
             instructions,
             blockhash: recent_blockhash,
@@ -112,7 +107,7 @@ impl TransactionBuilder {
     }
 
     /// Create a transfer instruction
-    fn create_transfer_sol_instruction(&self, from_address: &str, to_address: &str, lamports: u64) -> Result<Instruction> {
+    fn create_transfer_sol_instruction(from_address: &str, to_address: &str, lamports: u64) -> Result<Instruction> {
         // Create account metadata
         let accounts = vec![
             AccountMeta {
@@ -154,7 +149,6 @@ impl TransactionBuilder {
     ///
     /// Transaction instructions ready for signing
     pub async fn build_transfer_spl_transaction(
-        &self,
         owner_address: &str,
         from_token_account: &str,
         to_token_account: &str,
@@ -166,16 +160,16 @@ impl TransactionBuilder {
 
         // Create the transfer instructions
         let token_transfer_instruction =
-            self.create_transfer_spl_instruction(owner_address, from_token_account, to_token_account, amount)?;
+            Self::create_transfer_spl_instruction(owner_address, from_token_account, to_token_account, amount)?;
         let mut instructions = vec![token_transfer_instruction];
         
         // Add memo instruction if provided
         if let Some(memo_text) = memo {
-            let memo_instrument = self.create_memo_instruction(owner_address, &memo_text)?;
+            let memo_instrument = Self::create_memo_instruction(owner_address, &memo_text)?;
             instructions.push(memo_instrument);
         }
 
-        let recent_blockhash = self.get_recent_blockhash().await?;
+        let recent_blockhash = Self::get_recent_blockhash().await?;
         Ok(TransactionInstructions {
             instructions,
             blockhash: recent_blockhash,
@@ -184,7 +178,6 @@ impl TransactionBuilder {
 
     /// Create a token transfer instruction
     fn create_transfer_spl_instruction(
-        &self,
         owner_address: &str,
         from_token_account: &str,
         to_token_account: &str,
@@ -226,7 +219,7 @@ impl TransactionBuilder {
     }
 
     /// Create a memo instruction
-    fn create_memo_instruction(&self, signer_address: &str, memo: &str) -> Result<Instruction> {
+    fn create_memo_instruction(signer_address: &str, memo: &str) -> Result<Instruction> {
         // Create account metadata
         let accounts = vec![AccountMeta {
             pubkey: signer_address.to_string(),
@@ -244,7 +237,6 @@ impl TransactionBuilder {
 
     /// Derive the associated token account address for a wallet and mint
     pub fn derive_associated_token_account(
-        &self,
         wallet_address: &str,
         mint_address: &str,
     ) -> Result<String> {
@@ -327,14 +319,13 @@ impl TransactionBuilder {
 
     /// Create instruction to create an associated token account (idempotent version)
     pub fn create_associated_token_account_instruction(
-        &self,
         fee_payer: &str,
         wallet_address: &str,
         mint_address: &str,
     ) -> Result<Instruction> {
         // Derive the associated token account address
         let associated_token_account =
-            self.derive_associated_token_account(wallet_address, mint_address)?;
+            Self::derive_associated_token_account(wallet_address, mint_address)?;
 
         // Create the accounts for the instruction
         let accounts = vec![
@@ -394,7 +385,6 @@ impl TransactionBuilder {
 
     /// Build a SPL token transfer transaction with ATA creation if needed
     pub async fn build_transfer_spl_with_ata_transaction(
-        &self,
         params: SplTransferWithAtaParams<'_>,
     ) -> Result<TransactionInstructions> {
         // Validate addresses
@@ -413,7 +403,7 @@ impl TransactionBuilder {
         let mut instructions = Vec::new();
 
         // 1. Create ATA instruction (idempotent - no error if ATA exists)
-        let create_ata_instruction = self.create_associated_token_account_instruction(
+        let create_ata_instruction = Self::create_associated_token_account_instruction(
             params.fee_payer,
             params.to_wallet_address,
             params.mint_address,
@@ -421,7 +411,7 @@ impl TransactionBuilder {
         instructions.push(create_ata_instruction);
 
         // 2. Create transfer instruction
-        let transfer_instruction = self.create_transfer_spl_instruction(
+        let transfer_instruction = Self::create_transfer_spl_instruction(
             params.from_address,
             params.from_token_account,
             params.to_token_account,
@@ -431,11 +421,11 @@ impl TransactionBuilder {
 
         // 3. Add memo instruction if provided
         if let Some(memo_text) = params.memo {
-            let memo_instruction = self.create_memo_instruction(params.from_address, &memo_text)?;
+            let memo_instruction = Self::create_memo_instruction(params.from_address, &memo_text)?;
             instructions.push(memo_instruction);
         }
 
-        let recent_blockhash = self.get_recent_blockhash().await?;
+        let recent_blockhash = Self::get_recent_blockhash().await?;
         Ok(TransactionInstructions {
             instructions,
             blockhash: recent_blockhash,
@@ -445,6 +435,6 @@ impl TransactionBuilder {
 
 impl Default for TransactionBuilder {
     fn default() -> Self {
-        Self::new()
+        TransactionBuilder
     }
 }
