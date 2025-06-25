@@ -1,5 +1,16 @@
 use candid::Nat;
 
+use crate::helpers::nat_helpers::nat_is_zero;
+use crate::ic::address::{get_address, Address};
+use crate::ic::network::ICNetwork;
+use crate::ic::verify_transfer::verify_transfer;
+use crate::stable_kong_settings::kong_settings_map;
+use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
+use crate::stable_token::token::Token;
+use crate::stable_token::{stable_token::StableToken, token_map};
+use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
+use crate::stable_user::user_map;
+
 use super::archive_to_kong_data::archive_to_kong_data;
 use super::payment_verifier::{PaymentVerification, PaymentVerifier};
 use super::return_pay_token::return_pay_token;
@@ -9,16 +20,6 @@ use super::swap_calc::SwapCalc;
 use super::swap_reply::SwapReply;
 use super::update_liquidity_pool::update_liquidity_pool;
 
-use crate::helpers::nat_helpers::nat_is_zero;
-use crate::ic::address::{get_address, Address};
-use crate::ic::network::ICNetwork;
-use crate::ic::verify_transfer::verify_transfer;
-use crate::stable_token::token::Token;
-use crate::stable_kong_settings::kong_settings_map;
-use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
-use crate::stable_token::{stable_token::StableToken, token_map};
-use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
-use crate::stable_user::user_map;
 use crate::chains::chains::SOL_CHAIN;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
@@ -40,14 +41,17 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     
     let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
     let ts = ICNetwork::get_time();
+    // insert request into request_map so we have immediate record of this
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
-    let mut transfer_ids = Vec::new();
-
+    // check arguments and verify the pay token transfer
     let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.inspect_err(|_| {
+        // if any arguments are invalid, no token to refund and return failed request status
         request_map::update_status(request_id, StatusCode::Failed, None);
         let _ = archive_to_kong_data(request_id);
     })?;
 
+    // initialize transfer_ids to keep track of transfers
+    let mut transfer_ids = Vec::new();
     let (receive_token, receive_amount_with_fees_and_gas, to_address, mid_price, price, slippage, swaps) = process_swap(
         request_id,
         user_id,
@@ -88,10 +92,15 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
 }
 
 pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
-    let user_id = user_map::insert(args.referred_by.as_deref())?;
+    // Check if this is a Solana swap to allow anonymous users
+    let allow_anonymous = match token_map::get_by_token(&args.pay_token) {
+        Ok(token) => token.chain() == SOL_CHAIN,
+        Err(_) => false,
+    };
+    
+    let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
     let ts = ICNetwork::get_time();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
-
     let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.inspect_err(|_| {
         request_map::update_status(request_id, StatusCode::Failed, None);
         let _ = archive_to_kong_data(request_id);
@@ -157,7 +166,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
     match &pay_token {
         StableToken::Solana(sol_token) => {
             ICNetwork::info_log(&format!(
-                "DEBUG: Pay token lookup for '{}' found Solana token: mint={}, is_spl_token={}", 
+                "DEBUG: Pay token lookup for '{}' found Solana token: mint={}, is_spl_token={}",
                 &args.pay_token, sol_token.mint_address, sol_token.is_spl_token
             ));
         }
@@ -180,7 +189,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
             .inspect_err(|e| {
                 request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(e));
             })?;
-        
+
         match verification {
             PaymentVerification::SolanaPayment { tx_signature, .. } => {
                 // For Solana payments, we create a transfer record with the transaction hash

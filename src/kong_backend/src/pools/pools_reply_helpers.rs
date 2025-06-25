@@ -1,8 +1,8 @@
-use super::pools_reply::PoolReply;
-
 use crate::stable_pool::stable_pool::StablePool;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
+
+use super::pools_reply::PoolReply;
 
 pub fn to_pool_reply(pool: &StablePool) -> PoolReply {
     let token_0 = token_map::get_by_token_id(pool.token_id_0);

@@ -1,9 +1,9 @@
 use ic_cdk::query;
 
-use super::tokens_reply::TokensReply;
-
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_token::token_map;
+
+use super::tokens_reply::TokensReply;
 
 #[query(guard = "not_in_maintenance_mode")]
 fn tokens(symbol: Option<String>) -> Result<Vec<TokensReply>, String> {

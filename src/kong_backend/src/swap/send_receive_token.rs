@@ -1,10 +1,6 @@
 use candid::Nat;
 
-use super::create_solana_swap_job::create_solana_swap_job;
-use super::swap_calc::SwapCalc;
-use super::swap_reply::SwapReply;
-use super::swap_reply_helpers::{to_swap_reply, to_swap_reply_failed};
-
+use crate::chains::chains::SOL_CHAIN;
 use crate::ic::{
     address::Address,
     transfer::{icp_transfer, icrc1_transfer},
@@ -12,9 +8,13 @@ use crate::ic::{
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_request::{reply::Reply, request_map, status::StatusCode};
 use crate::stable_token::{stable_token::StableToken, token::Token};
-use crate::chains::chains::SOL_CHAIN;
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{stable_tx::StableTx, swap_tx::SwapTx, tx_map};
+
+use super::create_solana_swap_job::create_solana_swap_job;
+use super::swap_calc::SwapCalc;
+use super::swap_reply::SwapReply;
+use super::swap_reply_helpers::{to_swap_reply, to_swap_reply_failed};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn send_receive_token(
@@ -45,11 +45,11 @@ pub async fn send_receive_token(
         match create_solana_swap_job(request_id, user_id, receive_token, receive_amount, to_address).await {
             Ok(job_id) => {
                 request_map::update_status(
-                    request_id, 
-                    StatusCode::SendReceiveTokenSuccess, 
-                    Some(&format!("Solana swap job #{} created", job_id))
+                    request_id,
+                    StatusCode::SendReceiveTokenSuccess,
+                    Some(&format!("Solana swap job #{} created", job_id)),
                 );
-                
+
                 // Create a transfer record for the job
                 let transfer_id = transfer_map::insert(&StableTransfer {
                     transfer_id: 0,
