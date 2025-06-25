@@ -30,7 +30,8 @@ use crate::stable_user::principal_id_map::create_principal_id_map;
 use crate::swap::swap_args::SwapArgs;
 
 use super::kong_backend::KongBackend;
-use super::stable_memory::get_cached_solana_address;
+use super::stable_memory::{get_cached_solana_address, get_solana_transaction};
+use super::stable_transfer::tx_id::TxId;
 use super::{APP_NAME, APP_VERSION};
 
 // list of query calls
@@ -172,6 +173,16 @@ fn validate_swap_request() -> Result<(), String> {
             // Basic rate limiting - allow more frequent calls for authenticated users
             if let Err(e) = check_rate_limit() {
                 return Err(e);
+            }
+            
+            // Check if Solana transaction is ready (zero-cost early rejection)
+            if let Some(tx_id) = &args.pay_tx_id {
+                if let TxId::TransactionId(signature) = tx_id {
+                    // This is a Solana transaction - check if it exists in canister memory
+                    if get_solana_transaction(signature.clone()).is_none() {
+                        return Err("TRANSACTION_NOT_READY".to_string());
+                    }
+                }
             }
             
             Ok(())

@@ -171,10 +171,12 @@ export async function calculateLiquidityAmounts(
     // For mainnet deployment, always use swapActor
     const actor = swapActor({anon: true});
     
+    // Don't add IC. prefix - just use the symbols as-is
+    // The backend's token_map::get_by_token handles both "SOL" and "IC.ckUSDT" formats
     const result = await actor.add_liquidity_amounts(
-      "IC." + token0Symbol,
+      token0Symbol,
       amount0,
-      "IC." + token1Symbol,
+      token1Symbol,
     );
 
     if ('Err' in result) {

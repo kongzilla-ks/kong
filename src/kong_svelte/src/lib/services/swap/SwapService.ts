@@ -496,30 +496,85 @@ export class SwapService {
 
   // === Swap Execution Methods ===
   /**
-   * Executes swap asynchronously
+   * Executes swap asynchronously with retry logic for TRANSACTION_NOT_READY errors
    */
-  public static async swap_async(params: {
-    pay_token: string;
-    pay_amount: bigint;
-    receive_token: string;
-    receive_amount: [] | [bigint];
-    max_slippage: [] | [number];
-    receive_address: [] | [string];
-    referred_by: [] | [string];
-    pay_tx_id: [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }];
-    signature?: [] | [string];
-    timestamp?: [] | [bigint];
-  }): Promise<BE.SwapAsyncResponse> {
-    try {
-      // For authenticated calls, we need to use PNP even in local dev
-      // because LocalActorService doesn't handle authentication
-      const actor = swapActor({anon: false, requiresSigning: auth.pnp.adapter.id === "plug"});
-      const result = await actor.swap_async(params);
-      return result;
-    } catch (error) {
-      console.error("Error in swap_async:", error);
-      throw error;
+  public static async swap_async(
+    params: {
+      pay_token: string;
+      pay_amount: bigint;
+      receive_token: string;
+      receive_amount: [] | [bigint];
+      max_slippage: [] | [number];
+      receive_address: [] | [string];
+      referred_by: [] | [string];
+      pay_tx_id: [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }];
+      signature?: [] | [string];
+      timestamp?: [] | [bigint];
+    },
+    onRetryProgress?: (attempt: number, maxAttempts: number) => void
+  ): Promise<BE.SwapAsyncResponse> {
+    const MAX_RETRY_ATTEMPTS = 10;
+    const RETRY_DELAY_MS = 1000; // 1 second
+    
+    for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+      try {
+        // For authenticated calls, we need to use PNP even in local dev
+        // because LocalActorService doesn't handle authentication
+        const actor = swapActor({anon: false, requiresSigning: auth.pnp.adapter.id === "plug"});
+        const result = await actor.swap_async(params);
+        
+        // Check if we got an error response that indicates transaction not ready
+        if (result.Err && typeof result.Err === 'string' && 
+            result.Err.includes('TRANSACTION_NOT_READY')) {
+          
+          console.log(`[SwapService] Attempt ${attempt}/${MAX_RETRY_ATTEMPTS}: Transaction not ready, retrying in ${RETRY_DELAY_MS}ms...`);
+          
+          // Notify caller about retry progress
+          if (onRetryProgress) {
+            onRetryProgress(attempt, MAX_RETRY_ATTEMPTS);
+          }
+          
+          // If this is not the last attempt, wait and retry
+          if (attempt < MAX_RETRY_ATTEMPTS) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          } else {
+            // Final attempt failed
+            console.error(`[SwapService] All ${MAX_RETRY_ATTEMPTS} attempts failed - transaction still not ready`);
+            throw new Error(`Transaction verification failed after ${MAX_RETRY_ATTEMPTS} attempts. The Solana transaction may need more time to be confirmed.`);
+          }
+        }
+        
+        // Success or other error (non-retryable)
+        return result;
+        
+      } catch (error) {
+        console.error(`[SwapService] Attempt ${attempt}/${MAX_RETRY_ATTEMPTS} failed:`, error);
+        
+        // If it's a network/connection error and not the last attempt, retry
+        if (attempt < MAX_RETRY_ATTEMPTS && 
+            (error instanceof Error && 
+             (error.message.includes('network') || 
+              error.message.includes('timeout') || 
+              error.message.includes('fetch')))) {
+          
+          console.log(`[SwapService] Network error on attempt ${attempt}, retrying in ${RETRY_DELAY_MS}ms...`);
+          
+          if (onRetryProgress) {
+            onRetryProgress(attempt, MAX_RETRY_ATTEMPTS);
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+          continue;
+        }
+        
+        // Non-retryable error or final attempt
+        throw error;
+      }
     }
+    
+    // This should never be reached, but just in case
+    throw new Error("Maximum retry attempts exceeded");
   }
 
   /**
@@ -644,9 +699,22 @@ export class SwapService {
         receive_address: [] as [] | [string],
         referred_by: [] as [] | [string],
         pay_tx_id: txId ? [{ BlockIndex: BigInt(txId) }] as [] | [{ BlockIndex: bigint }] : [] as [] | [{ BlockIndex: bigint }],
+        signature: [] as [] | [string],
+        timestamp: [] as [] | [bigint],
       };
 
-      const result = await SwapService.swap_async(swapParams);
+      const result = await SwapService.swap_async(swapParams, (attempt, maxAttempts) => {
+        // Show retry progress to user for IC token swaps
+        if (attempt > 1) {
+          toastStore.info(
+            `Verifying transaction... (attempt ${attempt}/${maxAttempts})`,
+            { 
+              duration: 2000,
+              title: "Transaction Verification" 
+            }
+          );
+        }
+      });
 
       if (result.Ok) {
         // Start monitoring the transaction
@@ -723,7 +791,20 @@ export class SwapService {
                 timestamp: [timestamp] as [] | [bigint],
               };
 
-              const result = await SwapService.swap_async(swapParams);
+              const result = await SwapService.swap_async(swapParams, (attempt, maxAttempts) => {
+                // Show retry progress to user
+                if (attempt === 1) {
+                  toastStore.info("Initiating cross-chain swap...");
+                } else {
+                  toastStore.info(
+                    `Verifying Solana transaction... (attempt ${attempt}/${maxAttempts})`,
+                    { 
+                      duration: 2000,
+                      title: "Transaction Verification" 
+                    }
+                  );
+                }
+              });
 
               if (result.Ok) {
                 toastStore.success("Cross-chain swap initiated!");
