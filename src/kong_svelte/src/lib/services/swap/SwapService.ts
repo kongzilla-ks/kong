@@ -67,7 +67,7 @@ export class SwapService {
     }
     return false;
   }
-
+// we need to retry
   public static toBigInt(
     value: string | number | BigNumber,
     decimals?: number,
@@ -508,24 +508,38 @@ export class SwapService {
       receive_address: [] | [string];
       referred_by: [] | [string];
       pay_tx_id: [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }];
-      signature?: [] | [string];
-      timestamp?: [] | [bigint];
+      signature: [] | [string];
+      timestamp: [] | [bigint];
     },
     onRetryProgress?: (attempt: number, maxAttempts: number) => void
   ): Promise<BE.SwapAsyncResponse> {
     const MAX_RETRY_ATTEMPTS = 10;
     const RETRY_DELAY_MS = 1000; // 1 second
     
+    // Helper function to check for TRANSACTION_NOT_READY in various formats
+    const isTransactionNotReadyError = (error: any): boolean => {
+      if (!error) return false;
+      
+      // Check error message for various formats
+      const errorMessage = error?.message || error?.toString?.() || '';
+      const errorString = typeof error === 'string' ? error : JSON.stringify(error);
+      
+      return errorMessage.includes('TRANSACTION_NOT_READY') ||
+             errorString.includes('TRANSACTION_NOT_READY') ||
+             errorString.toLowerCase().includes('transaction_not_ready') ||
+             errorString.toLowerCase().includes('transaction not ready') ||
+             (errorMessage.includes('ic0.trap') && errorMessage.includes('TRANSACTION_NOT_READY'));
+    };
+    
     for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
       try {
         // For authenticated calls, we need to use PNP even in local dev
         // because LocalActorService doesn't handle authentication
         const actor = swapActor({anon: false, requiresSigning: auth.pnp.adapter.id === "plug"});
-        const result = await actor.swap_async(params);
+        const result: any = await actor.swap_async(params);
         
         // Check if we got an error response that indicates transaction not ready
-        if (result.Err && typeof result.Err === 'string' && 
-            result.Err.includes('TRANSACTION_NOT_READY')) {
+        if (result.Err && isTransactionNotReadyError(result.Err)) {
           
           console.log(`[SwapService] Attempt ${attempt}/${MAX_RETRY_ATTEMPTS}: Transaction not ready, retrying in ${RETRY_DELAY_MS}ms...`);
           
@@ -550,6 +564,26 @@ export class SwapService {
         
       } catch (error) {
         console.error(`[SwapService] Attempt ${attempt}/${MAX_RETRY_ATTEMPTS} failed:`, error);
+        
+        // Check if this is a TRANSACTION_NOT_READY error thrown as exception
+        if (isTransactionNotReadyError(error)) {
+          console.log(`[SwapService] Attempt ${attempt}/${MAX_RETRY_ATTEMPTS}: Transaction not ready (exception), retrying in ${RETRY_DELAY_MS}ms...`);
+          
+          // Notify caller about retry progress
+          if (onRetryProgress) {
+            onRetryProgress(attempt, MAX_RETRY_ATTEMPTS);
+          }
+          
+          // If this is not the last attempt, wait and retry
+          if (attempt < MAX_RETRY_ATTEMPTS) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          } else {
+            // Final attempt failed
+            console.error(`[SwapService] All ${MAX_RETRY_ATTEMPTS} attempts failed - transaction still not ready`);
+            throw new Error(`Transaction verification failed after ${MAX_RETRY_ATTEMPTS} attempts. The Solana transaction may need more time to be confirmed.`);
+          }
+        }
         
         // If it's a network/connection error and not the last attempt, retry
         if (attempt < MAX_RETRY_ATTEMPTS && 
@@ -608,6 +642,30 @@ export class SwapService {
     const swapId = params.swapId;
     try {
       requireWalletConnection();
+      
+      // Log all input parameters
+      console.log("[SwapService] executeSwap called with params:", {
+        swapId: params.swapId,
+        payToken: {
+          symbol: params.payToken.symbol,
+          address: params.payToken.address,
+          chain: params.payToken.chain,
+          decimals: params.payToken.decimals,
+          standards: params.payToken.standards,
+          fee_fixed: params.payToken.fee_fixed
+        },
+        payAmount: params.payAmount,
+        receiveToken: {
+          symbol: params.receiveToken.symbol,
+          address: params.receiveToken.address,
+          chain: params.receiveToken.chain,
+          decimals: params.receiveToken.decimals
+        },
+        receiveAmount: params.receiveAmount,
+        userMaxSlippage: params.userMaxSlippage,
+        backendPrincipal: params.backendPrincipal.toString()
+      });
+      
       // Add check for blocked tokens at the start
       if (BLOCKED_TOKEN_IDS.includes(params.payToken.address) || 
           BLOCKED_TOKEN_IDS.includes(params.receiveToken.address)) {
@@ -635,6 +693,8 @@ export class SwapService {
         params.payAmount,
         payToken.decimals,
       );
+      
+      console.log("[SwapService] Calculated payAmount (bigint):", payAmount.toString());
 
       const receiveToken = params.receiveToken
 
@@ -644,30 +704,52 @@ export class SwapService {
 
       // Check if this is a cross-chain swap (paying with Solana token)
       if (payToken.chain === 'Solana') {
+        console.log("[SwapService] Detected Solana token, executing cross-chain swap");
         return await this.executeCrossChainSwap(params);
       }
 
+      // Check if we need to get Solana address for receiving SOL tokens
+      let solanaReceiveAddress: string | undefined;
+      if (receiveToken.chain === 'Solana') {
+        try {
+          solanaReceiveAddress = await CrossChainSwapService.getSolanaWalletAddress();
+          console.log("[SwapService] Got Solana receive address:", solanaReceiveAddress);
+        } catch (error) {
+          console.error("[SwapService] Failed to get Solana address:", error);
+          throw new Error("Please connect a Solana wallet to receive SOL tokens");
+        }
+      }
+
       // Original IC token swap logic
-      let txId: bigint | false;
-      let approvalId: bigint | false;
+      let txId: bigint | false = false;
+      let approvalId: bigint | false = false;
       const toastId = toastStore.info(
         `Swapping ${params.payAmount} ${params.payToken.symbol} to ${params.receiveAmount} ${params.receiveToken.symbol}...`,
         { duration: 15000 }, // 15 seconds
       );
 
+      console.log("[SwapService] Token standards:", payToken.standards);
+
       if (payToken.standards.includes("ICRC-2")) {
+        console.log("[SwapService] Token supports ICRC-2, requesting allowance");
         const requiredAllowance = payAmount;
+        console.log("[SwapService] Required allowance:", requiredAllowance.toString());
+        console.log("[SwapService] Backend principal for approval:", params.backendPrincipal.toString());
         approvalId = await IcrcService.checkAndRequestIcrc2Allowances(
           payToken,
           requiredAllowance,
+          params.backendPrincipal.toString(),
         );
+        console.log("[SwapService] Approval result:", approvalId);
       } else if (payToken.standards.includes("ICRC-1")) {
+        console.log("[SwapService] Token supports ICRC-1, doing direct transfer");
         const result = await IcrcService.transfer(
           payToken,
           params.backendPrincipal,
           payAmount,
           { fee: BigInt(payToken.fee_fixed) },
         );
+        console.log("[SwapService] Transfer result:", result);
 
         if (result?.Ok) {
           txId = result.Ok;
@@ -680,7 +762,8 @@ export class SwapService {
         );
       }
 
-      if (txId === false || approvalId === false) {
+      if (txId === false && approvalId === false) {
+        console.error("[SwapService] Both txId and approvalId are false");
         swapStatusStore.updateSwap(swapId, {
           status: "Failed",
           isProcessing: false,
@@ -690,18 +773,45 @@ export class SwapService {
         return false;
       }
 
-      const swapParams = {
+      // IMPORTANT: The backend routing logic:
+      // - If pay_tx_id is None (not provided at all), it uses swap_transfer_from (ICRC-2 flow)
+      // - If pay_tx_id is Some (provided, even if empty), it uses swap_transfer (ICRC-1 flow)
+      // So for ICRC-2 tokens, we must NOT provide pay_tx_id field at all
+      // For ICRC-1 tokens, we MUST provide pay_tx_id with the block index
+      
+      // Build base params with explicit pay_tx_id field
+      const baseSwapParams = {
         pay_token: this.formatTokenId(params.payToken),
         pay_amount: BigInt(payAmount),
         receive_token: this.formatTokenId(params.receiveToken),
         receive_amount: [] as [] | [bigint],
         max_slippage: [params.userMaxSlippage] as [] | [number],
-        receive_address: [] as [] | [string],
+        receive_address: solanaReceiveAddress ? [solanaReceiveAddress] as [] | [string] : [] as [] | [string],
         referred_by: [] as [] | [string],
-        pay_tx_id: txId ? [{ BlockIndex: BigInt(txId) }] as [] | [{ BlockIndex: bigint }] : [] as [] | [{ BlockIndex: bigint }],
+        pay_tx_id: [] as [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }],
         signature: [] as [] | [string],
         timestamp: [] as [] | [bigint],
       };
+      
+      // Set pay_tx_id based on token type
+      // For ICRC-1 tokens (when we did a transfer), set the block index
+      // For ICRC-2 tokens (when we did an approval), leave it as empty array
+      const swapParams = txId 
+        ? { ...baseSwapParams, pay_tx_id: [{ BlockIndex: BigInt(txId) }] as [] | [{ BlockIndex: bigint }] }
+        : baseSwapParams;
+      
+      console.log("[SwapService] Final swap_async params:", {
+        pay_token: swapParams.pay_token,
+        pay_amount: swapParams.pay_amount.toString(),
+        receive_token: swapParams.receive_token,
+        receive_amount: swapParams.receive_amount,
+        max_slippage: swapParams.max_slippage,
+        receive_address: swapParams.receive_address,
+        referred_by: swapParams.referred_by,
+        pay_tx_id: swapParams.pay_tx_id,
+        signature: swapParams.signature,
+        timestamp: swapParams.timestamp
+      });
 
       const result = await SwapService.swap_async(swapParams, (attempt, maxAttempts) => {
         // Show retry progress to user for IC token swaps
@@ -715,6 +825,8 @@ export class SwapService {
           );
         }
       });
+      
+      console.log("[SwapService] swap_async result:", result);
 
       if (result.Ok) {
         // Start monitoring the transaction

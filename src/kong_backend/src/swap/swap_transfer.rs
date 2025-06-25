@@ -1,7 +1,8 @@
 use candid::Nat;
 
 use crate::helpers::nat_helpers::nat_is_zero;
-use crate::ic::address::{get_address, Address};
+use crate::ic::address::Address;
+use crate::ic::address_helpers::get_address;
 use crate::ic::network::ICNetwork;
 use crate::ic::verify_transfer::verify_transfer;
 use crate::stable_kong_settings::kong_settings_map;

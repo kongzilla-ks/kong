@@ -194,6 +194,17 @@ export class IcrcService {
     payAmount: bigint,
     spender: string = KONG_BACKEND_CANISTER_ID,
   ): Promise<bigint | null> {
+    console.log("[IcrcService] checkAndRequestIcrc2Allowances called with:", {
+      token: {
+        symbol: token.symbol,
+        address: token.address,
+        fee_fixed: token.fee_fixed,
+        standards: token.standards
+      },
+      payAmount: payAmount.toString(),
+      spender
+    });
+    
     if (!token?.address) {
       throw new Error("Invalid token: missing address");
     }
@@ -209,6 +220,12 @@ export class IcrcService {
         ? BigInt(cleanFee)
         : 0n;
       const totalAmount = payAmount + (tokenFee * 4n);
+      
+      console.log("[IcrcService] Calculated amounts:", {
+        payAmount: payAmount.toString(),
+        tokenFee: tokenFee.toString(),
+        totalAmount: totalAmount.toString()
+      });
 
       const allowanceActor = icrcActor({
         canisterId: token.address,
@@ -216,19 +233,33 @@ export class IcrcService {
       })
 
       // Check current allowance
-      const currentAllowance = await allowanceActor.icrc2_allowance({
+      const allowanceRequest = {
         account: {
           owner: Principal.fromText(authStore.account.owner),
-          subaccount: [],
+          subaccount: [] as [],
         },
         spender: { 
           owner: Principal.fromText(spender),
-          subaccount: [],
+          subaccount: [] as [],
         },
-      })
+      };
+      
+      console.log("[IcrcService] Checking current allowance with:", {
+        account: authStore.account.owner,
+        spender
+      });
+      
+      const currentAllowance = await allowanceActor.icrc2_allowance(allowanceRequest);
+      console.log("[IcrcService] Current allowance:", {
+        allowance: currentAllowance.allowance.toString(),
+        expires_at: currentAllowance.expires_at.length > 0 ? currentAllowance.expires_at[0].toString() : "none"
+      });
+      
       const isExpired = currentAllowance.expires_at.length > 0 && currentAllowance.expires_at[0] < BigInt(Date.now() * 1000);
+      console.log("[IcrcService] Allowance expired?", isExpired);
 
       if (currentAllowance && !isExpired && currentAllowance.allowance > totalAmount) {
+        console.log("[IcrcService] Using existing allowance");
         return currentAllowance.allowance;
       }
 
@@ -241,6 +272,8 @@ export class IcrcService {
       } else {
         approveAmount = totalAmount * 10n;
       }
+      
+      console.log("[IcrcService] Need new approval for amount:", approveAmount.toString());
 
       const approveArgs: ApproveArgs = {
         fee: [],
@@ -255,6 +288,12 @@ export class IcrcService {
           subaccount: [],
         },
       };
+      
+      console.log("[IcrcService] Approve args:", {
+        amount: approveAmount.toString(),
+        spender,
+        expires_at: expiresAt.toString()
+      });
 
       const approveActor = icrcActor({
         canisterId: token.address,
@@ -262,7 +301,23 @@ export class IcrcService {
         requiresSigning: true,
       })
 
+      console.log("[IcrcService] Calling icrc2_approve on ledger:", token.address);
+      console.log("[IcrcService] Full approve args:", JSON.stringify({
+        fee: approveArgs.fee,
+        memo: approveArgs.memo,
+        from_subaccount: approveArgs.from_subaccount,
+        created_at_time: approveArgs.created_at_time,
+        amount: approveArgs.amount.toString(),
+        expected_allowance: approveArgs.expected_allowance,
+        expires_at: approveArgs.expires_at.map(x => x.toString()),
+        spender: {
+          owner: approveArgs.spender.owner.toString(),
+          subaccount: approveArgs.spender.subaccount
+        }
+      }, null, 2));
+
       const result = await approveActor.icrc2_approve(approveArgs);
+      console.log("[IcrcService] Approve result:", result);
 
       if ("Err" in result) {
         // Convert BigInt values to strings in the error object
@@ -272,6 +327,26 @@ export class IcrcService {
         throw new Error(`ICRC2 approve error: ${stringifiedError}`);
       }
 
+      console.log("[IcrcService] Approval successful, block index:", result.Ok.toString());
+      
+      // Verify the approval was set correctly
+      try {
+        const verifyAllowance = await allowanceActor.icrc2_allowance(allowanceRequest);
+        console.log("[IcrcService] Verified allowance after approval:", {
+          allowance: verifyAllowance.allowance.toString(),
+          expires_at: verifyAllowance.expires_at.length > 0 ? verifyAllowance.expires_at[0].toString() : "none"
+        });
+        
+        if (verifyAllowance.allowance < totalAmount) {
+          console.error("[IcrcService] WARNING: Allowance verification failed!", {
+            expected: totalAmount.toString(),
+            actual: verifyAllowance.allowance.toString()
+          });
+        }
+      } catch (verifyError) {
+        console.error("[IcrcService] Failed to verify allowance:", verifyError);
+      }
+      
       return result.Ok;
     } catch (error) {
       console.error("ICRC2 approve error:", error);

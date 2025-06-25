@@ -35,7 +35,8 @@ const defaultTokens = () => {
 export const DEFAULT_TOKENS = defaultTokens();
 
 // Frontend Canister IDs
-export const KONG_BACKEND_CANISTER_ID = process.env.CANISTER_ID_KONG_BACKEND;
+export const KONG_BACKEND_CANISTER_ID = process.env.CANISTER_ID_KONG_BACKEND || 
+  (process.env.DFX_NETWORK === 'local' ? 'be2us-64aaa-aaaaa-qaabq-cai' : 'u6kfa-6aaaa-aaaam-qdxba-cai');
 export const KONG_LEDGER_CANISTER_ID = 'o7oak-iyaaa-aaaaq-aadzq-cai';
 
 // Token Canister IDs

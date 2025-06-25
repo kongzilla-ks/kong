@@ -2,7 +2,7 @@
 // Service to fetch tokens and pools directly from kong_backend canister
 
 import { swapActor } from "$lib/stores/auth";
-import type { TokensReply, PoolReply } from "../../../../../declarations/kong_backend/kong_backend.did";
+import type { TokenReply, PoolReply } from "../../../../../declarations/kong_backend/kong_backend.did";
 import { LocalActorService } from '../actors/LocalActorService';
 import { IcrcMetadataService } from './IcrcMetadataService';
 
@@ -21,7 +21,6 @@ export class BackendTokenService {
       } else {
         actor = swapActor({ anon: true, requiresSigning: false });
       }
-      
       
       const result = await actor.tokens(symbol ? [symbol] : []);
       console.log('[BackendTokenService] Raw result from kong_backend:', result);
@@ -80,7 +79,7 @@ export class BackendTokenService {
   /**
    * Transforms backend token response to frontend Kong.Token format
    */
-  private static transformBackendToken(token: TokensReply): Kong.Token | null {
+  private static transformBackendToken(token: TokenReply): Kong.Token | null {
     try {
       // Handle IC tokens
       if ("IC" in token) {
@@ -157,6 +156,16 @@ export class BackendTokenService {
    */
   private static getICStandards(icToken: any): string[] {
     const standards: string[] = [];
+    
+    // Log the token info for debugging
+    if (icToken.symbol === 'ICP' || icToken.symbol === 'ckUSDT' || icToken.symbol === 'ksUSDT') {
+      console.log(`[BackendTokenService] Token ${icToken.symbol} standards:`, {
+        icrc1: icToken.icrc1,
+        icrc2: icToken.icrc2,
+        icrc3: icToken.icrc3
+      });
+    }
+    
     if (icToken.icrc1) standards.push('ICRC-1');
     if (icToken.icrc2) standards.push('ICRC-2');
     if (icToken.icrc3) standards.push('ICRC-3');

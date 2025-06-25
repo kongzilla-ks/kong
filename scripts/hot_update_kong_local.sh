@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# note: the way we resolve build kong script is via root dir, so make sure when quickly updating locally or staging
+# happens via root dir, not the scripts dir
 
 # Hot update script for Kong backend development
 # This script:
