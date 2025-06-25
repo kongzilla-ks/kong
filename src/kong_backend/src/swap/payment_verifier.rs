@@ -113,9 +113,7 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
     let is_spl_token = sol_token.is_spl_token;
     
     // First, extract the sender from the transaction
-    ICNetwork::info_log(&format!("Extracting sender from transaction: {} (is_spl_token: {})", tx_signature_str, is_spl_token));
-    let sender_pubkey = extract_sender_from_transaction(&tx_signature_str, is_spl_token).await?;
-    ICNetwork::info_log(&format!("Extracted sender: {}", sender_pubkey));
+    let sender_pubkey = extract_sender_from_transaction(&tx_signature_str, is_spl_token).await?
     
     // Create canonical message with extracted sender and verify signature
     // TODO: Important integration note for Solana swaps:
@@ -132,14 +130,9 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
     // 
     // Future improvement: Consider accepting both formats or providing a 
     // signature helper endpoint that returns the exact message to sign.
-    ICNetwork::info_log(&format!("DEBUG: Creating canonical message from SwapArgs: {:?}", args));
     let canonical_message = CanonicalSwapMessage::from_swap_args(args)
         .with_sender(sender_pubkey.clone());
     let message_to_verify = canonical_message.to_signing_message();
-    ICNetwork::info_log(&format!("DEBUG: Backend canonical message: {:?}", canonical_message));
-    ICNetwork::info_log(&format!("DEBUG: Backend message to verify: {}", message_to_verify));
-    ICNetwork::info_log(&format!("DEBUG: Extracted sender from transaction: {}", sender_pubkey));
-    ICNetwork::info_log(&format!("DEBUG: Signature to verify: {}", signature));
     
     verify_canonical_message(&message_to_verify, &sender_pubkey, signature)
         .map_err(|e| format!("Signature verification failed: {}", e))?;
@@ -186,7 +179,6 @@ async fn extract_sender_from_transaction(tx_signature: &str, is_spl_token: bool)
                 .ok_or("SOL transaction metadata missing sender information")?
         };
         
-        ICNetwork::info_log(&format!("DEBUG: Extracted sender: {} (is_spl_token: {})", sender, is_spl_token));
         Ok(sender.to_string())
     } else {
         Err("Transaction metadata is missing".to_string())
