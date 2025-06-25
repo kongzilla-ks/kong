@@ -734,23 +734,32 @@ fn calculate_spl_gas_fee(pay_token: &StableToken, receive_token: &StableToken) -
         return Ok(nat_zero());
     }
 
+    // TODO: Implement dynamic pricing oracle or configurable gas fees
+    // Current implementation uses hardcoded exchange rates which will become outdated
+    // Consider:
+    // 1. Integrating with a price oracle (e.g., Chainlink, Exchange Rate Canister)
+    // 2. Making gas fees configurable through kong_settings
+    // 3. Implementing a fallback mechanism when price data is unavailable
+    
     // Fixed SPL gas fee: approximately $0.50 worth
-    // Convert to pay token denomination based on typical rates
+    // WARNING: These exchange rates are hardcoded and need to be updated regularly
     
     match pay_token {
         StableToken::IC(ic_token) => {
             match ic_token.symbol.as_str() {
                 "ICP" => {
-                    // Assume 1 ICP = $10 (adjustable based on market)
+                    // HARDCODED: Assumes 1 ICP = $10
+                    // TODO: Fetch real-time ICP price
                     // $0.50 / $10 = 0.05 ICP = 5,000,000 e8s (ICP has 8 decimals)
                     Ok(Nat::from(5_000_000_u64))
                 }
                 "ckUSDT" => {
-                    // $0.50 = 500,000 e6s (ckUSDT has 6 decimals)
+                    // Stablecoin: $0.50 = 500,000 e6s (ckUSDT has 6 decimals)
                     Ok(Nat::from(500_000_u64))
                 }
                 _ => {
                     // For other tokens, use a default equivalent to $0.50 in smallest units
+                    // TODO: Implement proper price calculation for each token
                     let decimals = ic_token.decimals;
                     let base_amount = 50_u64; // Base amount for $0.50
                     let multiplier = 10_u64.pow(decimals.saturating_sub(2) as u32); // Adjust for decimals
@@ -759,7 +768,8 @@ fn calculate_spl_gas_fee(pay_token: &StableToken, receive_token: &StableToken) -
             }
         }
         StableToken::Solana(_) => {
-            // If pay token is also Solana, use a fixed SOL amount
+            // HARDCODED: Fixed SOL amount
+            // TODO: Calculate based on current SOL price
             Ok(Nat::from(5000_u64)) // 0.000005 SOL in lamports
         }
         StableToken::LP(_) => {
