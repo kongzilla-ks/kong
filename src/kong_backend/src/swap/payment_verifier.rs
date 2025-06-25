@@ -3,13 +3,15 @@
 
 use anyhow::Result;
 use candid::{Nat, Principal};
-use num_traits::ToPrimitive;
 
-use crate::ic::network::ICNetwork;
 use crate::ic::verify_transfer::verify_transfer;
 use crate::stable_transfer::tx_id::TxId;
 use crate::stable_token::stable_token::StableToken;
-use crate::stable_memory::get_solana_transaction;
+use crate::solana::payment_verification::{
+    extract_solana_sender_from_transaction,
+    verify_solana_transaction,
+    verify_solana_timestamp_freshness,
+};
 
 use super::swap_args::SwapArgs;
 use super::message_builder::CanonicalSwapMessage;
@@ -113,7 +115,7 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
     let is_spl_token = sol_token.is_spl_token;
     
     // First, extract the sender from the transaction
-    let sender_pubkey = extract_sender_from_transaction(&tx_signature_str, is_spl_token).await?;
+    let sender_pubkey = extract_solana_sender_from_transaction(&tx_signature_str, is_spl_token).await?;
     
     // Create canonical message with extracted sender and verify signature
     // TODO: Important integration note for Solana swaps:
@@ -138,12 +140,7 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
         .map_err(|e| format!("Signature verification failed: {}", e))?;
     
     // Check timestamp freshness
-    let current_time_ms = ICNetwork::get_time() / 1_000_000;
-    let message_timestamp = args.timestamp.ok_or("Timestamp required for Solana payments")?;
-    let age_ms = current_time_ms.saturating_sub(message_timestamp);
-    if age_ms > 300_000 {
-        return Err(format!("Signature timestamp too old: {} ms", age_ms));
-    }
+    verify_solana_timestamp_freshness(args.timestamp)?;
 
     // Verify the actual Solana transaction from storage
     verify_solana_transaction(&tx_signature_str, &sender_pubkey, pay_amount, is_spl_token).await?;
@@ -155,96 +152,4 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
     })
 }
 
-/// Extract sender public key from a Solana transaction
-async fn extract_sender_from_transaction(tx_signature: &str, is_spl_token: bool) -> Result<String, String> {
-    let transaction = get_solana_transaction(tx_signature.to_string())
-        .ok_or_else(|| format!("Solana transaction {} not found. Make sure kong_rpc has processed this transaction.", tx_signature))?;
-    
-    // Parse metadata to extract sender
-    if let Some(metadata_json) = &transaction.metadata {
-        let metadata: serde_json::Value = serde_json::from_str(metadata_json)
-            .map_err(|e| format!("Failed to parse transaction metadata: {}", e))?;
-        
-        // Extract sender based on token type
-        let sender = if is_spl_token {
-            // For SPL tokens: use "authority" or "sender_wallet" (the actual wallet that signed)
-            metadata.get("authority")
-                .or_else(|| metadata.get("sender_wallet"))
-                .and_then(|v| v.as_str())
-                .ok_or("SPL transaction metadata missing authority/sender_wallet information")?
-        } else {
-            // For native SOL: use "sender" (the wallet address)
-            metadata.get("sender")
-                .and_then(|v| v.as_str())
-                .ok_or("SOL transaction metadata missing sender information")?
-        };
-        
-        Ok(sender.to_string())
-    } else {
-        Err("Transaction metadata is missing".to_string())
-    }
-}
-
-/// Verify a Solana transaction exists and matches expected parameters
-async fn verify_solana_transaction(
-    tx_signature: &str,
-    expected_sender: &str,
-    expected_amount: &Nat,
-    is_spl_token: bool,
-) -> Result<(), String> {
-    let transaction = get_solana_transaction(tx_signature.to_string())
-        .ok_or_else(|| format!("Solana transaction {} not found. Make sure kong_rpc has processed this transaction.", tx_signature))?;
-    
-    // Check transaction status
-    match transaction.status.as_str() {
-        "confirmed" | "finalized" => {}, // Good statuses
-        "failed" => return Err(format!("Solana transaction {} failed", tx_signature)),
-        status => return Err(format!("Solana transaction {} has unexpected status: {}", tx_signature, status)),
-    }
-    
-    // Parse metadata to verify transaction details
-    if let Some(metadata_json) = &transaction.metadata {
-        let metadata: serde_json::Value = serde_json::from_str(metadata_json)
-            .map_err(|e| format!("Failed to parse transaction metadata: {}", e))?;
-        
-        // Check sender matches based on token type
-        let actual_sender = if is_spl_token {
-            // For SPL tokens: use "authority" or "sender_wallet"
-            metadata.get("authority")
-                .or_else(|| metadata.get("sender_wallet"))
-                .and_then(|v| v.as_str())
-                .ok_or("SPL transaction metadata missing authority/sender_wallet information")?
-        } else {
-            // For native SOL: use "sender"
-            metadata.get("sender")
-                .and_then(|v| v.as_str())
-                .ok_or("SOL transaction metadata missing sender information")?
-        };
-            
-        if actual_sender != expected_sender {
-            return Err(format!(
-                "Transaction sender mismatch. Expected: {}, Got: {}",
-                expected_sender, actual_sender
-            ));
-        }
-        
-        // Check amount matches
-        let actual_amount = metadata.get("amount")
-            .and_then(|v| v.as_u64())
-            .ok_or("Transaction metadata missing amount")?;
-            
-        // API boundary: Solana returns u64 amounts, so we must convert for comparison
-        let expected_amount_u64 = expected_amount.0.to_u64().ok_or("Expected amount too large for Solana (max ~18.4e18)")?;
-        if actual_amount != expected_amount_u64 {
-            return Err(format!(
-                "Transaction amount mismatch. Expected: {}, Got: {}",
-                expected_amount_u64, actual_amount
-            ));
-        }
-    } else {
-        return Err("Transaction metadata is missing".to_string());
-    }
-    
-    Ok(())
-}
 
