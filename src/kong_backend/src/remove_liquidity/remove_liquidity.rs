@@ -379,6 +379,15 @@ pub fn calculate_amounts(pool: &StablePool, remove_lp_token_amount: &Nat) -> Res
                     
                     payout_amount_1 = nat_subtract(&payout_amount_1, &fee_deduction_amount).unwrap_or(nat_zero());
                     payout_lp_fee_1 = nat_subtract(&payout_lp_fee_1, &fee_deduction_lp).unwrap_or(nat_zero());
+                } else {
+                    // Gas fee exceeds total payout - this is an edge case
+                    // Log warning and proceed without payout for token_1
+                    ICNetwork::info_log(&format!(
+                        "Warning: SPL gas fee ({}) exceeds total payout ({}) for remove liquidity",
+                        spl_gas_fee, total_payout_1
+                    ));
+                    payout_amount_1 = nat_zero();
+                    payout_lp_fee_1 = nat_zero();
                 }
             }
             Err(_) => {
@@ -398,6 +407,15 @@ pub fn calculate_amounts(pool: &StablePool, remove_lp_token_amount: &Nat) -> Res
                     
                     payout_amount_0 = nat_subtract(&payout_amount_0, &fee_deduction_amount).unwrap_or(nat_zero());
                     payout_lp_fee_0 = nat_subtract(&payout_lp_fee_0, &fee_deduction_lp).unwrap_or(nat_zero());
+                } else {
+                    // Gas fee exceeds total payout - this is an edge case
+                    // Log warning and proceed without payout for token_0
+                    ICNetwork::info_log(&format!(
+                        "Warning: SPL gas fee ({}) exceeds total payout ({}) for remove liquidity",
+                        spl_gas_fee, total_payout_0
+                    ));
+                    payout_amount_0 = nat_zero();
+                    payout_lp_fee_0 = nat_zero();
                 }
             }
             Err(_) => {

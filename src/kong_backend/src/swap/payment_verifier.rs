@@ -113,7 +113,7 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
     let is_spl_token = sol_token.is_spl_token;
     
     // First, extract the sender from the transaction
-    let sender_pubkey = extract_sender_from_transaction(&tx_signature_str, is_spl_token).await?
+    let sender_pubkey = extract_sender_from_transaction(&tx_signature_str, is_spl_token).await?;
     
     // Create canonical message with extracted sender and verify signature
     // TODO: Important integration note for Solana swaps:
