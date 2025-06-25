@@ -209,7 +209,14 @@ export const icpActor = ({ anon = false, requiresSigning = true}: { anon?: boole
 }
 
 export const swapActor = ({ anon = false, requiresSigning = true}: { anon?: boolean, requiresSigning?: boolean}) => {
-  return pnp.getActor<CanisterType["KONG_BACKEND"]>({canisterId: canisters.kongBackend.canisterId, idl: canisters.kongBackend.idl, anon, requiresSigning});
+  const actor = pnp.getActor<CanisterType["KONG_BACKEND"]>({
+    canisterId: canisters.kongBackend.canisterId, 
+    idl: canisters.kongBackend.idl, 
+    anon, 
+    requiresSigning
+  });
+  
+  return actor;
 }
 
 export const predictionActor = ({ anon = false, requiresSigning = true}: { anon?: boolean, requiresSigning?: boolean}) => {

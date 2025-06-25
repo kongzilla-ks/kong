@@ -8,6 +8,7 @@
   import { toastStore } from "$lib/stores/toastStore";
   import { swapState } from "$lib/stores/swapStateStore";
   import TokenImages from "$lib/components/common/TokenImages.svelte";
+  import ChainBadge from "$lib/components/common/ChainBadge.svelte";
   import { onMount } from "svelte";
   import {
     transparentSwapPanel,
@@ -453,10 +454,15 @@
             {#if token}
               <div class="flex items-center gap-2">
                 <TokenImages tokens={[token]} size={28} />
-                <span
-                  class="hidden text-lg pt-0.5 font-semibold text-kong-text-primary sm:inline flex items-center"
-                  >{token.symbol}</span
-                >
+                <div class="flex items-center gap-1.5">
+                  <span
+                    class="hidden text-lg pt-0.5 font-semibold text-kong-text-primary sm:inline"
+                    >{token.symbol}</span
+                  >
+                  {#if token.chain}
+                    <ChainBadge chain={token.chain} size="small" />
+                  {/if}
+                </div>
               </div>
               <!-- Chevron Down Icon -->
               <svg

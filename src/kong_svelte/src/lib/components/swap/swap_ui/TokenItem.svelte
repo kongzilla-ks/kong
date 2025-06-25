@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Star } from "lucide-svelte";
   import TokenImages from "$lib/components/common/TokenImages.svelte";
+  import ChainBadge from "$lib/components/common/ChainBadge.svelte";
   import { formatTokenName } from "$lib/utils/tokenFormatUtils";
 
   const props = $props<{
@@ -53,6 +54,9 @@
           />
         </button>
         <span class="token-symbol">{props.token.symbol}</span>
+        {#if props.token.chain}
+          <ChainBadge chain={props.token.chain} size="small" />
+        {/if}
       </div>
       <span class="token-name">{formatTokenName(props.token.name, 30)}</span>
     </div>

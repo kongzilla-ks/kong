@@ -1,7 +1,7 @@
 import { get } from 'svelte/store';
 import { userTokens } from '$lib/stores/userTokens';
 import { swapState } from '$lib/stores/swapStateStore';
-import { fetchTokensByCanisterId } from '$lib/api/tokens';
+import { fetchTokensByCanisterId } from '$lib/services/tokens/UnifiedTokenService';
 import { tick } from 'svelte';
 
 export function useUrlTokens() {

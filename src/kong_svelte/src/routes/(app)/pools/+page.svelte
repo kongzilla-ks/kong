@@ -21,6 +21,8 @@
   import { KONG_CANISTER_ID } from "$lib/constants/canisterConstants";
   import { fetchPools, fetchPoolTotals } from "$lib/api/pools";
   import { fetchTokens } from "$lib/api/tokens/TokenApiClient";
+  import { BackendPoolService } from "$lib/services/pools/BackendPoolService";
+  import { BackendTokenService } from "$lib/services/tokens/BackendTokenService";
   import { page } from "$app/stores";
   import { currentUserPoolsStore } from "$lib/stores/currentUserPoolsStore";
   import { calculateUserPoolPercentage } from "$lib/utils/liquidityUtils";
@@ -219,21 +221,37 @@
       const urlParams = new URLSearchParams($page.url.search);
       const urlPage = parseInt(urlParams.get("page") || "1");
       
-      const [poolsResult, totalsResult, tokensResult] = await Promise.all([
-        fetchPools({
-          page: urlPage,
-          limit: itemsPerPage,
-          search: searchInput,
-        }),
-        fetchPoolTotals(),
-        fetchTokens(),
+      // Use backend services directly for local development
+      const [pools, totalsResult, tokens] = await Promise.all([
+        BackendPoolService.fetchPools(),
+        BackendPoolService.getPoolTotals(),
+        BackendTokenService.fetchTokens(),
       ]);
 
-      livePools.set(poolsResult.pools || []);
-      totalPages.set(poolsResult.total_pages);
-      currentPage.set(poolsResult.page);
-      poolTotals.set(totalsResult);
-      allTokens.set(tokensResult.tokens);
+      // Filter pools based on search
+      const filteredPools = searchInput 
+        ? pools.filter(pool => 
+            pool.symbol_0.toLowerCase().includes(searchInput.toLowerCase()) ||
+            pool.symbol_1.toLowerCase().includes(searchInput.toLowerCase()) ||
+            pool.symbol.toLowerCase().includes(searchInput.toLowerCase())
+          )
+        : pools;
+
+      // Handle pagination manually
+      const startIndex = (urlPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedPools = filteredPools.slice(startIndex, endIndex);
+      const totalPageCount = Math.ceil(filteredPools.length / itemsPerPage);
+
+      livePools.set(paginatedPools);
+      totalPages.set(totalPageCount);
+      currentPage.set(urlPage);
+      poolTotals.set({
+        total_volume_24h: parseFloat(totalsResult.total_volume),
+        total_tvl: parseFloat(totalsResult.total_tvl),
+        total_fees_24h: parseFloat(totalsResult.total_lp_fees),
+      });
+      allTokens.set(tokens);
       mobilePage = 1;
     } catch (error) {
       console.error("Error loading data:", error);
@@ -245,11 +263,26 @@
   async function loadPools(page: number, search: string) {
     isLoading.set(true);
     try {
-      const result = await fetchPools({ page, limit: itemsPerPage, search });
-      livePools.set(result.pools || []);
-      totalPages.set(result.total_pages);
-      // Don't update currentPage here as it can cause reactive loops
-      // currentPage.set(result.page);
+      // Use backend service directly
+      const pools = await BackendPoolService.fetchPools();
+      
+      // Filter pools based on search
+      const filteredPools = search 
+        ? pools.filter(pool => 
+            pool.symbol_0.toLowerCase().includes(search.toLowerCase()) ||
+            pool.symbol_1.toLowerCase().includes(search.toLowerCase()) ||
+            pool.symbol.toLowerCase().includes(search.toLowerCase())
+          )
+        : pools;
+
+      // Handle pagination manually
+      const startIndex = (page - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedPools = filteredPools.slice(startIndex, endIndex);
+      const totalPageCount = Math.ceil(filteredPools.length / itemsPerPage);
+
+      livePools.set(paginatedPools);
+      totalPages.set(totalPageCount);
       mobilePage = 1;
     } catch (error) {
       console.error("Error fetching pools:", error);

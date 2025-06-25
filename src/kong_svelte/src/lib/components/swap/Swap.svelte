@@ -2,6 +2,7 @@
   import SwapPanel from "./swap_ui/SwapPanel.svelte";
   import TokenSelectorDropdown from "./swap_ui/TokenSelectorDropdown.svelte";
   import SwapConfirmation from "./swap_ui/SwapConfirmation.svelte";
+  import SolanaTransferModal from "./SolanaTransferModal.svelte";
   import Portal from "svelte-portal";
   import { Principal } from "@dfinity/principal";
   import { onMount, onDestroy } from "svelte";
@@ -31,6 +32,7 @@
   import { useUrlTokens } from "$lib/hooks/useUrlTokens.svelte";
   import SwapInfoDisplay from "./swap_ui/SwapInfoDisplay.svelte";
   import SwapRoutingPath from "./swap_ui/SwapRoutingPath.svelte";
+  import { solanaTransferModalStore } from "$lib/stores/solanaTransferModal";
 
   // Types
   type PanelType = "pay" | "receive";
@@ -528,6 +530,25 @@
       routingPath={$swapState.routingPath}
       onConfirm={handleSwap}
       onClose={() => swapState.setShowConfirmation(false)}
+    />
+  </Portal>
+{/if}
+
+{#if $solanaTransferModalStore.show}
+  <Portal target="body">
+    <SolanaTransferModal
+      show={$solanaTransferModalStore.show}
+      payToken={$solanaTransferModalStore.payToken}
+      payAmount={$solanaTransferModalStore.payAmount}
+      receiveToken={$solanaTransferModalStore.receiveToken}
+      receiveAmount={$solanaTransferModalStore.receiveAmount}
+      maxSlippage={$solanaTransferModalStore.maxSlippage}
+      on:confirm={(e) => {
+        if ($solanaTransferModalStore.onConfirm) {
+          $solanaTransferModalStore.onConfirm(e.detail);
+        }
+      }}
+      on:close={() => solanaTransferModalStore.hide()}
     />
   </Portal>
 {/if}

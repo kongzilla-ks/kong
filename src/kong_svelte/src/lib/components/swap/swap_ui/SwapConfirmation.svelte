@@ -2,6 +2,7 @@
   import { fade, scale } from "svelte/transition";
   import { toastStore } from "$lib/stores/toastStore";
   import TokenImages from "$lib/components/common/TokenImages.svelte";
+  import ChainBadge from "$lib/components/common/ChainBadge.svelte";
   import { Check, Loader2, ChevronsRight, X } from 'lucide-svelte';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
@@ -180,7 +181,12 @@
           </div>
           <div class="token-details">
             <span class="token-amount animate-number-appear">{formatToNonZeroDecimal(parseFloat(initialPayAmount))}</span>
-            <span class="token-symbol">{payToken.symbol}</span>
+            <div class="flex items-center gap-2">
+              <span class="token-symbol">{payToken.symbol}</span>
+              {#if payToken.chain}
+                <ChainBadge chain={payToken.chain} size="medium" />
+              {/if}
+            </div>
           </div>
         </div>
 
@@ -216,11 +222,25 @@
           </div>
           <div class="token-details">
             <span class="token-amount animate-number-appear-delayed">{formatToNonZeroDecimal(parseFloat(initialReceiveAmount))}</span>
-            <span class="token-symbol">{receiveToken.symbol}</span>
+            <div class="flex items-center gap-2">
+              <span class="token-symbol">{receiveToken.symbol}</span>
+              {#if receiveToken.chain}
+                <ChainBadge chain={receiveToken.chain} size="medium" />
+              {/if}
+            </div>
           </div>
         </div>
       </div>
 
+
+      {#if payToken.chain === 'Solana'}
+        <!-- Cross-chain Info -->
+        <div class="cross-chain-info animate-fade-in" transition:scale={{ delay: 220, duration: 300 }}>
+          <p class="text-sm text-kong-text-secondary text-center">
+            <span class="font-semibold">Cross-chain swap:</span> You'll be prompted to transfer {payToken.symbol} and sign a message
+          </p>
+        </div>
+      {/if}
 
       <!-- Confirm Button -->
       <div class='flex justify-center w-full animate-slide-in-up' transition:scale={{ delay: 250, duration: 300 }}>
@@ -242,7 +262,7 @@
               <Loader2 class="w-5 h-5 animate-spin" />
               <span>Processing...</span>
             {:else}
-              <span>Confirm Swap</span>
+              <span>{payToken.chain === 'Solana' ? 'Confirm Cross-Chain Swap' : 'Confirm Swap'}</span>
               <ChevronsRight class="w-5 h-5 transition-transform" style="transform: translateX({$arrowPosition * 0.3}px)" />
             {/if}
           </div>
@@ -273,6 +293,13 @@
 </div>
 
 <style lang="postcss">
+  /* Cross-chain info */
+  .cross-chain-info {
+    @apply bg-kong-bg-tertiary/50 backdrop-blur-sm rounded-lg px-4 py-3 border border-kong-border/50;
+    max-width: 400px;
+    width: 100%;
+  }
+
   /* Particle System - Optimized with will-change */
   .particle {
     @apply absolute rounded-full;

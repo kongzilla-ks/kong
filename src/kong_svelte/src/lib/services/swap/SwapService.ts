@@ -14,7 +14,10 @@ import { loadBalances } from "$lib/stores/tokenStore";
 import { userTokens } from "$lib/stores/userTokens";
 import { trackEvent, AnalyticsEvent } from "$lib/utils/analytics";
 import { swapState } from "$lib/stores/swapStateStore";
+import { CrossChainSwapService } from "./CrossChainSwapService";
+import { solanaTransferModalStore } from "$lib/stores/solanaTransferModal";
 import type { SwapAmountsResult, RequestsResult } from "../../../../../declarations/kong_backend/kong_backend.did";
+import { LocalActorService } from '../actors/LocalActorService';
 
 interface SwapExecuteParams {
   swapId: string;
@@ -164,6 +167,22 @@ export class SwapService {
     return BigNumber.maximum(maxAmount, new BigNumber(0));
   }
 
+  // === Token ID Formatting ===
+  /**
+   * Format token ID for backend calls
+   * Backend accepts: "SOL", "USDC", "ksUSDT", or with optional chain prefix
+   */
+  public static formatTokenId(token: Kong.Token): string {
+    // For Solana tokens, just use the symbol
+    if (token.chain === 'Solana') {
+      return token.symbol;
+    }
+    
+    // For IC tokens, use the symbol or IC.address format
+    // The backend's get_by_token function handles both
+    return token.symbol;
+  }
+
   // === Quote Methods ===
   /**
    * Gets swap quote from backend
@@ -177,11 +196,22 @@ export class SwapService {
       if (!payToken?.address || !receiveToken?.address) {
         throw new Error("Invalid tokens provided for swap quote");
       }
-      const actor = swapActor({anon: true, requiresSigning: false});
+      
+      const payTokenId = this.formatTokenId(payToken);
+      const receiveTokenId = this.formatTokenId(receiveToken);
+      
+      // Use LocalActorService for local development, PNP for production
+      let actor;
+      if (process.env.DFX_NETWORK === 'local') {
+        actor = await LocalActorService.getKongBackendActor();
+      } else {
+        actor = swapActor({anon: true, requiresSigning: false});
+      }
+      
       return await actor.swap_amounts(
-        "IC." + payToken.address,
+        payTokenId,
         payAmount,
-        "IC." + receiveToken.address,
+        receiveTokenId,
       );
     } catch (error) {
       console.error("Error getting swap amounts:", error);
@@ -476,9 +506,13 @@ export class SwapService {
     max_slippage: [] | [number];
     receive_address: [] | [string];
     referred_by: [] | [string];
-    pay_tx_id: [] | [{ BlockIndex: bigint }];
+    pay_tx_id: [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }];
+    signature?: [] | [string];
+    timestamp?: [] | [bigint];
   }): Promise<BE.SwapAsyncResponse> {
     try {
+      // For authenticated calls, we need to use PNP even in local dev
+      // because LocalActorService doesn't handle authentication
       const actor = swapActor({anon: false, requiresSigning: auth.pnp.adapter.id === "plug"});
       const result = await actor.swap_async(params);
       return result;
@@ -493,7 +527,14 @@ export class SwapService {
    */
   public static async requests(requestIds: bigint[]): Promise<RequestsResult> {
     try {
-      const actor = swapActor({anon: true, requiresSigning: false});
+      // Use LocalActorService for local development, PNP for production
+      let actor;
+      if (process.env.DFX_NETWORK === 'local') {
+        actor = await LocalActorService.getKongBackendActor();
+      } else {
+        actor = swapActor({anon: true, requiresSigning: false});
+      }
+      
       // Ensure we only pass a single-element array or empty array
       const result = await actor.requests([requestIds[0]]);
       return result;
@@ -546,6 +587,12 @@ export class SwapService {
         throw new Error(`Receive token ${params.receiveToken.symbol} not found`);
       }
 
+      // Check if this is a cross-chain swap (paying with Solana token)
+      if (payToken.chain === 'Solana') {
+        return await this.executeCrossChainSwap(params);
+      }
+
+      // Original IC token swap logic
       let txId: bigint | false;
       let approvalId: bigint | false;
       const toastId = toastStore.info(
@@ -589,9 +636,9 @@ export class SwapService {
       }
 
       const swapParams = {
-        pay_token: "IC." + params.payToken.address,
+        pay_token: this.formatTokenId(params.payToken),
         pay_amount: BigInt(payAmount),
-        receive_token: "IC." + params.receiveToken.address,
+        receive_token: this.formatTokenId(params.receiveToken),
         receive_amount: [] as [] | [bigint],
         max_slippage: [params.userMaxSlippage] as [] | [number],
         receive_address: [] as [] | [string],
@@ -617,6 +664,96 @@ export class SwapService {
       });
       console.error("Swap execution failed:", error);
       toastStore.error(error instanceof Error ? error.message : "Swap failed");
+      return false;
+    }
+  }
+
+  /**
+   * Execute cross-chain swap (Solana -> IC tokens)
+   */
+  private static async executeCrossChainSwap(
+    params: SwapExecuteParams
+  ): Promise<bigint | false> {
+    const swapId = params.swapId;
+    try {
+      // Check if wallet supports Solana
+      const isSolanaCompatible = await CrossChainSwapService.isWalletSolanaCompatible();
+      if (!isSolanaCompatible) {
+        throw new Error("Connected wallet does not support Solana. Please connect a Solana wallet.");
+      }
+
+      // Get Kong's Solana address
+      const kongSolanaAddress = await CrossChainSwapService.getKongSolanaAddress();
+      const userSolanaAddress = await CrossChainSwapService.getSolanaWalletAddress();
+      
+      const payAmount = SwapService.toBigInt(
+        params.payAmount,
+        params.payToken.decimals,
+      );
+
+      // Show transfer modal and wait for user to complete
+      return new Promise<bigint | false>((resolve) => {
+        solanaTransferModalStore.show({
+          payToken: params.payToken,
+          payAmount: params.payAmount,
+          receiveToken: params.receiveToken,
+          receiveAmount: params.receiveAmount,
+          maxSlippage: params.userMaxSlippage,
+          onConfirm: async (modalData) => {
+            try {
+              const { transactionId, signature, timestamp } = modalData;
+              
+              // Execute swap with signature
+              // IMPORTANT: These values must match exactly what was signed in the canonical message
+              const receiveAmountBigInt = SwapService.toBigInt(params.receiveAmount, params.receiveToken.decimals);
+              const authStore = get(auth);
+              const icPrincipal = authStore.account?.owner || '';
+              const receiveAddress = (params.receiveToken.chain === 'ICP') ? icPrincipal : userSolanaAddress;
+              
+              const swapParams = {
+                pay_token: this.formatTokenId(params.payToken),
+                pay_amount: payAmount,
+                receive_token: this.formatTokenId(params.receiveToken),
+                receive_amount: [receiveAmountBigInt] as [] | [bigint], // Must match signed message
+                max_slippage: [params.userMaxSlippage] as [] | [number],
+                receive_address: [receiveAddress] as [] | [string], // Must match signed message
+                referred_by: [] as [] | [string],
+                pay_tx_id: [{ TransactionId: transactionId }] as [] | [{ TransactionId: string }],
+                signature: [signature] as [] | [string],
+                timestamp: [timestamp] as [] | [bigint],
+              };
+
+              const result = await SwapService.swap_async(swapParams);
+
+              if (result.Ok) {
+                toastStore.success("Cross-chain swap initiated!");
+                // Start monitoring the transaction
+                this.monitorTransaction(result.Ok, swapId, "");
+                resolve(result.Ok);
+              } else {
+                console.error("Cross-chain swap error:", result.Err);
+                throw new Error(result.Err || "Cross-chain swap failed");
+              }
+            } catch (error) {
+              swapStatusStore.updateSwap(swapId, {
+                status: "Failed",
+                isProcessing: false,
+                error: error instanceof Error ? error.message : "Cross-chain swap failed",
+              });
+              toastStore.error(error instanceof Error ? error.message : "Cross-chain swap failed");
+              resolve(false);
+            }
+          },
+        });
+      });
+    } catch (error) {
+      swapStatusStore.updateSwap(swapId, {
+        status: "Failed",
+        isProcessing: false,
+        error: error instanceof Error ? error.message : "Cross-chain swap failed",
+      });
+      console.error("Cross-chain swap execution failed:", error);
+      toastStore.error(error instanceof Error ? error.message : "Cross-chain swap failed");
       return false;
     }
   }

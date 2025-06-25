@@ -504,9 +504,7 @@
         {#if props.currentPool && $liquidityStore.token0 && $liquidityStore.token1}
           <div class="flex items-center gap-1">
             <span
-              >{typeof props.currentPool.balance_0 === "number"
-                ? formatNumber(props.currentPool.balance_0)
-                : "0.00"}</span
+              >{formatNumber(Number(props.currentPool.balance_0) / Math.pow(10, $liquidityStore.token0.decimals || 8))}</span
             >
             <span class="text-kong-primary/80 text-sm mt-1"
               >{$liquidityStore.token0.symbol}</span
@@ -514,9 +512,7 @@
           </div>
           <div class="flex items-center gap-1">
             <span
-              >{typeof props.currentPool.balance_1 === "number"
-                ? formatNumber(props.currentPool.balance_1)
-                : "0.00"}</span
+              >{formatNumber(Number(props.currentPool.balance_1) / Math.pow(10, $liquidityStore.token1.decimals || 8))}</span
             >
             <span class="text-kong-success/80 text-sm mt-1"
               >{$liquidityStore.token1.symbol}</span
@@ -547,7 +543,7 @@
           {#if props.isLoading}
             <span class="animate-pulse">Loading chart data...</span>
           {:else if props.errorMessage}
-            <span class="text-sm">{props.errorMessage}</span>
+            <span class="text-sm">Early Access - Historical data coming soon</span>
           {:else if !isChartAvailable}
             <span class="text-sm">Charts unavailable - Could not load Chart.js</span>
           {:else if props.currentPool}

@@ -132,10 +132,14 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
     // 
     // Future improvement: Consider accepting both formats or providing a 
     // signature helper endpoint that returns the exact message to sign.
+    ICNetwork::info_log(&format!("DEBUG: Creating canonical message from SwapArgs: {:?}", args));
     let canonical_message = CanonicalSwapMessage::from_swap_args(args)
         .with_sender(sender_pubkey.clone());
     let message_to_verify = canonical_message.to_signing_message();
-    ICNetwork::info_log(&format!("Message to verify: {}", message_to_verify));
+    ICNetwork::info_log(&format!("DEBUG: Backend canonical message: {:?}", canonical_message));
+    ICNetwork::info_log(&format!("DEBUG: Backend message to verify: {}", message_to_verify));
+    ICNetwork::info_log(&format!("DEBUG: Extracted sender from transaction: {}", sender_pubkey));
+    ICNetwork::info_log(&format!("DEBUG: Signature to verify: {}", signature));
     
     verify_canonical_message(&message_to_verify, &sender_pubkey, signature)
         .map_err(|e| format!("Signature verification failed: {}", e))?;

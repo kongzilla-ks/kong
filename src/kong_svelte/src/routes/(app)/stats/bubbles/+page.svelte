@@ -2,6 +2,7 @@
   import { goto } from "$app/navigation";
   import { fetchTokens } from "$lib/api/tokens/TokenApiClient";
   import { app } from "$lib/state/app.state.svelte";
+  import DemoMessage from "$lib/components/common/DemoMessage.svelte";
 
   // Types
   interface Token {
@@ -522,113 +523,9 @@
   <title>Market Bubbles - KongSwap</title>
 </svelte:head>
 
-<div class="bubbles-container" bind:this={containerElement}>
-  <!-- <div class="controls">
-    <div class="control-hint">Space: ⏸️ Pause/Resume</div>
-    <div class="control-hint">Ctrl+R: 🔄 Refresh</div>
-  </div> -->
-  
-  {#if loading && !tokens.length}
-    <div class="loading">
-      <div class="loading-spinner">
-        {#each Array(4) as _, i}
-          <div class="spinner-ring" style="animation-delay: {-0.45 + i * 0.15}s;"></div>
-        {/each}
-      </div>
-      <div class="loading-text">Loading tokens...</div>
-    </div>
-  {:else if error}
-    <div class="error">{error}</div>
-  {:else if isResizing}
-    <div class="loading">
-      <div class="loading-spinner">
-        {#each Array(4) as _, i}
-          <div class="spinner-ring" style="animation-delay: {-0.45 + i * 0.15}s;"></div>
-        {/each}
-      </div>
-      <div class="loading-text">Updating bubbles...</div>
-    </div>
-  {:else}
-    {#each tokens as token, i (token.address)}
-      {@const style = calculateBubbleStyle(token, bubbleSizes)}
-      {@const pos = positions[i]}
-      {@const changePercent = getChangePercent(token.metrics?.price_change_24h)}
-      {@const isHovered = hoveredToken === token.address}
-      
-      {#if pos}
-        <div
-          class="bubble {style.colorKey} {(isHovered) ? 'hovered' : ''}"
-          style="
-            width: {style.size}px;
-            height: {style.size}px;
-            left: {pos.x - style.size/2}px;
-            top: {pos.y - style.size/2}px;
-            --sway-delay: {i * 0.3}s;
-          "
-          onclick={() => goto(`/stats/${token.address}`)}
-          onmouseenter={() => hoveredToken = token.address}
-          onmouseleave={() => hoveredToken = null}
-        >
-          <div class="bubble-content">
-            {#if token.logo_url}
-              <img
-                src={token.logo_url}
-                alt={token.symbol}
-                class="token-logo"
-                style="width: {style.logoSize}px; height: {style.logoSize}px; margin-bottom: {style.logoSize * 0.1}px;"
-                loading="lazy"
-              />
-            {/if}
-            <div class="token-symbol" style="font-size: {style.symbolSize}px; line-height: 1; margin-bottom: {style.symbolSize * 0.2}px;">
-              {token.symbol}
-            </div>
-            <div class="price-change" style="font-size: {style.priceSize}px; line-height: 1;">
-              {changePercent.toFixed(2)}%
-            </div>
-          </div>
-        </div>
-      {/if}
-    {/each}
-  {/if}
-  
-  <!-- Fixed tooltip outside of bubble loop -->
-  {#if hoveredToken && !isMobile}
-    {@const hoveredTokenData = tokens.find(t => t.address === hoveredToken)}
-    {#if hoveredTokenData}
-      {@const changePercent = getChangePercent(hoveredTokenData.metrics?.price_change_24h)}
-      <div class="tooltip" >
-        <div class="flex justify-between items-center mb-2">
-          <div class="text-lg font-extrabold text-kong-text-primary">{hoveredTokenData.symbol}</div>
-          {#if hoveredTokenData.metrics?.price}
-            <div class="text-base font-bold text-kong-text-primary">{formatCurrency(hoveredTokenData.metrics?.price)}</div>
-          {/if}
-        </div>
-        
-        {#if hoveredTokenData.metrics?.price_change_24h}
-          <div class="text-sm font-semibold px-2 py-1 rounded-lg text-center mb-2 {changePercent >= 0 ? 'bg-kong-success/10 text-kong-success' : 'bg-kong-error/10 text-kong-error'}">
-            {changePercent >= 0 ? '↗' : '↘'} {Math.abs(changePercent).toFixed(2)}% (24h)
-          </div>
-        {/if}
-
-        <div class="h-px bg-kong-border my-3"></div>
-        
-        <div class="mb-2">
-          {#each [
-            { key: 'volume_24h', label: 'Volume (24h)', value: hoveredTokenData.metrics?.volume_24h },
-            { key: 'tvl', label: 'TVL', value: hoveredTokenData.metrics?.tvl }
-          ] as metric}
-            {#if metric.value}
-              <div class="flex justify-between items-center mb-2 last:mb-0">
-                <span class="text-xs text-kong-text-muted font-medium">{metric.label}:</span>
-                <span class="text-sm font-bold text-kong-text-primary">{formatCurrency(metric.value)}</span>
-              </div>
-            {/if}
-          {/each}
-        </div>
-      </div>
-    {/if}
-  {/if}
-</div>
+<DemoMessage 
+  feature="Market Bubbles Visualization" 
+/>
 
 <style>
   .bubbles-container {

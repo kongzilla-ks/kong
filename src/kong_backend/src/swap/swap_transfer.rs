@@ -22,6 +22,13 @@ use crate::stable_user::user_map;
 use crate::chains::chains::SOL_CHAIN;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
+    // DEBUG: Log the received SwapArgs to understand what the frontend is sending
+    ICNetwork::info_log(&format!("DEBUG swap_transfer: Received SwapArgs: {:?}", args));
+    ICNetwork::info_log(&format!("DEBUG swap_transfer: pay_token={}, pay_amount={}", args.pay_token, args.pay_amount));
+    ICNetwork::info_log(&format!("DEBUG swap_transfer: pay_tx_id={:?}", args.pay_tx_id));
+    ICNetwork::info_log(&format!("DEBUG swap_transfer: signature={:?}", args.signature));
+    ICNetwork::info_log(&format!("DEBUG swap_transfer: timestamp={:?}", args.timestamp));
+    
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
     // make sure user is registered, if not create a new user with referred_by if specified
     

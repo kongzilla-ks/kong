@@ -152,7 +152,7 @@ print_info "Transaction: $USDC_TX_SIG"
 print_header "STEP 4: WAIT FOR CONFIRMATION"
 print_info "Waiting for transaction confirmation and kong_rpc processing..."
 print_info "This may take up to 60 seconds..."
-sleep 5
+sleep 30
 
 # Step 5: Approve ksUSDT spending
 print_header "STEP 5: APPROVE KSUSDT"
@@ -184,9 +184,9 @@ TIMESTAMP=$(echo "$(date +%s) * 1000" | bc)
 MESSAGE_JSON=$(cat <<EOF
 {
   "token_0": "${USDC_CHAIN}.${USDC_ADDRESS}",
-  "amount_0": $USDC_AMOUNT,
+  "amount_0": [$USDC_AMOUNT],
   "token_1": "${KSUSDT_CHAIN}.${KSUSDT_LEDGER}",
-  "amount_1": $KSUSDT_AMOUNT,
+  "amount_1": [$KSUSDT_AMOUNT],
   "lp_fee_bps": 30,
   "timestamp": $TIMESTAMP
 }

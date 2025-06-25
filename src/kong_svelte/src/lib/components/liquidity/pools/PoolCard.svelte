@@ -33,7 +33,7 @@
     },
     { 
       label: "Price", 
-      value: pool.price ? pool.price : pool.tvl !== undefined ? `${(pool.symbol_1 || pool.token1?.symbol) === "ckUSDT" ? "$" : ""}${formatToNonZeroDecimal(getPoolPriceUsd(pool))}${(pool.symbol_1 || pool.token1?.symbol) === "ckUSDT" ? "" : " " + (pool.symbol_1 || pool.token1?.symbol)}` : "--"
+      value: pool.price ? `${formatToNonZeroDecimal(parseFloat(pool.price))} ${pool.symbol_1}` : pool.tvl !== undefined ? `${(pool.symbol_1 || pool.token1?.symbol) === "ckUSDT" ? "$" : ""}${formatToNonZeroDecimal(getPoolPriceUsd(pool))}${(pool.symbol_1 || pool.token1?.symbol) === "ckUSDT" ? "" : " " + (pool.symbol_1 || pool.token1?.symbol)}` : "--"
     },
     { 
       label: "TVL", 

@@ -2,7 +2,7 @@ import { writable, derived, get } from 'svelte/store';
 import type { Readable, Writable } from 'svelte/store';
 import { BigNumber } from 'bignumber.js';
 import { KONG_LEDGER_CANISTER_ID, ICP_CANISTER_ID } from '$lib/constants/canisterConstants';
-import { fetchTokensByCanisterId } from '$lib/api/tokens';
+import { fetchTokensByCanisterId } from '$lib/services/tokens/UnifiedTokenService';
 
 export interface SwapState {
   payToken: Kong.Token | null;

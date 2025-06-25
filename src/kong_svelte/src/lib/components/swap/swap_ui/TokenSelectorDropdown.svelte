@@ -13,7 +13,7 @@
   import { toastStore } from "$lib/stores/toastStore";
   import { userTokens } from "$lib/stores/userTokens";
   import { auth } from "$lib/stores/auth";
-  import { fetchTokens } from "$lib/api/tokens/TokenApiClient";
+  import { fetchTokens } from "$lib/services/tokens/UnifiedTokenService";
   import { debounce } from "$lib/utils/debounce";
   import TokenItem from "./TokenItem.svelte";
   import { virtualScroll } from "$lib/utils/virtualScroll";
@@ -45,12 +45,13 @@
     "cngnf-vqaaa-aaaar-qag4q-cai", // ckUSDT
   ];
   const FILTER_TABS = [
-    { id: "all" as const, label: "All" },
-    { id: "ck" as const, label: "CK" },
-    { id: "favorites" as const, label: "Favorites" },
+    { id: "icp" as const, label: "ICP", enabled: true },
+    { id: "sol" as const, label: "SOL", enabled: true },
+    { id: "sui" as const, label: "SUI", enabled: false, comingSoon: true },
+    { id: "bnb" as const, label: "BNB", enabled: false, comingSoon: true },
   ];
   
-  type FilterType = "all" | "ck" | "favorites";
+  type FilterType = "icp" | "sol" | "sui" | "bnb";
 
   // Helper for extracting and validating token ID
   function getTokenId(token: any): string | null {
@@ -70,7 +71,7 @@
     hideZeroBalances: false,
     sortDirection: "desc",
     sortColumn: "value",
-    standardFilter: "all" as FilterType,
+    standardFilter: "icp" as FilterType,
     isSearching: false,
     enablingTokenId: null as string | null,
     isAddNewTokenModalOpen: false,
@@ -89,10 +90,22 @@
     browser 
       ? Array.from($userTokens.tokenData.values()).filter((token) => {
           const tokenId = getTokenId(token);
-          return tokenId && $userTokens.enabledTokens.has(tokenId);
+          const isEnabled = tokenId && $userTokens.enabledTokens.has(tokenId);
+          if (!isEnabled) {
+            console.log('[TokenSelector] Token not enabled:', token.symbol, token.address, 'enabledTokens has:', $userTokens.enabledTokens.size);
+          }
+          return isEnabled;
         }) as Kong.Token[]
       : []
   );
+  
+  // Debug log to see what tokens we have
+  $effect(() => {
+    if (browser && tokens.length > 0) {
+      console.log('[TokenSelector] Available tokens:', tokens.map(t => `${t.symbol} (${t.address})`));
+      console.log('[TokenSelector] Total enabled tokens:', $userTokens.enabledTokens.size);
+    }
+  });
   
 
 
@@ -137,13 +150,14 @@
   let isUserAuthenticated = $derived($userTokens.isAuthenticated);
 
   // Get counts for filter tabs
-  let allTokensCount = $derived(baseFilteredTokens.length);
-  let ckTokensCount = $derived(
-    baseFilteredTokens.filter((t) => t.symbol.toLowerCase().startsWith("ck")).length
+  let icpTokensCount = $derived(
+    baseFilteredTokens.filter((t) => t.chain === "ICP").length
   );
-  let favoritesCount = $derived(
-    Array.from(selectorState.favoriteTokens.values()).filter(Boolean).length
+  let solTokensCount = $derived(
+    baseFilteredTokens.filter((t) => t.chain === "Solana").length
   );
+  let suiTokensCount = $derived(0); // Coming soon
+  let bnbTokensCount = $derived(0); // Coming soon
 
   // Consolidated filter and sort function
   function filterAndSortTokens(
@@ -168,9 +182,11 @@
         return false;
       }
       
-      // Standard filter (all, ck, favorites)
-      if (filter === "ck" && !token.symbol.toLowerCase().startsWith("ck")) return false;
-      if (filter === "favorites" && !favorites.get(token.address)) return false;
+      // Chain-based filter
+      if (filter === "icp" && token.chain !== "ICP") return false;
+      if (filter === "sol" && token.chain !== "Solana") return false;
+      // SUI and BNB are coming soon, so no tokens should match
+      if (filter === "sui" || filter === "bnb") return false;
       
       // Balance filter
       if (hideZero) {
@@ -259,9 +275,10 @@
   // Helper function to get tab counts
   function getTabCount(tabId: string): number {
     switch (tabId) {
-      case "all": return allTokensCount;
-      case "ck": return ckTokensCount;
-      case "favorites": return favoritesCount;
+      case "icp": return icpTokensCount;
+      case "sol": return solTokensCount;
+      case "sui": return suiTokensCount;
+      case "bnb": return bnbTokensCount;
       default: return 0;
     }
   }
@@ -433,10 +450,16 @@
 
     selectorState.isSearching = true;
     try {
-      const { tokens } = await fetchTokens({ search: query, limit: 20 });
+      const tokens = await fetchTokens();
+      // Filter tokens by search query and exclude already enabled tokens
+      const lowerQuery = query.toLowerCase();
       selectorState.apiSearchResults = tokens.filter(
-        token => !$userTokens.enabledTokens.has(token.address)
-      );
+        token => 
+          !$userTokens.enabledTokens.has(token.address) &&
+          (token.symbol.toLowerCase().includes(lowerQuery) ||
+           token.name.toLowerCase().includes(lowerQuery) ||
+           token.address.toLowerCase().includes(lowerQuery))
+      ).slice(0, 20); // Limit to 20 results
     } catch (error) {
       console.error("Error searching tokens:", error);
       selectorState.apiSearchResults = [];
@@ -570,16 +593,23 @@
                 <div class="px-4 flex w-full mb-1 gap-2">
                   {#each FILTER_TABS as tab}
                     <button
-                      on:click={() => setStandardFilter(tab.id as FilterType)}
-                      class="flex-1 px-3 py-2 flex items-center justify-center gap-2 text-kong-text-secondary text-sm relative transition-all duration-200 font-medium bg-kong-bg-primary/30 rounded-2xl {selectorState.standardFilter === tab.id ? 'text-white font-semibold bg-kong-primary text-kong-bg-secondary hover:bg-kong-primary' : 'hover:bg-kong-bg-secondary/60'}"
-                      aria-label="Show {tab.label.toLowerCase()} tokens"
+                      on:click={() => tab.enabled && setStandardFilter(tab.id as FilterType)}
+                      class="flex-1 px-3 py-2 flex items-center justify-center gap-2 text-kong-text-secondary text-sm relative transition-all duration-200 font-medium bg-kong-bg-primary/30 rounded-2xl {tab.enabled ? (selectorState.standardFilter === tab.id ? 'text-white font-semibold bg-kong-primary text-kong-bg-secondary hover:bg-kong-primary' : 'hover:bg-kong-bg-secondary/60') : 'opacity-50 cursor-not-allowed'}"
+                      aria-label="{tab.comingSoon ? tab.label + ' coming soon' : 'Show ' + tab.label.toLowerCase() + ' tokens'}"
+                      disabled={!tab.enabled}
                     >
                       <span class="relative z-10">{tab.label}</span>
-                      <span
-                        class="text-kong-text-on-primary text-xs px-2 py-1 rounded-full bg-kong-bg-primary/50 min-w-[1.5rem] text-center transition-all duration-200 {selectorState.standardFilter === tab.id ? 'bg-kong-primary/10 text-kong-bg-secondary' : ''}"
-                      >
-                        {getTabCount(tab.id)}
-                      </span>
+                      {#if tab.comingSoon}
+                        <span class="text-[10px] absolute -top-2 -right-1 bg-kong-primary/20 text-kong-primary px-1.5 py-0.5 rounded-full font-medium">
+                          Soon
+                        </span>
+                      {:else}
+                        <span
+                          class="text-kong-text-on-primary text-xs px-2 py-1 rounded-full bg-kong-bg-primary/50 min-w-[1.5rem] text-center transition-all duration-200 {selectorState.standardFilter === tab.id ? 'bg-kong-primary/10 text-kong-bg-secondary' : ''}"
+                        >
+                          {getTabCount(tab.id)}
+                        </span>
+                      {/if}
                     </button>
                   {/each}
                 </div>

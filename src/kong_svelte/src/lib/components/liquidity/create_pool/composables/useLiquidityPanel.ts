@@ -7,6 +7,7 @@ import {
   CKUSDT_CANISTER_ID 
 } from '$lib/constants/canisterConstants';
 import { fetchTokensByCanisterId } from '$lib/api/tokens/index';
+import { UnifiedTokenService } from '$lib/services/tokens/UnifiedTokenService';
 import { doesPoolExist } from '$lib/utils/poolCreationUtils';
 import { getButtonText, hasInsufficientBalance } from '$lib/utils/liquidityUtils';
 
@@ -84,7 +85,8 @@ export function useLiquidityPanel() {
     let tokensFromUrl: Kong.Token[] = [];
     if (tokensToFetch.length > 0) {
       try {
-        tokensFromUrl = await fetchTokensByCanisterId(tokensToFetch);
+        // Use UnifiedTokenService instead of API
+        tokensFromUrl = await UnifiedTokenService.fetchTokensByCanisterId(tokensToFetch);
       } catch (error) {
         console.error("Error fetching tokens:", error);
       }

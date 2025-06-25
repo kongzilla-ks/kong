@@ -15,7 +15,8 @@
     className = "",
     element = $bindable(null),
     animationIterations = 1,
-    onclick = () => {}
+    onclick = () => {},
+    children
   } = $props<{
     label?: string;
     type?: "button" | "submit" | "reset";
@@ -30,6 +31,7 @@
     element?: HTMLButtonElement | null;
     animationIterations?: number;
     onclick?: () => void;
+    children?: import('svelte').Snippet;
   }>();
   
   // Convert state to runes
@@ -149,7 +151,7 @@
     {#if label}
       {label}
     {:else}
-      <slot />
+      {@render children?.()}
     {/if}
   </div>
 

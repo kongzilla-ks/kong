@@ -1,6 +1,6 @@
 [package]
 name = "kong_backend"
-version = "0.0.44"
+version = "0.0.48"
 edition = "2021"
 description = "Kong Swap backend canister"
 
@@ -25,7 +25,7 @@ icrc-ledger-types = "0.1.6"
 num = "0.4.3"
 num-bigint = "0.4.4"
 num-traits = "0.2.19"
-getrandom = { version = "0.2.15", features = ["js"] }
+getrandom = { version = "0.2.15", features = ["custom"] }
 rand = "0.8.5"
 regex = "1.10.6"
 serde = "1.0.210"

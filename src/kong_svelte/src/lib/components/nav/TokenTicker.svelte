@@ -6,7 +6,7 @@
   import { fade } from "svelte/transition";
   import { formatToNonZeroDecimal } from "$lib/utils/numberFormatUtils";
   import { onMount } from "svelte";
-  import { fetchTokens } from "$lib/api/tokens/TokenApiClient";
+  import { fetchTokens } from "$lib/services/tokens/UnifiedTokenService";
   import { startPolling, stopPolling } from "$lib/utils/pollingService";
 
   let hoveredToken: Kong.Token | null = null;
@@ -59,7 +59,7 @@
 
   async function fetchTickerData() {
     try {
-      const { tokens } = await fetchTokens();
+      const tokens = await fetchTokens();
       const sortedTokens = tokens
         .filter(token => Number(token.metrics?.volume_24h || 0) > 100)
         .sort((a, b) => {
@@ -233,36 +233,11 @@
         }
       }}
     >
-      {#each [...tickerTokens, ...tickerTokens] as token, index (token.address + index)}
-        {#if token.metrics}
-          <button
-            class="flex items-center gap-2 cursor-pointer whitespace-nowrap relative px-4 h-full {priceFlashStates.get(
-              token.address,
-            )?.class || ''}"
-            onclick={() => goto(`/stats/${token.address}`)}
-            onmouseenter={(e) => handleMouseEnter(e, token)}
-            onmouseleave={handleMouseLeave}
-          >
-            <span class="text-kong-text-secondary">{index % tickerTokens.length + 1}.</span>
-            <span class="font-medium text-kong-text-primary">{token.symbol}</span>
-            <span class="text-kong-text-secondary"
-              >${formatToNonZeroDecimal(Number(token.metrics?.price || 0))}</span
-            >
-            <span
-              class="flex items-center gap-0.5 {getChangeClass(
-                Number(token.metrics?.price_change_24h || 0),
-              )}"
-            >
-              {#if Number(token.metrics?.price_change_24h || 0) > 0}
-                <ArrowUp class="inline" size={12} />
-              {:else if Number(token.metrics?.price_change_24h || 0) < 0}
-                <ArrowDown class="inline" size={12} />
-              {/if}
-              {formatChange(Number(token.metrics?.price_change_24h || 0))}
-            </span>
-            <span class="divider"></span>
-          </button>
-        {/if}
+      {#each Array(20) as _, i}
+        <div class="flex items-center gap-2 px-6 h-full">
+          <span class="font-bold text-kong-primary animate-pulse">EARLY ACCESS</span>
+          <span class="divider"></span>
+        </div>
       {/each}
     </div>
   </div>

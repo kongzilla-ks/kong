@@ -158,9 +158,9 @@ TIMESTAMP=$(echo "$(date +%s) * 1000" | bc)
 MESSAGE_JSON=$(cat <<EOF
 {
   "token_0": "${SOL_CHAIN}.${SOL_ADDRESS}",
-  "amount_0": $SOL_AMOUNT,
+  "amount_0": [$SOL_AMOUNT],
   "token_1": "${KSUSDT_CHAIN}.${KSUSDT_LEDGER}",
-  "amount_1": $KSUSDT_AMOUNT,
+  "amount_1": [$KSUSDT_AMOUNT],
   "lp_fee_bps": 30,
   "timestamp": $TIMESTAMP
 }

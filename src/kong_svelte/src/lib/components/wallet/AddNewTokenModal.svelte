@@ -8,7 +8,7 @@
   import { debounce } from "$lib/utils/debounce";
   import { fade } from "svelte/transition";
   import BigNumber from "bignumber.js";
-  import { fetchTokenMetadata } from "$lib/api/tokens/TokenApiClient";
+  import { fetchTokenMetadata } from "$lib/services/tokens/UnifiedTokenService";
 
   // Props
   const props = $props<{

@@ -127,31 +127,13 @@ export const fetchPools = async (params?: any): Promise<{pools: BE.Pool[], total
 
 export const fetchPoolBalanceHistory = async (poolId: string | number): Promise<any> => {
   try {
-    // Use the exact endpoint without any query parameters
-    const endpoint = `${API_URL}/api/pools/${poolId}/balance-history`;
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      // Try to get more information about the error
-      let errorInfo = '';
-      try {
-        const errorData = await response.text();
-        errorInfo = errorData ? ` - ${errorData}` : '';
-      } catch (e) {
-        // Ignore error parsing error
-      }
-      
-      throw new Error(`Failed to fetch pool balance history: ${response.status} ${response.statusText}${errorInfo}`);
-    }
-    
-    const data = await response.json();
-    
-    return data;
+    // In early access, return empty history data
+    console.log('[Pools] Pool balance history not available in early access');
+    return {
+      pool_id: poolId,
+      history: [],
+      message: 'Early Access - Historical data coming soon'
+    };
   } catch (error) {
     console.error('Error fetching pool balance history:', error);
     throw error;
@@ -186,7 +168,9 @@ export async function calculateLiquidityAmounts(
   token1Symbol: string,
 ): Promise<AddLiquiditAmountsResult> {
   try {
+    // For mainnet deployment, always use swapActor
     const actor = swapActor({anon: true});
+    
     const result = await actor.add_liquidity_amounts(
       "IC." + token0Symbol,
       amount0,
@@ -218,7 +202,9 @@ export async function calculateRemoveLiquidityAmounts(
         ? BigInt(Math.floor(lpTokenAmount * 1e8))
         : lpTokenAmount;
 
+    // For mainnet deployment, always use swapActor
     const actor = swapActor({anon: true});
+    
     const result = await (actor as any).remove_liquidity_amounts(
       "IC." + token0CanisterId,
       "IC." + token1CanisterId,
@@ -353,7 +339,9 @@ export async function pollRequestStatus(
     toastId = toastStore.info("Processing transaction..."); // Generic initial message
 
     while (attempts < MAX_ATTEMPTS) {
+      // For mainnet deployment, always use swapActor
       const actor = swapActor({anon: true});
+      
       const result = await actor.requests([requestId]);
 
       if ('Err' in result) {
