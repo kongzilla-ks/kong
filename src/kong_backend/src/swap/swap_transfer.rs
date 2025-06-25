@@ -23,12 +23,6 @@ use super::update_liquidity_pool::update_liquidity_pool;
 use crate::chains::chains::SOL_CHAIN;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
-    // DEBUG: Log the received SwapArgs to understand what the frontend is sending
-    ICNetwork::info_log(&format!("DEBUG swap_transfer: Received SwapArgs: {:?}", args));
-    ICNetwork::info_log(&format!("DEBUG swap_transfer: pay_token={}, pay_amount={}", args.pay_token, args.pay_amount));
-    ICNetwork::info_log(&format!("DEBUG swap_transfer: pay_tx_id={:?}", args.pay_tx_id));
-    ICNetwork::info_log(&format!("DEBUG swap_transfer: signature={:?}", args.signature));
-    ICNetwork::info_log(&format!("DEBUG swap_transfer: timestamp={:?}", args.timestamp));
     
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
     // make sure user is registered, if not create a new user with referred_by if specified
@@ -162,23 +156,9 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
         request_map::update_status(request_id, StatusCode::PayTokenNotFound, Some(e));
     })?;
 
-    // Debug log token info
-    match &pay_token {
-        StableToken::Solana(sol_token) => {
-            ICNetwork::info_log(&format!(
-                "DEBUG: Pay token lookup for '{}' found Solana token: mint={}, is_spl_token={}",
-                &args.pay_token, sol_token.mint_address, sol_token.is_spl_token
-            ));
-        }
-        _ => {
-            ICNetwork::info_log(&format!("DEBUG: Pay token '{}' is not a Solana token", &args.pay_token));
-        }
-    }
 
     let pay_amount = args.pay_amount.clone();
 
-    // Debug log
-    ICNetwork::info_log(&format!("swap_transfer: token chain: {}", pay_token.chain()));
     
     // Check token type to determine payment verification path
     if pay_token.chain() == SOL_CHAIN {
