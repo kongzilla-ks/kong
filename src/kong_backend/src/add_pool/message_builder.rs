@@ -29,7 +29,6 @@ impl CanonicalAddPoolMessage {
                 .timestamp
                 .unwrap_or_else(|| ICNetwork::get_time() / 1_000_000), // Use current IC time in milliseconds if not provided
         };
-        ic_cdk::println!("DEBUG CanonicalAddPoolMessage::from_add_pool_args: created message = {:?}", result);
         result
     }
 
