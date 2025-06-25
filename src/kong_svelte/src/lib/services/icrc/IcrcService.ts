@@ -273,6 +273,11 @@ export class IcrcService {
         approveAmount = totalAmount * 10n;
       }
       
+      // Ensure we never approve 0 - minimum 10x the required amount
+      if (approveAmount === 0n) {
+        approveAmount = totalAmount > 0n ? totalAmount * 10n : 1000000000n; // 1B if totalAmount is also 0
+      }
+      
       console.log("[IcrcService] Need new approval for amount:", approveAmount.toString());
 
       const approveArgs: ApproveArgs = {
