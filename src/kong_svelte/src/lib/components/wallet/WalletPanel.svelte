@@ -29,7 +29,6 @@
   import SendTokenModal from "$lib/components/wallet/SendTokenModal.svelte";
   import { calculatePortfolioValue } from "$lib/utils/portfolioUtils";
   import { loadUserBalances, setLastRefreshed } from "$lib/services/balanceService";
-  import { solanaWebSocketService } from "$lib/services/solana/SolanaWebSocketService";
 
   // Props type definition
   type WalletPanelProps = {
@@ -150,21 +149,41 @@
   // Calculate total portfolio value from all sources
   let lastKnownPortfolioValue = $state(0);
   let totalPortfolioValue = $state(0);
+  let portfolioUpdateInProgress = $state(false);
   
-  // Update total portfolio value whenever stores change
+  // Debounced portfolio calculation to prevent excessive updates
+  let portfolioCalculationTimeout: number | null = null;
+  
+  // Update total portfolio value whenever stores change with debouncing
   $effect(() => {
-    const calculated = calculatePortfolioValue($currentUserBalancesStore, $currentUserPoolsStore?.filteredPools || []);
+    // Prevent recursive updates
+    if (portfolioUpdateInProgress) return;
     
-    // Only update last known value if calculated is greater than 0
-    if (calculated > 0) {
-      lastKnownPortfolioValue = calculated;
-      totalPortfolioValue = calculated;
-    } else if (lastKnownPortfolioValue > 0) {
-      // Use last known good value if current calculation is zero
-      totalPortfolioValue = lastKnownPortfolioValue;
-    } else {
-      totalPortfolioValue = calculated;
+    // Clear existing timeout
+    if (portfolioCalculationTimeout) {
+      clearTimeout(portfolioCalculationTimeout);
     }
+    
+    // Debounce the calculation to prevent excessive updates
+    portfolioCalculationTimeout = setTimeout(() => {
+      portfolioUpdateInProgress = true;
+      
+      const calculated = calculatePortfolioValue($currentUserBalancesStore, $currentUserPoolsStore?.filteredPools || []);
+      
+      // Only update last known value if calculated is greater than 0
+      if (calculated > 0) {
+        lastKnownPortfolioValue = calculated;
+        totalPortfolioValue = calculated;
+      } else if (lastKnownPortfolioValue > 0) {
+        // Use last known good value if current calculation is zero
+        totalPortfolioValue = lastKnownPortfolioValue;
+      } else {
+        totalPortfolioValue = calculated;
+      }
+      
+      portfolioUpdateInProgress = false;
+      portfolioCalculationTimeout = null;
+    }, 100); // 100ms debounce
   });
 
   // Local copy function with feedback
@@ -277,8 +296,8 @@
       showUsdValues = persistedVisibility;
     }
 
-    // User tokens might not be loaded yet
-    userTokens.refreshTokenData();
+    // Skip token refresh on mount to prevent loops - UserTokens store handles initialization
+    // userTokens.refreshTokenData(); // Commented out to prevent infinite loops
     
     // Initialize pool data
     currentUserPoolsStore.initialize();
@@ -298,21 +317,20 @@
         totalPortfolioValue = calculated;
       }
       
-      // Initialize WebSocket for Solana wallet if connected
-      if ($auth?.solana?.address) {
-        console.log('[WalletPanel] Initializing Solana WebSocket for address:', $auth.solana.address);
-        await solanaWebSocketService.initialize($auth.solana.address);
-      }
+      // Solana polling service is now initialized in auth store after connection
+      // No need to initialize it here anymore
     }
   });
 
-  // Cleanup WebSocket on component destroy
-  onDestroy(async () => {
-    // Only cleanup if we have a Solana address
-    if ($auth?.solana?.address) {
-      console.log('[WalletPanel] Cleaning up Solana WebSocket');
-      await solanaWebSocketService.cleanup();
+  // Cleanup on component destroy
+  onDestroy(() => {
+    // Clear any pending timeouts
+    if (portfolioCalculationTimeout) {
+      clearTimeout(portfolioCalculationTimeout);
+      portfolioCalculationTimeout = null;
     }
+    
+    // Solana polling service cleanup is now handled in auth store on disconnect
   });
 
   // Toggle USD visibility

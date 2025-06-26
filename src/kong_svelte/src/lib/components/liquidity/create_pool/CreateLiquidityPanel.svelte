@@ -11,6 +11,7 @@
   import SolanaTransferModal from "$lib/components/swap/SolanaTransferModal.svelte";
   import { solanaTransferModalStore } from "$lib/stores/solanaTransferModal";
   import Portal from "svelte-portal";
+  import EarlyAccessScreen from "../pools/user-pool/EarlyAccessScreen.svelte";
   
   import { liquidityStore } from "$lib/stores/liquidityStore";
   import { loadBalances } from "$lib/stores/balancesStore";
@@ -53,6 +54,7 @@
   const ALLOWED_TOKEN_SYMBOLS = ["ICP", "ckUSDT"];
   const DEFAULT_TOKEN = "ICP";
   const SECONDARY_TOKEN_IDS = [ICP_CANISTER_ID, CKUSDT_CANISTER_ID];
+  const EARLY_ACCESS_ENABLED = true; // Set to false when ready to launch publicly
 
   // Core state
   let showConfirmModal = false;
@@ -276,7 +278,9 @@
 </script>
 
 <div class="flex flex-col gap-y-4 w-full">
-  {#if isLoading}
+  {#if EARLY_ACCESS_ENABLED}
+    <EarlyAccessScreen />
+  {:else if isLoading}
     <LoadingIndicator message="Loading liquidity panel..." />
   {:else}
     <!-- Step 1: Token Selection -->

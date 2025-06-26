@@ -54,42 +54,43 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
     }),
     environment("all", { prefix: "CANISTER_" }),
     environment("all", { prefix: "DFX_" }),
-    SvelteKitPWA({
-      registerType: 'autoUpdate',
-      manifest: {
-        name: 'KongSwap',
-        short_name: 'KongSwap',
-        description: 'KongSwap is a decentralized exchange for the Internet Computer',
-        theme_color: '#0E111B',
-        icons: [
-          {
-            src: '/icons/icon-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
-          },
-          {
-            src: '/icons/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-          },
-        ],
-      },
-      workbox: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.js$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'js-cache',
-              expiration: {
-                maxAgeSeconds: 60 * 60 * 24 * 1 // 1 day
-              }
-            }
-          }
-        ]
-      }
-    })
+    // DISABLED: PWA Service Worker to prevent caching issues
+    // SvelteKitPWA({
+    //   registerType: 'autoUpdate',
+    //   manifest: {
+    //     name: 'KongSwap',
+    //     short_name: 'KongSwap',
+    //     description: 'KongSwap is a decentralized exchange for the Internet Computer',
+    //     theme_color: '#0E111B',
+    //     icons: [
+    //       {
+    //         src: '/icons/icon-192x192.png',
+    //         sizes: '192x192',
+    //         type: 'image/png',
+    //       },
+    //       {
+    //         src: '/icons/icon-512x512.png',
+    //         sizes: '512x512',
+    //         type: 'image/png',
+    //       },
+    //     ],
+    //   },
+    //   workbox: {
+    //     maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+    //     runtimeCaching: [
+    //       {
+    //         urlPattern: /^https:\/\/.*\.js$/,
+    //         handler: 'CacheFirst',
+    //         options: {
+    //           cacheName: 'js-cache',
+    //           expiration: {
+    //             maxAgeSeconds: 60 * 60 * 24 * 1 // 1 day
+    //           }
+    //         }
+    //       }
+    //     ]
+    //   }
+    // })
   ];
 
   // Base build options
@@ -99,6 +100,10 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
     chunkSizeWarningLimit: 1800,
     rollupOptions: {
       output: {
+        // Add cache busting with content hash
+        entryFileNames: `assets/[name].[hash].js`,
+        chunkFileNames: `assets/[name].[hash].js`,
+        assetFileNames: `assets/[name].[hash].[ext]`,
         manualChunks: (id) => {
           if (id.includes('node_modules/svelte')) {
             return 'vendor';

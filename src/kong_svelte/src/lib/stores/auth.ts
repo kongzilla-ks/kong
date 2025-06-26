@@ -127,7 +127,58 @@ function createAuthStore(pnp: PnpInterface) {
         }
 
         const owner = result.owner;
-        set({ isConnected: true, account: result, isInitialized: true });
+        
+        // Try to get Solana address if wallet supports it with retry logic
+        let solanaAddress: string | null = null;
+        const maxRetries = 3;
+        const retryDelay = 1000; // 1 second
+        
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            console.log(`[Auth] Checking wallet Solana compatibility (attempt ${attempt + 1}/${maxRetries})...`);
+            const { CrossChainSwapService } = await import("$lib/services/swap/CrossChainSwapService");
+            
+            console.log('[Auth] Imported CrossChainSwapService, checking compatibility...');
+            const isCompatible = await CrossChainSwapService.isWalletSolanaCompatible();
+            console.log('[Auth] Wallet Solana compatible:', isCompatible);
+            
+            if (isCompatible) {
+              console.log('[Auth] Getting Solana wallet address...');
+              solanaAddress = await CrossChainSwapService.getSolanaWalletAddress();
+              console.log('[Auth] Successfully got Solana address:', solanaAddress);
+              break; // Success, exit retry loop
+            } else {
+              console.log('[Auth] Wallet is not Solana compatible');
+              break; // No point retrying if wallet isn't compatible
+            }
+          } catch (error) {
+            console.error(`[Auth] Error during Solana address detection (attempt ${attempt + 1}):`, error);
+            console.error('[Auth] Error details:', error?.message, error?.stack);
+            
+            // If this is the last attempt, don't retry
+            if (attempt === maxRetries - 1) {
+              console.error('[Auth] All Solana address detection attempts failed');
+            } else {
+              // Wait before retrying
+              console.log(`[Auth] Retrying Solana address detection in ${retryDelay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, retryDelay));
+            }
+          }
+        }
+        
+        // Include Solana address in the account object
+        const accountWithSolana = {
+          ...result,
+          solana: solanaAddress ? { address: solanaAddress } : null
+        };
+        
+        console.log('[Auth] Final account object:', {
+          owner: accountWithSolana.owner,
+          solana: accountWithSolana.solana,
+          hasSolanaAddress: !!accountWithSolana.solana?.address
+        });
+        
+        set({ isConnected: true, account: accountWithSolana, isInitialized: true });
         
         // Track successful connection using the utility function
         trackEvent(AnalyticsEvent.ConnectWallet, { 
@@ -145,12 +196,20 @@ function createAuthStore(pnp: PnpInterface) {
           try {
             await userTokens.setPrincipal(owner);
             await fetchBalances(get(userTokens).tokens, owner, true);
+            
+            // Initialize Solana polling service if Solana address is available
+            if (accountWithSolana.solana?.address) {
+              console.log('[Auth] Initializing Solana polling service with address:', accountWithSolana.solana.address);
+              const { solanaPollingService } = await import("$lib/services/solana/SolanaPollingService");
+              await solanaPollingService.initialize(accountWithSolana.solana.address);
+              console.log('[Auth] ✅ Solana polling service initialized successfully');
+            }
           } catch (error) {
             console.error("Error loading balances:", error);
           }
         }, 0);
 
-        return result;
+        return accountWithSolana;
       } catch (error) {
         console.error("Connection error:", error);
         resetState(error.message);
@@ -171,6 +230,15 @@ function createAuthStore(pnp: PnpInterface) {
       connectionError.set(null);
       // Set principal to null but don't reset tokens
       userTokens.setPrincipal(null);
+      
+      // Clean up Solana polling service
+      try {
+        const { solanaPollingService } = await import("$lib/services/solana/SolanaPollingService");
+        await solanaPollingService.cleanup();
+        console.log('[Auth] Cleaned up Solana polling service');
+      } catch (error) {
+        console.error('[Auth] Error cleaning up Solana polling service:', error);
+      }
       
       storage.clear();
     },

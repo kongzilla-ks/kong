@@ -31,14 +31,14 @@ pub struct TransactionBuilder;
 const BLOCKHASH_FRESHNESS_THRESHOLD_NANOS: u64 = 45 * 1_000_000_000;
 
 // Compute unit constants for different transaction types
-const COMPUTE_UNITS_SOL_TRANSFER: u32 = 1_000;
-const COMPUTE_UNITS_SPL_TRANSFER: u32 = 50_000;
-const COMPUTE_UNITS_SPL_WITH_ATA: u32 = 100_000;
+const COMPUTE_UNITS_SOL_TRANSFER: u32 = 50_000;
+const COMPUTE_UNITS_SPL_TRANSFER: u32 = 100_000;
+const COMPUTE_UNITS_SPL_WITH_ATA: u32 = 150_000;
 
 // Priority fee constants (in microlamports per compute unit)
-const PRIORITY_FEE_SOL: u64 = 100; // 100 microlamports/CU = 100 lamports total for 1k CU
-const PRIORITY_FEE_SPL: u64 = 150; // 150 microlamports/CU = 7,500 lamports total for 50k CU
-const PRIORITY_FEE_SPL_WITH_ATA: u64 = 100; // 100 microlamports/CU = 10,000 lamports total for 100k CU
+const PRIORITY_FEE_SOL: u64 = 100; // 100 microlamports/CU = 5,000 lamports total for 50k CU
+const PRIORITY_FEE_SPL: u64 = 150; // 150 microlamports/CU = 15,000 lamports total for 100k CU
+const PRIORITY_FEE_SPL_WITH_ATA: u64 = 100; // 100 microlamports/CU = 15,000 lamports total for 150k CU
 
 /// Parameters for building a SPL token transfer transaction with ATA creation
 #[derive(Debug, Clone)]

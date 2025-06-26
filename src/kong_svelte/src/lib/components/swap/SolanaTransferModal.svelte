@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import { CrossChainSwapService } from '$lib/services/swap/CrossChainSwapService';
   import { toastStore } from '$lib/stores/toastStore';
@@ -15,6 +15,7 @@
     createTransferInstruction
   } from '@solana/spl-token';
   import { SOLANA_RPC_ENDPOINT } from '$lib/config/solana.config';
+  import { solanaPollingService } from '$lib/services/solana/SolanaPollingService';
 
   // Declare window.solana for TypeScript
   declare global {
@@ -45,7 +46,14 @@
 
   $: if (show) {
     loadAddresses();
+    // Enable silent mode to reduce logging during swap
+    solanaPollingService.setSilentMode(true);
   }
+
+  onDestroy(() => {
+    // Re-enable logging when modal closes
+    solanaPollingService.setSilentMode(false);
+  });
 
   async function loadAddresses() {
     try {

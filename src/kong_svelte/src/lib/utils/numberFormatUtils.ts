@@ -228,12 +228,17 @@ export function calculatePercentageAmount(
   token: Kong.Token
 ): string {
   const balanceNumber = new BigNumber(balance.toString());
+  
+  // For 100%, leave a small buffer to account for fees
+  // This prevents negative amounts in the backend when fees are subtracted
+  const adjustedPercentage = percentage === 100 ? 99.9 : percentage;
+  
   const percentageAmount = balanceNumber
-    .multipliedBy(percentage)
+    .multipliedBy(adjustedPercentage)
     .dividedBy(100)
     .dividedBy(new BigNumber(10).pow(token.decimals))
     
-  // Don't subtract fee here - let the swap service handle fee calculations
-  // This prevents negative amounts which cause BigInt conversion errors
-  return percentageAmount.toFixed(token.decimals);
+  // Remove trailing zeros and unnecessary decimals
+  const formatted = percentageAmount.toFixed(token.decimals);
+  return formatted.replace(/\.?0+$/, '') || '0';
 }

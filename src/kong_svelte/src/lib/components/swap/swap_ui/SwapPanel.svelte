@@ -30,7 +30,7 @@
     isLoading = false,
   } = $props<{
     title: string;
-    token: Kong.Token;
+    token: Kong.Token | null;
     amount: string;
     onAmountChange: (event: CustomEvent) => void;
     disabled: boolean;
@@ -56,6 +56,26 @@
   ); // Initialize with formatted prop
   let previousAmountProp = $state(amount); // Track prop changes
   let isMobile = $derived(app.isMobile);
+  
+  // Simple balance animation state
+  let isBalanceAnimating = $state(false);
+  
+  // Debug token info and create reactive chain property
+  let tokenChain = $derived(token?.chain || '');
+  let shouldShowChainBadge = $derived(tokenChain && tokenChain !== 'IC' && tokenChain !== 'ICP');
+  
+  $effect(() => {
+    if (token) {
+      console.log(`[SwapPanel ${panelType}] Token updated:`, {
+        symbol: token.symbol,
+        chain: token.chain,
+        tokenChain: tokenChain,
+        shouldShowChainBadge: shouldShowChainBadge,
+        token_type: token.token_type,
+        address: token.address
+      });
+    }
+  });
 
   // Derived state using runes
   let decimals = $derived(token?.decimals || DEFAULT_DECIMALS);
@@ -293,6 +313,25 @@
   let parsedAmount = $derived(parseFloat(amount || "0"));
   let tokenPrice = $derived(token ? Number(token?.metrics?.price || 0) : 0);
   let tradeUsdValue = $derived(tokenPrice * parsedAmount);
+  
+  // Simple balance change detection
+  let lastBalance = $state<bigint | null>(null);
+  
+  $effect(() => {
+    if (token && token.address && $currentUserBalancesStore) {
+      const currentBalance = $currentUserBalancesStore[token.address]?.in_tokens ?? 0n;
+      
+      // Only animate if balance actually changed and wasn't just initialized
+      if (lastBalance !== null && currentBalance !== lastBalance && lastBalance > 0n) {
+        isBalanceAnimating = true;
+        setTimeout(() => {
+          isBalanceAnimating = false;
+        }, 500);
+      }
+      
+      lastBalance = currentBalance;
+    }
+  });
 
   // Use onMount to safely access window properties
   onMount(() => {
@@ -459,8 +498,8 @@
                     class="hidden text-lg pt-0.5 font-semibold text-kong-text-primary sm:inline"
                     >{token.symbol}</span
                   >
-                  {#if token.chain}
-                    <ChainBadge chain={token.chain} size="small" />
+                  {#if shouldShowChainBadge}
+                    <ChainBadge chain={tokenChain} size="small" />
                   {/if}
                 </div>
               </div>
@@ -510,9 +549,10 @@
               <Wallet class="w-3.5 h-3.5" />
             </span>
             <button
-              class="text-kong-text-secondary font-semibold tracking-tight text-xs sm:text-sm"
+              class="text-kong-text-secondary font-semibold tracking-tight text-xs sm:text-sm transition-all duration-200"
               class:clickable={title === "You Pay" && !disabled}
               class:hover:text-yellow-500={title === "You Pay" && !disabled}
+              class:balance-shake={isBalanceAnimating}
               onclick={() => handlePercentageClick(100)}
               disabled={disabled || title !== "You Pay"}
             >
@@ -596,5 +636,21 @@
   input:disabled {
     cursor: not-allowed;
     opacity: 0.6; /* Make disabled inputs look more obviously disabled */
+  }
+
+  /* Simple balance change animation */
+  .balance-shake {
+    animation: balance-update 0.5s ease-in-out;
+  }
+
+  @keyframes balance-update {
+    0%, 100% { 
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% { 
+      transform: scale(1.1);
+      opacity: 0.8;
+    }
   }
 </style>

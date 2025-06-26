@@ -5,7 +5,7 @@ import { syncTokens as analyzeTokens, applyTokenChanges } from '$lib/utils/token
 import { debounce } from '$lib/utils/debounce';
 import { BackendTokenService } from '$lib/services/tokens/BackendTokenService';
 import { testLocalCanisterConnection } from '$lib/utils/testLocalCanister';
-import { solanaWebSocketService } from '$lib/services/solana/SolanaWebSocketService';
+import { solanaPollingService } from '$lib/services/solana/SolanaPollingService';
 
 // Define types for sync operations
 interface SyncTokensResult {
@@ -220,9 +220,21 @@ function createUserTokensStore() {
     }
   };
   
+  // Prevent multiple initializations
+  let isInitializing = false;
+  let isInitialized = false;
+  
   // Initialize current principal
   const initializePrincipal = async () => {
     if (!browser) return;
+    
+    // Prevent multiple concurrent initializations
+    if (isInitializing || isInitialized) {
+      console.log('[UserTokens] Skipping initialization - already initialized or in progress');
+      return;
+    }
+    
+    isInitializing = true;
     
     try {
       const stored = localStorage.getItem(CURRENT_PRINCIPAL_KEY);
@@ -243,17 +255,28 @@ function createUserTokensStore() {
       
       const defaultTokensState = await loadDefaultTokensIfNeeded();
       state.set(defaultTokensState);
+      isInitialized = true;
     } catch (error) {
       console.error('[UserTokens] Error initializing principal:', error);
       // Fallback to default tokens on error
-      const defaultTokensState = await loadDefaultTokensIfNeeded();
-      state.set(defaultTokensState);
+      try {
+        const defaultTokensState = await loadDefaultTokensIfNeeded();
+        state.set(defaultTokensState);
+        isInitialized = true;
+      } catch (fallbackError) {
+        console.error('[UserTokens] Fallback initialization also failed:', fallbackError);
+      }
+    } finally {
+      isInitializing = false;
     }
   };
   
-  // Initialize on store creation
+  // Initialize on store creation with delay to prevent immediate loops
   if (browser) {
-    initializePrincipal();
+    // Use setTimeout to prevent immediate execution during store creation
+    setTimeout(() => {
+      initializePrincipal();
+    }, 0);
   }
 
   // Optimized token filtering logic with search index
@@ -420,12 +443,23 @@ function createUserTokensStore() {
     }
   };
 
+  // Prevent multiple concurrent refresh operations
+  let isRefreshing = false;
+  
   // Refresh token data
   const refreshTokenData = async () => {
+    // Prevent multiple concurrent refreshes
+    if (isRefreshing) {
+      console.log('[UserTokens] Refresh already in progress, skipping...');
+      return;
+    }
+    
     const currentState = get(state);
     const canisterIds = Array.from(currentState.enabledTokens);
     
     if (canisterIds.length === 0) return;
+    
+    isRefreshing = true;
     
     try {
       let tokens: Kong.Token[] = [];
@@ -460,6 +494,8 @@ function createUserTokensStore() {
       });
     } catch (error) {
       console.error('[UserTokens] Error refreshing token data:', error);
+    } finally {
+      isRefreshing = false;
     }
   };
 
@@ -548,7 +584,7 @@ function createUserTokensStore() {
       
       // Subscribe to Solana token balance updates via WebSocket
       if (token.chain === 'Solana') {
-        await solanaWebSocketService.subscribeToToken(token);
+        await solanaPollingService.subscribeToToken(token);
       }
     },
     
@@ -580,10 +616,10 @@ function createUserTokensStore() {
         return newState;
       });
       
-      // Subscribe to Solana token balance updates via WebSocket
+      // Subscribe to Solana token balance updates via Polling Service
       const solanaTokens = tokens.filter(token => token.chain === 'Solana');
       for (const token of solanaTokens) {
-        await solanaWebSocketService.subscribeToToken(token);
+        await solanaPollingService.subscribeToToken(token);
       }
     },
     
@@ -614,7 +650,7 @@ function createUserTokensStore() {
       
       // Unsubscribe from Solana token balance updates via WebSocket
       if (token && token.chain === 'Solana') {
-        await solanaWebSocketService.unsubscribeFromToken(token);
+        await solanaPollingService.unsubscribeFromToken(token);
       }
     },
     

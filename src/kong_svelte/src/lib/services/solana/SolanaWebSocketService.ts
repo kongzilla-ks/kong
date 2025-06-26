@@ -150,10 +150,16 @@ class SolanaWebSocketService {
 
     if (solToken) {
       // Update the balance in the store
-      currentUserBalancesStore.updateBalance(solToken.address, solBalance.toString());
+      currentUserBalancesStore.updateBalance(solToken.address, {
+        balance: BigInt(Math.floor(solBalance * 1e9)), // Convert SOL to lamports
+        in_tokens: BigInt(Math.floor(solBalance * 1e9)),
+        token: solToken.symbol,
+        in_usd: (solBalance * (solToken.metrics?.price || 0)).toString()
+      });
       
       // Show a subtle notification
-      toastStore.success(`SOL balance updated: ${formatBalance(solBalance.toString(), 9)} SOL`);
+      // Silent update - no toast for balance changes
+      console.log(`[SolanaWebSocket] SOL balance updated: ${formatBalance(solBalance.toString(), 9)} SOL`);
     }
   }
 
@@ -185,10 +191,16 @@ class SolanaWebSocketService {
         console.log(`[SolanaWebSocket] ${token.symbol} balance updated: ${balance}`);
 
         // Update the balance in the store
-        currentUserBalancesStore.updateBalance(token.address, balance.toString());
+        currentUserBalancesStore.updateBalance(token.address, {
+          balance: amount,
+          in_tokens: amount,
+          token: token.symbol,
+          in_usd: (balance * (token.metrics?.price || 0)).toString()
+        });
         
         // Show a subtle notification
-        toastStore.success(`${token.symbol} balance updated: ${formatBalance(balance.toString(), decimals)} ${token.symbol}`);
+        // Silent update - no toast for balance changes
+        console.log(`[SolanaWebSocket] ${token.symbol} balance updated: ${formatBalance(balance.toString(), decimals)} ${token.symbol}`);
       }
     } catch (error) {
       console.error(`[SolanaWebSocket] Error parsing ${token.symbol} balance:`, error);
