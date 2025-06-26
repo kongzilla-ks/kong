@@ -106,11 +106,11 @@
             case "tvl":
               return Number(pool.tvl);
             case "rolling_24h_volume":
-              return Number(pool.rolling_24h_volume);
+              return Number(pool.rolling_24h_volume || 0);
             case "rolling_24h_apy":
-              return Number(pool.rolling_24h_apy);
+              return Number(pool.rolling_24h_apy || 0);
             default:
-              return Number(pool.rolling_24h_volume);
+              return Number(pool.rolling_24h_volume || 0);
           }
         };
 
@@ -221,13 +221,16 @@
       const urlParams = new URLSearchParams($page.url.search);
       const urlPage = parseInt(urlParams.get("page") || "1");
       
-      // Use backend services directly for local development
-      const [pools, totalsResult, tokens] = await Promise.all([
-        BackendPoolService.fetchPools(),
-        BackendPoolService.getPoolTotals(),
-        BackendTokenService.fetchTokens(),
+      // Use backend services directly (no off-chain indexer)
+      // Fetch tokens first
+      const tokens = await BackendTokenService.fetchTokens();
+      
+      // Then fetch pools and totals with tokens data
+      const [pools, totalsResult] = await Promise.all([
+        BackendPoolService.fetchPools(undefined, tokens),
+        BackendPoolService.getPoolTotals(tokens),
       ]);
-
+      
       // Filter pools based on search
       const filteredPools = searchInput 
         ? pools.filter(pool => 
@@ -263,8 +266,8 @@
   async function loadPools(page: number, search: string) {
     isLoading.set(true);
     try {
-      // Use backend service directly
-      const pools = await BackendPoolService.fetchPools();
+      // Use backend service directly with cached tokens if available
+      const pools = await BackendPoolService.fetchPools(undefined, $allTokens.length > 0 ? $allTokens : undefined);
       
       // Filter pools based on search
       const filteredPools = search 

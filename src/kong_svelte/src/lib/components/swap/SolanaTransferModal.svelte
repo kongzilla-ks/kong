@@ -14,6 +14,7 @@
     createAssociatedTokenAccountInstruction,
     createTransferInstruction
   } from '@solana/spl-token';
+  import { SOLANA_RPC_ENDPOINT } from '$lib/config/solana.config';
 
   // Declare window.solana for TypeScript
   declare global {
@@ -158,7 +159,7 @@
         console.log('[SolanaTransferModal] Initiating SPL token transfer:', payToken.symbol);
         
         // Create connection
-        const connection = new Connection('https://mainnet.solana.validationcloud.io/v1/vEH0znkrmOFeAxXCJAyIGLQFSPVY38NzDe2NkNvNQt4');
+        const connection = new Connection(SOLANA_RPC_ENDPOINT);
         
         // Get token mint address from token data
         const tokenMintAddress = payToken.address;

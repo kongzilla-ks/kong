@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { fade } from "svelte/transition";
   import { goto } from "$app/navigation";
   import {
@@ -29,6 +29,7 @@
   import SendTokenModal from "$lib/components/wallet/SendTokenModal.svelte";
   import { calculatePortfolioValue } from "$lib/utils/portfolioUtils";
   import { loadUserBalances, setLastRefreshed } from "$lib/services/balanceService";
+  import { solanaWebSocketService } from "$lib/services/solana/SolanaWebSocketService";
 
   // Props type definition
   type WalletPanelProps = {
@@ -296,6 +297,21 @@
         lastKnownPortfolioValue = calculated;
         totalPortfolioValue = calculated;
       }
+      
+      // Initialize WebSocket for Solana wallet if connected
+      if ($auth?.solana?.address) {
+        console.log('[WalletPanel] Initializing Solana WebSocket for address:', $auth.solana.address);
+        await solanaWebSocketService.initialize($auth.solana.address);
+      }
+    }
+  });
+
+  // Cleanup WebSocket on component destroy
+  onDestroy(async () => {
+    // Only cleanup if we have a Solana address
+    if ($auth?.solana?.address) {
+      console.log('[WalletPanel] Cleaning up Solana WebSocket');
+      await solanaWebSocketService.cleanup();
     }
   });
 

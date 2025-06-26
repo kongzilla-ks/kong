@@ -5,6 +5,7 @@ import { syncTokens as analyzeTokens, applyTokenChanges } from '$lib/utils/token
 import { debounce } from '$lib/utils/debounce';
 import { BackendTokenService } from '$lib/services/tokens/BackendTokenService';
 import { testLocalCanisterConnection } from '$lib/utils/testLocalCanister';
+import { solanaWebSocketService } from '$lib/services/solana/SolanaWebSocketService';
 
 // Define types for sync operations
 interface SyncTokensResult {
@@ -544,6 +545,11 @@ function createUserTokensStore() {
         debouncedUpdateStorage(newState);
         return newState;
       });
+      
+      // Subscribe to Solana token balance updates via WebSocket
+      if (token.chain === 'Solana') {
+        await solanaWebSocketService.subscribeToToken(token);
+      }
     },
     
     enableTokens: async (tokens: Kong.Token[]) => {
@@ -573,9 +579,19 @@ function createUserTokensStore() {
         debouncedUpdateStorage(newState);
         return newState;
       });
+      
+      // Subscribe to Solana token balance updates via WebSocket
+      const solanaTokens = tokens.filter(token => token.chain === 'Solana');
+      for (const token of solanaTokens) {
+        await solanaWebSocketService.subscribeToToken(token);
+      }
     },
     
-    disableToken: (canisterId: string) => {
+    disableToken: async (canisterId: string) => {
+      // Get the token before updating state
+      const currentState = get(state);
+      const token = currentState.tokenData.get(canisterId);
+      
       state.update(state => {
         // Create copies of current state
         const newEnabledTokens = new Set(state.enabledTokens);
@@ -595,6 +611,11 @@ function createUserTokensStore() {
         debouncedUpdateStorage(newState);
         return newState;
       });
+      
+      // Unsubscribe from Solana token balance updates via WebSocket
+      if (token && token.chain === 'Solana') {
+        await solanaWebSocketService.unsubscribeFromToken(token);
+      }
     },
     
     isTokenEnabled: (canisterId: string): Promise<boolean> => {

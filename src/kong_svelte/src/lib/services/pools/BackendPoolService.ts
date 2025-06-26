@@ -5,16 +5,31 @@ import { LocalActorService } from '../actors/LocalActorService';
 import { swapActor } from '$lib/stores/auth';
 
 export class BackendPoolService {
+  private static tokenDecimals: Map<string, number> = new Map();
+  
   /**
    * Fetches all pools from kong_backend
    */
-  static async fetchPools(symbol?: string): Promise<BE.Pool[]> {
+  static async fetchPools(symbol?: string, tokens?: Kong.Token[]): Promise<BE.Pool[]> {
     try {
       console.log('[BackendPoolService] Fetching pools from kong_backend...');
       
-      // Get pools from backend using BackendTokenService
+      // Get pools from backend
       const poolReplies = await BackendTokenService.fetchPools(symbol);
       
+      // If tokens not provided, fetch them
+      if (!tokens) {
+        tokens = await BackendTokenService.fetchTokens();
+      }
+      
+      // Build decimals map
+      this.tokenDecimals.clear();
+      tokens.forEach(token => {
+        this.tokenDecimals.set(token.symbol, token.decimals);
+        this.tokenDecimals.set(token.address, token.decimals);
+      });
+      
+      console.log('[BackendPoolService] Token decimals map:', Object.fromEntries(this.tokenDecimals));
       console.log('[BackendPoolService] Raw pool count:', poolReplies.length);
       
       // Transform backend pools to frontend format
@@ -34,9 +49,9 @@ export class BackendPoolService {
    * Get pool totals (TVL, volume, etc)
    * Note: This method doesn't exist in the backend yet, so we calculate it from pools
    */
-  static async getPoolTotals(): Promise<BE.PoolTotals> {
+  static async getPoolTotals(tokens?: Kong.Token[]): Promise<BE.PoolTotals> {
     try {
-      const pools = await this.fetchPools();
+      const pools = await this.fetchPools(undefined, tokens);
       
       // Calculate totals from pools
       let totalTvl = 0;
@@ -74,11 +89,30 @@ export class BackendPoolService {
    */
   private static transformBackendPool(pool: PoolReply): BE.Pool | null {
     try {
-      // Calculate TVL from balances (simplified calculation)
-      // In reality, you'd need token prices to calculate proper TVL
-      const balance0 = Number(pool.balance_0) / Math.pow(10, 8); // Assuming 8 decimals
-      const balance1 = Number(pool.balance_1) / Math.pow(10, 8);
-      const tvl = (balance0 * pool.price + balance1).toString();
+      // Get decimals for each token
+      const decimals0 = this.tokenDecimals.get(pool.symbol_0) || this.tokenDecimals.get(pool.address_0) || 8;
+      const decimals1 = this.tokenDecimals.get(pool.symbol_1) || this.tokenDecimals.get(pool.address_1) || 8;
+      
+      console.log(`[BackendPoolService] Pool ${pool.symbol_0}/${pool.symbol_1} decimals: ${decimals0}/${decimals1}`);
+      
+      // Calculate actual balances with correct decimals
+      const balance0 = Number(pool.balance_0) / Math.pow(10, decimals0);
+      const balance1 = Number(pool.balance_1) / Math.pow(10, decimals1);
+      
+      // Calculate TVL
+      // If token1 is a stable (ckUSDT/USDC), use it as the base
+      // Otherwise use token0 price * balance0 + balance1
+      let tvl: number;
+      if (pool.symbol_1 === 'ckUSDT' || pool.symbol_1 === 'USDC') {
+        // For stable pairs, price is token0 in terms of USD
+        tvl = balance0 * pool.price + balance1;
+      } else {
+        // For non-stable pairs, we need proper USD prices
+        // For now, just use a simple calculation
+        tvl = balance0 + balance1 * (1 / pool.price);
+      }
+      
+      console.log(`[BackendPoolService] Pool ${pool.symbol_0}/${pool.symbol_1} TVL: $${tvl.toFixed(2)}, balance0: ${balance0}, balance1: ${balance1}, price: ${pool.price}`);
       
       return {
         pool_id: Number(pool.pool_id),
@@ -98,13 +132,17 @@ export class BackendPoolService {
         price: pool.price.toString(),
         lp_total_supply: '0', // Not available from backend
         lp_token_symbol: pool.lp_token_symbol,
-        total_volume_24h: '0', // Not available from backend
-        total_lp_fees_24h: '0', // Not available from backend
-        rolling_24h_volume: '0', // Not available from backend
-        rolling_24h_lp_fees: '0', // Not available from backend
-        tvl: tvl,
-        apr: 0, // Not available from backend
-        apy: 0, // Not available from backend
+        total_volume_24h: '0', // Would need historical data
+        total_lp_fees_24h: '0', // Would need historical data
+        rolling_24h_volume: '0', // Would need historical data
+        rolling_24h_lp_fees: '0', // Would need historical data
+        rolling_24h_apy: '0', // Would need to calculate from fees/volume
+        rolling_24h_num_swaps: 0n,
+        total_volume: 0n,
+        total_lp_fee: 0n,
+        tvl: tvl.toString(),
+        apr: 0, // Would need to calculate
+        apy: 0, // Would need to calculate
         lp_fee_bps: Number(pool.lp_fee_bps),
         updated_at: new Date().toISOString(),
       };

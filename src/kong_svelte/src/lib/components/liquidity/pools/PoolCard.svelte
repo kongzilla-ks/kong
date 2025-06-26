@@ -48,8 +48,9 @@
   const stats = $derived([
     { 
       label: "APR", 
-      value: pool.apr ? `${pool.apr}%` : `${Number(pool.rolling_24h_apy || 0).toFixed(2)}%`,
-      color: 'text-kong-primary'
+      value: pool.apr ? `${pool.apr}%` : Number(pool.rolling_24h_apy || 0) > 0 ? `${Number(pool.rolling_24h_apy).toFixed(2)}%` : "Early Access",
+      color: Number(pool.rolling_24h_apy || 0) > 0 ? 'text-kong-primary' : 'text-kong-text-secondary',
+      isEarlyAccess: !pool.apr && Number(pool.rolling_24h_apy || 0) === 0
     },
     { 
       label: "Price", 
@@ -61,7 +62,9 @@
     },
     { 
       label: "Vol 24h", 
-      value: formatUsdValue(Number(pool.rolling_24h_volume || 0)) 
+      value: Number(pool.rolling_24h_volume || 0) > 0 ? formatUsdValue(Number(pool.rolling_24h_volume)) : "Early Access",
+      color: Number(pool.rolling_24h_volume || 0) > 0 ? 'text-kong-text-primary' : 'text-kong-text-secondary',
+      isEarlyAccess: Number(pool.rolling_24h_volume || 0) === 0
     },
     ...(isConnected ? [{
       label: "Your Position",
@@ -102,11 +105,15 @@
             {pool.symbol_0 || pool.token0?.symbol}/{pool.symbol_1 || pool.token1?.symbol}
           </div>
           {#if !isMobile && pool.chain_0 && pool.chain_1}
-            <div class="flex items-center gap-1">
-              <ChainBadge chain={pool.chain_0} size="small" />
-              <span class="text-kong-text-secondary text-xs">→</span>
-              <ChainBadge chain={pool.chain_1} size="small" />
-            </div>
+            {#if pool.chain_0 !== pool.chain_1}
+              <div class="flex items-center gap-1">
+                <ChainBadge chain={pool.chain_0} size="small" variant="minimal" />
+                <span class="text-kong-text-secondary text-xs">·</span>
+                <ChainBadge chain={pool.chain_1} size="small" variant="minimal" />
+              </div>
+            {:else}
+              <ChainBadge chain={pool.chain_0} size="small" variant="minimal" />
+            {/if}
           {/if}
         </div>
         {#if !isMobile}
@@ -133,7 +140,7 @@
               <div class="text-xs text-kong-text-secondary mb-1">
                 {stat.label}
               </div>
-              <div class="text-sm font-medium {stat.color || 'text-kong-text-primary'}">
+              <div class="text-sm font-medium {stat.color || 'text-kong-text-primary'} {stat.isEarlyAccess ? 'opacity-50 italic text-xs' : ''}">
                 {stat.value}
               </div>
             </div>
@@ -144,7 +151,7 @@
           {#each stats as stat}
             <div class="flex justify-between items-center">
               <span class="text-sm text-kong-text-secondary">{stat.label}</span>
-              <span class="text-sm font-medium {stat.color || 'text-kong-text-primary'}">{stat.value}</span>
+              <span class="text-sm font-medium {stat.color || 'text-kong-text-primary'} {stat.isEarlyAccess ? 'opacity-50 italic text-xs' : ''}">{stat.value}</span>
             </div>
           {/each}
         </div>

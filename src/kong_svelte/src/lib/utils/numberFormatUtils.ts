@@ -233,5 +233,7 @@ export function calculatePercentageAmount(
     .dividedBy(100)
     .dividedBy(new BigNumber(10).pow(token.decimals))
     
-  return percentageAmount.minus(token.fee).toFixed(token.decimals);
+  // Don't subtract fee here - let the swap service handle fee calculations
+  // This prevents negative amounts which cause BigInt conversion errors
+  return percentageAmount.toFixed(token.decimals);
 }
