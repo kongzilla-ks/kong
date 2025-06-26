@@ -1,8 +1,8 @@
 use candid::Nat;
-use num_traits::ToPrimitive;
 
 use crate::helpers::nat_helpers::nat_is_zero;
-use crate::ic::address::{get_address, Address};
+use crate::ic::address::Address;
+use crate::ic::address_helpers::get_address;
 use crate::ic::network::ICNetwork;
 use crate::ic::verify_transfer::verify_transfer;
 use crate::stable_kong_settings::kong_settings_map;
@@ -21,10 +21,20 @@ use super::swap_calc::SwapCalc;
 use super::swap_reply::SwapReply;
 use super::update_liquidity_pool::update_liquidity_pool;
 
+use crate::chains::chains::SOL_CHAIN;
+
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
-    // user has transferred the pay token
-    // get the user_id. if new user, insert into user_map
-    let user_id = user_map::insert(args.referred_by.as_deref())?;
+    
+    // as user has transferred the pay token, we need to log the request immediately and verify the transfer
+    // make sure user is registered, if not create a new user with referred_by if specified
+    
+    // Check if this is a Solana swap to allow anonymous users
+    let allow_anonymous = match token_map::get_by_token(&args.pay_token) {
+        Ok(token) => token.chain() == SOL_CHAIN,
+        Err(_) => false,
+    };
+    
+    let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
     let ts = ICNetwork::get_time();
     // insert request into request_map so we have immediate record of this
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
@@ -77,7 +87,13 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
 }
 
 pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
-    let user_id = user_map::insert(args.referred_by.as_deref())?;
+    // Check if this is a Solana swap to allow anonymous users
+    let allow_anonymous = match token_map::get_by_token(&args.pay_token) {
+        Ok(token) => token.chain() == SOL_CHAIN,
+        Err(_) => false,
+    };
+    
+    let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
     let ts = ICNetwork::get_time();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
     let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.inspect_err(|_| {
@@ -141,30 +157,15 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
         request_map::update_status(request_id, StatusCode::PayTokenNotFound, Some(e));
     })?;
 
-    // Debug log token info
-    match &pay_token {
-        StableToken::Solana(sol_token) => {
-            ICNetwork::info_log(&format!(
-                "DEBUG: Pay token lookup for '{}' found Solana token: mint={}, is_spl_token={}",
-                &args.pay_token, sol_token.mint_address, sol_token.is_spl_token
-            ));
-        }
-        _ => {
-            ICNetwork::info_log(&format!("DEBUG: Pay token '{}' is not a Solana token", &args.pay_token));
-        }
-    }
 
     let pay_amount = args.pay_amount.clone();
 
-    // Debug log
-    ICNetwork::info_log(&format!("swap_transfer: signature present: {}", args.signature.is_some()));
-
-    // Check if this is a cross-chain swap based on signature presence
-    if args.signature.is_some() {
-        // Cross-chain payment path - use payment verifier
+    
+    // Check token type to determine payment verification path
+    if pay_token.chain() == SOL_CHAIN {
+        // Solana tokens require signature verification
         let verifier = PaymentVerifier::new(ICNetwork::caller());
-        let verification = verifier
-            .verify_payment(args, &pay_token, pay_amount.0.to_u64().ok_or("Invalid pay amount")?)
+        let verification = verifier.verify_payment(args, &pay_token, &pay_amount)
             .await
             .inspect_err(|e| {
                 request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(e));
@@ -201,7 +202,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
             }
         }
     } else {
-        // IC-only path (backward compatible) - original flow
+        // IC token path - verify transfer without signature
         // For IC tokens, we need a valid block index
         let transfer_id = match &args.pay_tx_id {
             Some(pay_tx_id) => match pay_tx_id {

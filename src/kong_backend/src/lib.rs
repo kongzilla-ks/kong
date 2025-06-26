@@ -35,3 +35,30 @@ pub mod user_balances;
 
 pub const APP_NAME: &str = "KongSwap";
 pub const APP_VERSION: &str = "v0.0.26";
+
+// Custom getrandom implementation for IC canisters
+use getrandom::{register_custom_getrandom, Error};
+use std::cell::RefCell;
+
+thread_local! {
+    static RANDOM_SEED: RefCell<[u8; 32]> = RefCell::new([0u8; 32]);
+}
+
+fn custom_getrandom(buf: &mut [u8]) -> Result<(), Error> {
+    // Use IC's time-based entropy as a simple fallback
+    // This is not cryptographically secure but sufficient for basic randomness needs
+    let time_nanos = ic_cdk::api::time();
+    let mut seed_bytes = time_nanos.to_le_bytes();
+    
+    // Simple XOR-based PRNG for filling the buffer
+    for (i, byte) in buf.iter_mut().enumerate() {
+        let idx = i % seed_bytes.len();
+        *byte = seed_bytes[idx] ^ ((time_nanos >> (i % 64)) as u8);
+        // Mix the seed for next iteration
+        seed_bytes[idx] = seed_bytes[idx].wrapping_add(1);
+    }
+    
+    Ok(())
+}
+
+register_custom_getrandom!(custom_getrandom);

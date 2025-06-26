@@ -9,9 +9,12 @@
   import { onDestroy, createEventDispatcher } from "svelte";
   import { createPool, addLiquidity, pollRequestStatus } from "$lib/api/pools";
   import { toastStore } from "$lib/stores/toastStore";
-  import { loadBalance } from "$lib/stores/tokenStore";
+  import { loadBalance } from "$lib/stores/balancesStore";
   import { currentUserPoolsStore } from "$lib/stores/currentUserPoolsStore";
-  import { auth } from "$lib/stores/auth";
+  import { CrossChainSwapService } from "$lib/services/swap/CrossChainSwapService";
+  import { IcrcService } from "$lib/services/icrc/IcrcService";
+  import { solanaLiquidityModalStore } from "$lib/stores/solanaLiquidityModal";
+  import { auth, swapActor } from "$lib/stores/auth";
 
   const dispatch = createEventDispatcher();
 
@@ -30,9 +33,15 @@
   let isLoading = false;
   let error: string | null = null;
   let mounted = true;
+  let pollingController: AbortController | null = null;
 
   onDestroy(() => {
     mounted = false;
+    // Cancel any ongoing polling
+    if (pollingController) {
+      pollingController.abort();
+      pollingController = null;
+    }
   });
 
   // Calculated values
@@ -47,6 +56,104 @@
     !isCreatingPool && amount0 && amount1
       ? formatToNonZeroDecimal(Number(amount1) / Number(amount0))
       : $liquidityStore.initialPrice;
+
+  // Helper function to check if token is SOL
+  function isSolToken(token: any) {
+    return token?.symbol === "SOL" || token?.address === "11111111111111111111111111111111";
+  }
+
+  // Helper function to handle cross-chain LP with SOL
+  async function handleCrossChainLP(params: any) {
+    const isToken0Sol = isSolToken(token0);
+    const isToken1Sol = isSolToken(token1);
+    
+    if (!isToken0Sol && !isToken1Sol) {
+      throw new Error("Not a cross-chain LP");
+    }
+
+    console.log("Opening Solana liquidity modal for cross-chain LP");
+    
+    return new Promise((resolve, reject) => {
+      let isResolved = false;
+      let timeoutId: NodeJS.Timeout;
+      
+      // Set up timeout to prevent hanging promises
+      const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+      timeoutId = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          console.error("Cross-chain LP operation timed out");
+          reject(new Error("Cross-chain operation timed out. Please try again."));
+        }
+      }, TIMEOUT_MS);
+      
+      // Store original resolve/reject to handle cleanup
+      const safeResolve = (value: any) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeoutId);
+          resolve(value);
+        }
+      };
+      
+      const safeReject = (error: any) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeoutId);
+          reject(error);
+        }
+      };
+      
+      solanaLiquidityModalStore.show({
+        operation: 'add',
+        token0: token0,
+        amount0: (Number(params.amount_0) / Math.pow(10, token0.decimals)).toString(),
+        token1: token1,
+        amount1: (Number(params.amount_1) / Math.pow(10, token1.decimals)).toString(),
+        lpAmount: '', // not used for add liquidity
+        onConfirm: async (modalData) => {
+          try {
+            const { solTransactionId, icrcTransactionId, signature, timestamp } = modalData;
+            
+            // Call add_liquidity_async with both transaction details
+            const actor = await swapActor({ anon: false, requiresSigning: false });
+            
+            const addLiquidityArgs = {
+              token_0: isToken0Sol ? "SOL" : "IC." + token0.address,
+              amount_0: params.amount_0,
+              token_1: isToken1Sol ? "SOL" : "IC." + token1.address, 
+              amount_1: params.amount_1,
+              tx_id_0: isToken0Sol 
+                ? (solTransactionId ? [{ TransactionId: solTransactionId }] : [])
+                : (icrcTransactionId ? [{ BlockIndex: icrcTransactionId }] : []),
+              tx_id_1: isToken1Sol 
+                ? (solTransactionId ? [{ TransactionId: solTransactionId }] : [])
+                : (icrcTransactionId ? [{ BlockIndex: icrcTransactionId }] : []),
+              signature_0: isToken0Sol ? [signature] : [] as [] | [string],
+              signature_1: isToken1Sol ? [signature] : [] as [] | [string],
+              timestamp: [timestamp] as [] | [bigint],
+            };
+
+            console.log("Calling add_liquidity_async with args:", addLiquidityArgs);
+            const result = await actor.add_liquidity_async(addLiquidityArgs);
+            
+            if ("Err" in result) {
+              throw new Error(result.Err);
+            }
+            
+            safeResolve(result.Ok);
+          } catch (error) {
+            console.error("Cross-chain LP error:", error);
+            safeReject(error);
+          }
+        },
+        onCancel: () => {
+          console.log("Cross-chain LP operation cancelled by user");
+          safeReject(new Error("Operation cancelled by user"));
+        }
+      });
+    });
+  }
 
   async function handleConfirm() {
     if (isLoading || !token0 || !token1) return;
@@ -112,15 +219,35 @@
           amount_1: amount1,
         };
 
-        const addLiquidityResult = await addLiquidity(params);
+        // Check if this is a cross-chain LP with SOL
+        const isToken0Sol = isSolToken(token0);
+        const isToken1Sol = isSolToken(token1);
+        
+        let addLiquidityResult;
+        
+        if (isToken0Sol || isToken1Sol) {
+          console.log("Detected cross-chain LP with SOL, using signature flow");
+          toastStore.info("Initiating cross-chain liquidity addition...");
+          addLiquidityResult = await handleCrossChainLP(params);
+        } else {
+          console.log("Standard ICRC LP, using normal flow");
+          toastStore.info(
+            `Adding liquidity to ${token0.symbol}/${token1.symbol} pool...`,
+          );
+          addLiquidityResult = await addLiquidity(params);
+        }
 
         if (addLiquidityResult) {
+          // Create new controller for this polling operation
+          pollingController = new AbortController();
+          
           await pollRequestStatus(
             addLiquidityResult, 
             "Successfully added liquidity",
             "Failed to add liquidity",
             token0?.symbol,
-            token1?.symbol
+            token1?.symbol,
+            pollingController?.signal
           );
           
           // Reload balances and pool list after successful liquidity addition
@@ -141,12 +268,37 @@
       if (mounted) {
         error =
           err instanceof Error ? err.message : "Failed to process transaction";
+        // Always reset loading state on error
+        isLoading = false;
+        
+        // Show user-friendly error message
+        if (err instanceof Error && err.message.includes("cancelled")) {
+          toastStore.info("Operation cancelled");
+        } else if (err instanceof Error && err.message.includes("timed out")) {
+          toastStore.error("Operation timed out. Please try again.");
+        } else {
+          toastStore.error(error || "Transaction failed");
+        }
+      }
+    } finally {
+      // Ensure loading state is always reset
+      if (mounted) {
         isLoading = false;
       }
     }
   }
 
   function handleCancel() {
+    // Cancel any ongoing polling
+    if (pollingController) {
+      pollingController.abort();
+      pollingController = null;
+    }
+    
+    // Reset state
+    isLoading = false;
+    error = null;
+    
     show = false;
     onClose();
   }
@@ -240,7 +392,7 @@
         theme="accent-green"
         size="lg"
         fullWidth={true}
-        on:click={handleCancel}
+        onclick={handleCancel}
         isDisabled={isLoading}
       >
         Cancel
@@ -250,7 +402,7 @@
         theme="accent-green"
         size="lg"
         fullWidth={true}
-        on:click={handleConfirm}
+        onclick={handleConfirm}
         isDisabled={isLoading}
       >
         <div class="flex items-center justify-center gap-2">

@@ -1,6 +1,9 @@
 import { formatBalance, formatToNonZeroDecimal } from "$lib/utils/numberFormatUtils";
 import { IcrcService } from "$lib/services/icrc/IcrcService";
 import { Principal } from "@dfinity/principal";
+import { get } from 'svelte/store';
+import { auth } from '$lib/stores/auth';
+import { pnp } from '$lib/config/auth.config';
 
 // Constants
 const BATCH_SIZE = 40;
@@ -10,6 +13,48 @@ const DEFAULT_PRICE = 0;
 // Helper functions
 function convertPrincipalId(principalId: string | Principal): Principal {
   return typeof principalId === "string" ? Principal.fromText(principalId) : principalId;
+}
+
+// Fetch Solana balance for a specific token
+async function fetchSolanaBalance(token: Kong.Token): Promise<TokenBalance> {
+  const authData = get(auth);
+  
+  // Check if user is connected and provider is available
+  if (!authData.isConnected || !pnp.provider) {
+    console.warn('Solana provider not available or user not connected');
+    return {
+      in_tokens: BigInt(0),
+      in_usd: formatToNonZeroDecimal(0),
+    };
+  }
+
+  try {
+    // For native SOL
+    if (token.symbol === 'SOL') {
+      const solBalance = await pnp.provider.getSolBalance?.();
+      if (solBalance && typeof solBalance.amount === 'number') {
+        const balanceInLamports = BigInt(Math.floor(solBalance.amount * Math.pow(10, token.decimals)));
+        return formatTokenBalance(balanceInLamports, token.decimals, token?.metrics?.price ?? DEFAULT_PRICE);
+      }
+    } else {
+      // For SPL tokens
+      const splBalances = await pnp.provider.getSplTokenBalances?.();
+      if (Array.isArray(splBalances)) {
+        const tokenBalance = splBalances.find(t => t.mint === token.address);
+        if (tokenBalance) {
+          const balanceInSmallestUnit = BigInt(tokenBalance.amount || 0);
+          return formatTokenBalance(balanceInSmallestUnit, token.decimals, token?.metrics?.price ?? DEFAULT_PRICE);
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching Solana balance for ${token.symbol}:`, error);
+  }
+
+  return {
+    in_tokens: BigInt(0),
+    in_usd: formatToNonZeroDecimal(0),
+  };
 }
 
 function calculateUsdValue(balance: string, price: number | string = DEFAULT_PRICE): number {
@@ -40,6 +85,11 @@ export async function fetchBalance(
         in_tokens: BigInt(0),
         in_usd: formatToNonZeroDecimal(0),
       };
+    }
+
+    // Handle Solana tokens differently
+    if (token.chain === 'Solana') {
+      return fetchSolanaBalance(token);
     }
 
     const principal = convertPrincipalId(principalId);
@@ -76,7 +126,6 @@ export async function fetchBalances(
   forceRefresh = false,
 ): Promise<Record<string, TokenBalance>> {
   if (!principalId || !tokens?.length) {
-    console.log(principalId ? 'No tokens provided' : 'No principal ID provided');
     return {};
   }
 
@@ -84,9 +133,12 @@ export async function fetchBalances(
     const principal = principalId;
     const results = new Map<string, bigint>();
 
-    // Process tokens in batches
-    for (let i = 0; i < tokens.length; i += BATCH_SIZE) {
-      const batch = tokens
+    // Filter out Solana tokens and null/undefined tokens
+    const icTokens = tokens.filter(token => token && token.chain !== 'Solana');
+    
+    // Process only IC tokens in batches
+    for (let i = 0; i < icTokens.length; i += BATCH_SIZE) {
+      const batch = icTokens
         .slice(i, i + BATCH_SIZE)
         .map(t => ({ ...t, timestamp: Date.now() }));
 
@@ -96,13 +148,23 @@ export async function fetchBalances(
       }
 
       // Add delay between batches if not the last batch
-      if (i + BATCH_SIZE < tokens.length) {
+      if (i + BATCH_SIZE < icTokens.length) {
         await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
 
-    // Process results into final format
-    return tokens.reduce((acc, token) => {
+    // Process IC token results first
+    const balanceResults = tokens.reduce((acc, token) => {
+      // Skip null/undefined tokens
+      if (!token) {
+        return acc;
+      }
+      
+      // Skip Solana tokens for now
+      if (token.chain === 'Solana') {
+        return acc;
+      }
+      
       const balance = results.get(token.address);
       if (balance !== undefined) {
         const tokenBalance = formatTokenBalance(
@@ -114,6 +176,24 @@ export async function fetchBalances(
       }
       return acc;
     }, {} as Record<string, TokenBalance>);
+
+    // Now fetch Solana token balances
+    const solanaTokens = tokens.filter(token => token && token.chain === 'Solana');
+    if (solanaTokens.length > 0) {
+      const solanaBalances = await Promise.all(
+        solanaTokens.map(async (token) => {
+          const balance = await fetchSolanaBalance(token);
+          return { address: token.address, balance };
+        })
+      );
+      
+      // Add Solana balances to results
+      solanaBalances.forEach(({ address, balance }) => {
+        balanceResults[address] = balance;
+      });
+    }
+
+    return balanceResults;
 
   } catch (error) {
     console.error('Error in fetchBalances:', error);

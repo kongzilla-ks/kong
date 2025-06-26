@@ -60,15 +60,15 @@ pub async fn create_solana_swap_job(
         // Get the job ID
         let job_id = get_next_solana_swap_job_id();
 
-        // Convert amount to u64
+        // API boundary: Solana blockchain requires u64 amounts (max ~18.4e18 lamports)
+        // This is acceptable since Solana tokens have at most 9 decimals
         let amount_u64 = receive_amount.0.to_u64()
-            .ok_or("Amount too large for Solana transfer")?;
+            .ok_or("Amount too large for Solana transfer (max ~18.4e18)")?;
 
         // Build transaction instructions based on token type
-        let builder = TransactionBuilder::new();
         let instructions = if sol_token.mint_address == "11111111111111111111111111111111" {
             // Native SOL transfer
-            builder.build_transfer_sol_transaction(
+            TransactionBuilder::build_transfer_sol_transaction(
                 &kong_address,
                 &destination_address,
                 amount_u64,
@@ -77,9 +77,9 @@ pub async fn create_solana_swap_job(
             .map_err(|e| format!("Failed to build SOL transfer: {}", e))?
         } else {
             // SPL token transfer with ATA creation
-            let from_token_account = builder.derive_associated_token_account(&kong_address, &sol_token.mint_address)
+            let from_token_account = TransactionBuilder::derive_associated_token_account(&kong_address, &sol_token.mint_address)
                 .map_err(|e| format!("Failed to derive source ATA: {}", e))?;
-            let to_token_account = builder.derive_associated_token_account(&destination_address, &sol_token.mint_address)
+            let to_token_account = TransactionBuilder::derive_associated_token_account(&destination_address, &sol_token.mint_address)
                 .map_err(|e| format!("Failed to derive destination ATA: {}", e))?;
 
             let params = SplTransferWithAtaParams {
@@ -93,7 +93,7 @@ pub async fn create_solana_swap_job(
                 memo: Some(format!("Kong swap job #{}", job_id)),
             };
             
-            builder.build_transfer_spl_with_ata_transaction(params).await
+            TransactionBuilder::build_transfer_spl_with_ata_transaction(params).await
                 .map_err(|e| format!("Failed to build SPL transfer with ATA: {}", e))?
         };
 

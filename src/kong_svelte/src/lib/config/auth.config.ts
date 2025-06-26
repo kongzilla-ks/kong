@@ -13,7 +13,8 @@ import {canisterId as kongBackendCanisterId, idlFactory as kongBackendIDL } from
 import type { _SERVICE as _KONG_SERVICE } from '../../../../declarations/kong_backend/kong_backend.did.d.ts';
 import { canisterId as trollboxCanisterId, idlFactory as trollboxIDL } from "../../../../declarations/trollbox";
 import type { _SERVICE as _TROLLBOX_SERVICE } from '../../../../declarations/trollbox/trollbox.did.d.ts';
-import { canisterId as siwsProviderCanisterId } from "../../../../declarations/ic_siws_provider"; 
+// Hardcoded SIWS provider canister ID since declarations are missing
+const siwsProviderCanisterId = 'guktk-fqaaa-aaaao-a4goa-cai'; 
 import { canisterId as icpCanisterId } from "../../../../declarations/icp_ledger";
 import { idlFactory as icrc2IDL } from '../../../../declarations/kong_ledger/kong_ledger.did.js';
 import type { _SERVICE as _ICRC2_SERVICE } from '../../../../declarations/kong_ledger/kong_ledger.did.d.ts';
@@ -21,6 +22,7 @@ import { idlFactory as icpIDL } from '../../../../declarations/icp_ledger/icp_le
 import type { _SERVICE as _ICP_SERVICE } from '../../../../declarations/icp_ledger/icp_ledger.did.d.ts';
 import { IDL } from '@dfinity/candid';
 import { signatureModalStore } from "$lib/stores/signatureModalStore";
+import { getKongBackendCanisterId } from '$lib/config/canisterIds';
 
 // Consolidated canister types
 export type CanisterType = {
@@ -43,7 +45,8 @@ export type CanisterConfigs = {
 
 export const canisters: CanisterConfigs = {
   kongBackend: {
-    canisterId: kongBackendCanisterId,
+    // Use centralized canister ID configuration
+    canisterId: getKongBackendCanisterId(),
     idl: kongBackendIDL,
     type: {} as CanisterType['KONG_BACKEND'],
   },
@@ -85,28 +88,15 @@ export const canisters: CanisterConfigs = {
 // --- PNP Initialization ---
 let globalPnp: PNP | null = null;
 const isDev = process.env.DFX_NETWORK === "local";
-const kongSvelteCanisterId = process.env.CANISTER_ID_KONG_SVELTE;
+// Use the current kong_svelte canister ID
+const frontendCanisterId = "uxjo4-iiaaa-aaaam-qdxaq-cai";
 
 const delegationTargets = [
-  kongBackendCanisterId,
+  'u6kfa-6aaaa-aaaam-qdxba-cai', // kongBackend mainnet
   predictionMarketsBackendCanisterId,
   trollboxCanisterId,
   kongDataCanisterId
-]
-
-const derivationOrigin = (() => {
-  if (isDev) {
-    return undefined; // Let createPNP handle local derivation (uses window.location by default)
-  } else {
-    if (!kongSvelteCanisterId) {
-      console.warn(
-        "CANISTER_ID_KONG_SVELTE is not set for production derivation origin."
-      );
-      return undefined;
-    }
-    return `https://${kongSvelteCanisterId}.icp0.io`;
-  }
-})()
+].filter(Boolean) // Remove any undefined values
 
 // Function to show signature modal
 function showSignatureModal(message: string, onSignatureComplete?: () => void) {
@@ -123,22 +113,28 @@ export function initializePNP(): PNP {
     return globalPnp;
   }
   try {
-    // Create a stable configuration object
+    // Debug environment variables
+    console.log('[PNP] Environment check:');
+    console.log('[PNP] DFX_NETWORK:', process.env.DFX_NETWORK);
+    console.log('[PNP] CANISTER_ID_KONG_BACKEND:', process.env.CANISTER_ID_KONG_BACKEND);
+    console.log('[PNP] Kong backend canister ID from declarations:', kongBackendCanisterId);
+    
+    // Create a stable configuration object - always use mainnet
     const config = {
-      dfxNetwork: isDev ? "local" : "ic",
-      hostUrl: isDev ? "http://localhost:4943" : "https://icp0.io",
-      fetchRootKeys: isDev,
-      verifyQuerySignatures: !isDev,
-      derivationOrigin,
+      dfxNetwork: 'ic',
+      // Always use mainnet host
+      hostUrl: 'https://icp0.io',
+      frontendCanisterId,
+      timeout: BigInt(30 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 30 days
       delegationTimeout: BigInt(30 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 30 days
       delegationTargets,
+      derivationOrigin: `https://${frontendCanisterId}.icp0.io`,
       siwsProviderCanisterId,
+      fetchRootKeys: false, // Never fetch root keys on mainnet
       adapters: {
         ii: {
           enabled: true,
-          identityProvider: isDev
-            ? "http://rdmx6-jaaaa-aaaaa-aaadq-cai.localhost:4943"
-            : "https://identity.ic0.app",
+          localIdentityCanisterId: "rdmx6-jaaaa-aaaaa-aaadq-cai",
         },
         plug: {
           enabled: true,
@@ -157,13 +153,16 @@ export function initializePNP(): PNP {
         solflareSiws: {
           enabled: true,
         },
+        backpackSiws: {
+          enabled: true
+        },
         walletconnectSiws: {
           enabled: true,
           projectId: "77b77ffe1132244fe4a3ce38f01885d7",
           appName: "KongSwap",
           appDescription: 'Next gen multi-chain DeFi',
           appUrl: 'https://kongswap.io',
-          appIcons: ['https://kongswap.io/titles/kong_logo.png'],
+          appIcons: ['https://kongswap.io/images/kong_logo.png'],
           onSignatureRequired: (message: string) => {
             if (typeof window !== 'undefined') {
               showSignatureModal(message);
@@ -179,16 +178,15 @@ export function initializePNP(): PNP {
       localStorageKey: "kongSwapPnpState",
     } as GlobalPnpConfig;
 
+    console.log('[PNP] Final config being used:');
+    console.log('[PNP] - dfxNetwork:', config.dfxNetwork);
+    console.log('[PNP] - host:', config.host);
+    console.log('[PNP] - hostUrl:', config.hostUrl);
+    console.log('[PNP] - replicaPort:', config.replicaPort);
+    console.log('[PNP] - delegationTargets:', config.delegationTargets);
+
     // Initialize PNP with the stable config
     globalPnp = createPNP(config);
-
-    // Ensure WalletConnect adapter is properly initialized
-    if (globalPnp.adapter?.walletconnectSiws) {
-      const wcAdapter = globalPnp.adapter.walletconnectSiws;
-      if (typeof wcAdapter.initialize === 'function') {
-        wcAdapter.initialize();
-      }
-    }
 
     return globalPnp;
   } catch (error) {

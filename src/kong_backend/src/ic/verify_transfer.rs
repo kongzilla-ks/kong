@@ -144,6 +144,7 @@ async fn verify_transfer_with_icrc3_get_blocks(
     // Prepare request arguments based on token type
     let blocks_result = if *token_address_with_chain == TAGGR_CANISTER_ID {
         // TAGGR uses a different format
+        // API boundary: TAGGR's icrc3_get_blocks requires u64
         let start_u64 = nat_to_u64(block_id).ok_or("Invalid block_id format for TAGGR")?;
         let block_args = vec![TaggrGetBlocksArgs {
             start: start_u64,
@@ -311,6 +312,7 @@ async fn verify_transfer_with_query_blocks(
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
 ) -> Result<(), String> {
     // if ICP ledger, use query_blocks
+    // API boundary: ICP ledger's query_blocks requires u64 block index
     let block_args = GetBlocksArgs {
         start: nat_to_u64(block_id).ok_or_else(|| format!("ICP ledger block id {:?} not found", block_id))?,
         length: 1,

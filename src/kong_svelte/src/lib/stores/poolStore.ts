@@ -1,7 +1,7 @@
 import { derived, writable, type Readable, readable } from "svelte/store";
 import { formatPoolData } from "$lib/utils/statsUtils";
 import { browser } from "$app/environment";
-import { fetchPools } from "$lib/api/pools";
+import { fetchPools } from "$lib/services/pools/UnifiedPoolService";
 
 interface ExtendedPool extends BE.Pool {
   displayTvl?: number;
@@ -105,23 +105,21 @@ export const fetchPoolsForCanister = async (canisterId: string): Promise<BE.Pool
   }
   
   try {    
-    // Use the fetchPools API function directly
-    const result = await fetchPools({
-      canisterIds: [canisterId],
-      limit: 100
-    });
+    // Use the unified pool service
+    const pools = await fetchPools();
     
-    if (result?.pools) {
-      // Update cache
-      poolCache[cacheKey] = {
-        timestamp: now,
-        pools: result.pools
-      };
-      
-      return result.pools;
-    }
+    // Filter pools by canister ID if needed
+    const filteredPools = pools.filter(pool => 
+      pool.address_0 === canisterId || pool.address_1 === canisterId
+    );
     
-    return [];
+    // Update cache
+    poolCache[cacheKey] = {
+      timestamp: now,
+      pools: filteredPools
+    };
+    
+    return filteredPools;
   } catch (error) {
     console.error("[PoolStore] Error fetching pools for canister:", error);
     return [];
@@ -131,7 +129,6 @@ export const fetchPoolsForCanister = async (canisterId: string): Promise<BE.Pool
 export const loadPools = async () => {
   // Prevent concurrent fetches
   if (fetchInProgress) {
-    console.log("[PoolStore] Fetch already in progress, skipping duplicate request");
     // Use a local variable to store the current value
     let currentPools: ExtendedPool[] = [];
     poolsStore.subscribe(value => {
@@ -163,26 +160,11 @@ export const loadPools = async () => {
     let page = 1;
     let allPools: BE.Pool[] = [];
     
-    // Initial request to get total pages
-    const initialResponse = await fetchPools({ limit: 100, page });
+    // Fetch all pools from backend (no pagination needed)
+    allPools = await fetchPools();
     
-    if (!initialResponse?.pools) {
-      throw new Error("Invalid pools data received");
-    }
-    
-    // Add first page of pools
-    allPools = [...initialResponse.pools];
-    
-    // Get total pages from response
-    const totalPages = initialResponse.total_pages || 1;
-    
-    // Fetch remaining pages if any
-    for (let currentPage = 2; currentPage <= totalPages; currentPage++) {
-      const pageResponse = await fetchPools({ limit: 100, page: currentPage });
-      
-      if (pageResponse?.pools) {
-        allPools = [...allPools, ...pageResponse.pools];
-      }
+    if (!allPools || allPools.length === 0) {
+      console.warn("[PoolStore] No pools received from backend");
     }
 
     // Process pools data with price validation

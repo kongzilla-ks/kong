@@ -1,4 +1,4 @@
-use num_traits::ToPrimitive;
+use candid::Nat;
 use serde::{Deserialize, Serialize};
 
 use crate::ic::network::ICNetwork;
@@ -9,9 +9,9 @@ use super::add_liquidity_args::AddLiquidityArgs;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalAddLiquidityMessage {
     pub token_0: String,
-    pub amount_0: u64,
+    pub amount_0: Nat,
     pub token_1: String,
-    pub amount_1: u64,
+    pub amount_1: Nat,
     pub timestamp: u64,
 }
 
@@ -20,9 +20,9 @@ impl CanonicalAddLiquidityMessage {
     pub fn from_add_liquidity_args(args: &AddLiquidityArgs) -> Self {
         Self {
             token_0: args.token_0.clone(),
-            amount_0: args.amount_0.0.to_u64().expect("Amount too large"),
+            amount_0: args.amount_0.clone(),
             token_1: args.token_1.clone(),
-            amount_1: args.amount_1.0.to_u64().expect("Amount too large"),
+            amount_1: args.amount_1.clone(),
             timestamp: args
                 .timestamp
                 .unwrap_or_else(|| ICNetwork::get_time() / 1_000_000), // Use current IC time in milliseconds if not provided

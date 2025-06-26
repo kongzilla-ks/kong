@@ -6,9 +6,9 @@ use crate::stable_transfer::tx_id::TxId;
 /// Data structure for the arguments of the `swap` function.
 /// Used in StableRequest
 /// 
-/// For cross-chain swaps: signature field determines the operation type
-/// - If signature is None: IC-only swap (backward compatible)
-/// - If signature is Some: Cross-chain swap (requires timestamp and proper tx_id)
+/// For cross-chain swaps: signature field is required for Solana/SPL tokens
+/// - IC tokens: No signature needed (standard IC transfer)
+/// - Solana tokens: Signature required for verification
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct SwapArgs {
     pub pay_token: String,
@@ -19,7 +19,7 @@ pub struct SwapArgs {
     pub receive_address: Option<String>, // Required for non-IC receive tokens
     pub max_slippage: Option<f64>,
     pub referred_by: Option<String>,
-    // Cross-chain fields (if signature exists, it's cross-chain)
+    // Cross-chain fields (required for Solana/SPL tokens)
     #[serde(default)]
     pub signature: Option<String>,       // Ed25519 signature of canonical message
     #[serde(default)]

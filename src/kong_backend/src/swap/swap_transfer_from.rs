@@ -3,7 +3,8 @@ use icrc_ledger_types::icrc1::account::Account;
 use std::time::Duration;
 
 use crate::helpers::nat_helpers::nat_is_zero;
-use crate::ic::address::{get_address, Address};
+use crate::ic::address::Address;
+use crate::ic::address_helpers::get_address;
 use crate::ic::network::ICNetwork;
 use crate::ic::transfer::icrc2_transfer_from;
 use crate::stable_kong_settings::kong_settings_map;

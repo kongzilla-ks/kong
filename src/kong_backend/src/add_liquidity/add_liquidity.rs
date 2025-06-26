@@ -6,6 +6,7 @@ use super::add_liquidity_transfer::{add_liquidity_transfer, add_liquidity_transf
 use super::add_liquidity_transfer_from::{add_liquidity_transfer_from, add_liquidity_transfer_from_async};
 
 use crate::ic::guards::not_in_maintenance_mode;
+use crate::stable_token::token::Token;
 
 pub enum TokenIndex {
     Token0,
@@ -54,14 +55,24 @@ pub enum TokenIndex {
 /// 9. return_tokens() - otherwise if any errors occurred, return tokens
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_liquidity(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
-    // Route based on presence of signatures (cross-chain) or tx_ids (IC-only)
-    // If signatures are present, use transfer_from flow for cross-chain support
-    // Otherwise, check tx_ids for IC-only transfer flow
-    if args.signature_0.is_some() || args.signature_1.is_some() {
-        // Cross-chain flow (Solana tokens with signatures)
+    // Import token_map to check token types
+    use crate::stable_token::token_map;
+    use crate::chains::chains::SOL_CHAIN;
+    
+    // Check if either token is a Solana token
+    let token_0_is_solana = token_map::get_by_token(&args.token_0)
+        .map(|t| t.chain() == SOL_CHAIN)
+        .unwrap_or(false);
+    let token_1_is_solana = token_map::get_by_token(&args.token_1)
+        .map(|t| t.chain() == SOL_CHAIN)
+        .unwrap_or(false);
+    
+    // Route based on token types
+    if token_0_is_solana || token_1_is_solana {
+        // If either token is Solana, use transfer_from flow (requires signatures)
         add_liquidity_transfer_from(args).await
     } else if args.tx_id_0.is_none() && args.tx_id_1.is_none() {
-        // ICRC2 approve flow
+        // ICRC2 approve flow for IC tokens
         add_liquidity_transfer_from(args).await
     } else {
         // IC-only transfer flow (with BlockIndex tx_ids)
@@ -80,14 +91,24 @@ pub async fn add_liquidity(args: AddLiquidityArgs) -> Result<AddLiquidityReply, 
 /// Returns: u64 - request_id. poll requests(request_id) to return the current status of the request
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_liquidity_async(args: AddLiquidityArgs) -> Result<u64, String> {
-    // Route based on presence of signatures (cross-chain) or tx_ids (IC-only)
-    // If signatures are present, use transfer_from flow for cross-chain support
-    // Otherwise, check tx_ids for IC-only transfer flow
-    if args.signature_0.is_some() || args.signature_1.is_some() {
-        // Cross-chain flow (Solana tokens with signatures)
+    // Import token_map to check token types
+    use crate::stable_token::token_map;
+    use crate::chains::chains::SOL_CHAIN;
+    
+    // Check if either token is a Solana token
+    let token_0_is_solana = token_map::get_by_token(&args.token_0)
+        .map(|t| t.chain() == SOL_CHAIN)
+        .unwrap_or(false);
+    let token_1_is_solana = token_map::get_by_token(&args.token_1)
+        .map(|t| t.chain() == SOL_CHAIN)
+        .unwrap_or(false);
+    
+    // Route based on token types
+    if token_0_is_solana || token_1_is_solana {
+        // If either token is Solana, use transfer_from flow (requires signatures)
         add_liquidity_transfer_from_async(args).await
     } else if args.tx_id_0.is_none() && args.tx_id_1.is_none() {
-        // ICRC2 approve flow
+        // ICRC2 approve flow for IC tokens
         add_liquidity_transfer_from_async(args).await
     } else {
         // IC-only transfer flow (with BlockIndex tx_ids)

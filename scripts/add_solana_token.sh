@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 
+# Suppress DFX mainnet identity warning
+export DFX_WARNING=-mainnet_plaintext_identity
+
 # Script to add SOL token to Kong backend
 
 NETWORK="${1:-local}"
 NETWORK_FLAG=""
-if [ "${NETWORK}" != "local" ]; then
+if [ "${NETWORK}" == "ic" ]; then
+    NETWORK_FLAG="--ic"
+elif [ "${NETWORK}" != "local" ]; then
     NETWORK_FLAG="--network ${NETWORK}"
 fi
 IDENTITY="--identity kong"

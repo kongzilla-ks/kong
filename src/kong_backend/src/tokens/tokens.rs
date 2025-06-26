@@ -4,7 +4,6 @@ use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_token::token_map;
 
 use super::tokens_reply::TokensReply;
-use super::tokens_reply_helpers::to_token_reply;
 
 #[query(guard = "not_in_maintenance_mode")]
 fn tokens(symbol: Option<String>) -> Result<Vec<TokensReply>, String> {
@@ -13,7 +12,7 @@ fn tokens(symbol: Option<String>) -> Result<Vec<TokensReply>, String> {
         None => token_map::get(),
     }
     .iter()
-    .map(to_token_reply)
+    .map(TokensReply::from)
     .collect();
 
     Ok(tokens)

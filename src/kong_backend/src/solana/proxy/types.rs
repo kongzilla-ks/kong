@@ -24,16 +24,16 @@ impl Storable for TransactionNotification {
 }
 
 /// Key for transaction notification storage
-#[derive(CandidType, Deserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionNotificationId(pub String); // signature
 
 impl Storable for TransactionNotificationId {
     fn to_bytes(&self) -> Cow<[u8]> {
-        self.0.to_bytes()
+        serde_cbor::to_vec(self).expect("Failed to encode TransactionNotificationId").into()
     }
 
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
-        Self(String::from_bytes(bytes))
+        serde_cbor::from_slice(&bytes).expect("Failed to decode TransactionNotificationId")
     }
 
     const BOUND: Bound = Bound::Unbounded;

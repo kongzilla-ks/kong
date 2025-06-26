@@ -30,7 +30,8 @@ use crate::stable_user::principal_id_map::create_principal_id_map;
 use crate::swap::swap_args::SwapArgs;
 
 use super::kong_backend::KongBackend;
-use super::stable_memory::get_cached_solana_address;
+use super::stable_memory::{get_cached_solana_address, get_solana_transaction};
+use super::stable_transfer::tx_id::TxId;
 use super::{APP_NAME, APP_VERSION};
 
 // list of query calls
@@ -114,6 +115,16 @@ async fn set_timer_processes() {
             archive_tx_map();
         });
     });
+
+    // start the background timer to cleanup old Solana notifications
+    let _ = set_timer_interval(Duration::from_secs(3600), || {  // Clean up every hour
+        ic_cdk::spawn(async {
+            let removed_count = crate::stable_memory::cleanup_old_notifications();
+            if removed_count > 0 {
+                crate::ic::network::ICNetwork::info_log(&format!("Cleaned up {} old Solana notifications", removed_count));
+            }
+        });
+    });
 }
 
 /// inspect all ingress messages to the canister that are called as updates
@@ -126,7 +137,73 @@ fn inspect_message() {
         ic_cdk::trap(&format!("{} must be called as query", method_name));
     }
 
+    // Add anti-spam filtering for swap operations
+    if method_name == "swap" || method_name == "swap_async" {
+        if let Err(e) = validate_swap_request() {
+            ic_cdk::trap(&e);
+        }
+    }
+
     ic_cdk::api::call::accept_message();
+}
+
+/// Basic validation for swap requests to prevent spam before heavy processing
+fn validate_swap_request() -> Result<(), String> {
+    // Get the raw argument bytes for basic validation
+    let args_bytes = ic_cdk::api::call::arg_data_raw();
+    
+    // Basic size check - prevent extremely large payloads
+    if args_bytes.len() > 10_000 {
+        return Err("Request payload too large".to_string());
+    }
+    
+    // Try to decode swap args for basic validation
+    match decode_one::<SwapArgs>(&args_bytes) {
+        Ok(args) => {
+            // Basic parameter validation
+            if args.pay_token.is_empty() || args.receive_token.is_empty() {
+                return Err("Invalid token parameters".to_string());
+            }
+            
+            // Amount validation - prevent zero or extremely large amounts
+            if args.pay_amount == Nat::from(0_u8) {
+                return Err("Pay amount cannot be zero".to_string());
+            }
+            
+            // Basic rate limiting - allow more frequent calls for authenticated users
+            if let Err(e) = check_rate_limit() {
+                return Err(e);
+            }
+            
+            // Check if Solana transaction is ready (zero-cost early rejection)
+            if let Some(tx_id) = &args.pay_tx_id {
+                if let TxId::TransactionId(signature) = tx_id {
+                    // This is a Solana transaction - check if it exists in canister memory
+                    if get_solana_transaction(signature.clone()).is_none() {
+                        return Err("TRANSACTION_NOT_READY".to_string());
+                    }
+                }
+            }
+            
+            Ok(())
+        }
+        Err(_) => Err("Invalid swap arguments format".to_string()),
+    }
+}
+
+/// Simple rate limiting based on caller frequency
+fn check_rate_limit() -> Result<(), String> {
+    // For now, just implement a basic check
+    // In a full implementation, this would track call frequency per caller
+    // and enforce stricter limits for anonymous users vs authenticated users
+    
+    // TODO: Implement proper rate limiting with:
+    // - Per-caller tracking
+    // - Different limits for anonymous vs authenticated users  
+    // - Time-based windows (requests per hour)
+    // - Cleanup of old rate limit data
+    
+    Ok(())
 }
 
 #[query]

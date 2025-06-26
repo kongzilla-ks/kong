@@ -1,10 +1,10 @@
 import { API_URL } from "$lib/api/index";
-import { auth, requireWalletConnection } from "$lib/stores/auth";
+import { auth, swapActor, requireWalletConnection } from "$lib/stores/auth";
 import { IcrcService } from "$lib/services/icrc/IcrcService";
 import { toastStore } from "$lib/stores/toastStore";
 import { IcrcToken } from "$lib/models/tokens/IcrcToken";
 import { canisters, type CanisterType } from "$lib/config/auth.config";
-import type { AddLiquiditAmountsResult } from "../../../../declarations/kong_backend/kong_backend.did";
+import type { AddLiquiditAmountsResult, RemoveLiquidityAmountsReply } from "../../../../declarations/kong_backend/kong_backend.did";
 
 export const fetchPools = async (params?: any): Promise<{pools: BE.Pool[], total_count: number, total_pages: number, page: number, limit: number}> => {
   try {
@@ -127,31 +127,13 @@ export const fetchPools = async (params?: any): Promise<{pools: BE.Pool[], total
 
 export const fetchPoolBalanceHistory = async (poolId: string | number): Promise<any> => {
   try {
-    // Use the exact endpoint without any query parameters
-    const endpoint = `${API_URL}/api/pools/${poolId}/balance-history`;
-    const response = await fetch(endpoint, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      // Try to get more information about the error
-      let errorInfo = '';
-      try {
-        const errorData = await response.text();
-        errorInfo = errorData ? ` - ${errorData}` : '';
-      } catch (e) {
-        // Ignore error parsing error
-      }
-      
-      throw new Error(`Failed to fetch pool balance history: ${response.status} ${response.statusText}${errorInfo}`);
-    }
-    
-    const data = await response.json();
-    
-    return data;
+    // In early access, return empty history data
+    console.log('[Pools] Pool balance history not available in early access');
+    return {
+      pool_id: poolId,
+      history: [],
+      message: 'Early Access - Historical data coming soon'
+    };
   } catch (error) {
     console.error('Error fetching pool balance history:', error);
     throw error;
@@ -161,11 +143,19 @@ export const fetchPoolBalanceHistory = async (poolId: string | number): Promise<
 export const fetchPoolTotals = async (): Promise<{total_volume_24h: number, total_tvl: number, total_fees_24h: number}> => {
   try {
     const response = await fetch(`${API_URL}/api/pools/totals`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error response: ${errorText}`);
+      throw new Error(`Failed to fetch pool totals: ${response.status} ${response.statusText}`);
+    }
+    
     const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error fetching pool totals:', error);
-    throw error;
+    // Return default values to prevent UI breakage
+    return { total_volume_24h: 0, total_tvl: 0, total_fees_24h: 0 };
   }
 }
 
@@ -178,15 +168,15 @@ export async function calculateLiquidityAmounts(
   token1Symbol: string,
 ): Promise<AddLiquiditAmountsResult> {
   try {
-    const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: true,
-    });
+    // For mainnet deployment, always use swapActor
+    const actor = swapActor({anon: true});
+    
+    // Don't add IC. prefix - just use the symbols as-is
+    // The backend's token_map::get_by_token handles both "SOL" and "IC.ckUSDT" formats
     const result = await actor.add_liquidity_amounts(
-      "IC." + token0Symbol,
+      token0Symbol,
       amount0,
-      "IC." + token1Symbol,
+      token1Symbol,
     );
 
     if ('Err' in result) {
@@ -214,18 +204,16 @@ export async function calculateRemoveLiquidityAmounts(
         ? BigInt(Math.floor(lpTokenAmount * 1e8))
         : lpTokenAmount;
 
-    const actor = await auth.pnp.getActor({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: true,
-      requiresSigning: false,
-    });
-
+    // For mainnet deployment, always use swapActor
+    const actor = swapActor({anon: true});
+    
     const result = await (actor as any).remove_liquidity_amounts(
       "IC." + token0CanisterId,
       "IC." + token1CanisterId,
       lpTokenBigInt,
     );
+
+    console.log("result", result);
 
     if (!result.Ok) {
       throw new Error(result.Err || "Failed to calculate removal amounts");
@@ -275,12 +263,7 @@ export async function addLiquidity(params: {
           params.token_1,
           params.amount_1,
         ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
+        swapActor({anon: false, requiresSigning: false}),
       ]);
 
       // For ICRC2 tokens, we don't need to pass transfer block indexes
@@ -288,39 +271,59 @@ export async function addLiquidity(params: {
       tx_id_1 = [];
       actor = actorResult;
     } else {
-      // Handle ICRC1 tokens
-      const [transfer0Result, transfer1Result, actorResult] = await Promise.all([
-        IcrcService.transfer(
-          params.token_0,
-          canisters.kongBackend.canisterId,
-          params.amount_0,
-        ),
-        IcrcService.transfer(
-          params.token_1,
-          canisters.kongBackend.canisterId,
-          params.amount_1,
-        ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
-      ]);
+      console.log("token_0", params.token_0);
+      console.log("token_1", params.token_1);
+      
+      // Check if we have cross-chain tokens (like SOL)
+      const isSolToken = (token: any) => token.symbol === "SOL" || token.address === "11111111111111111111111111111111";
+      const isToken0Sol = isSolToken(params.token_0);
+      const isToken1Sol = isSolToken(params.token_1);
+      
+      if (isToken0Sol || isToken1Sol) {
+        console.log("adding cross-chain lp with SOL");
+        throw new Error("Cross-chain LP with SOL requires signature flow - please use the LP modal interface instead of direct API call");
+      } else {
+        console.log("adding icrc1 lp");
+        // Handle ICRC1 tokens
+        const [transfer0Result, transfer1Result, actorResult] = await Promise.all([
+          IcrcService.transfer(
+            params.token_0,
+            canisters.kongBackend.canisterId,
+            params.amount_0,
+          ),
+          IcrcService.transfer(
+            params.token_1,
+            canisters.kongBackend.canisterId,
+            params.amount_1,
+          ),
+          swapActor({anon: false, requiresSigning: false}),
+        ]);
 
-      // Keep block IDs as BigInt
-      tx_id_0 = transfer0Result?.Ok ? [{ BlockIndex: transfer0Result.Ok }] : [];
-      tx_id_1 = transfer1Result?.Ok ? [{ BlockIndex: transfer1Result.Ok }] : [];
-      actor = actorResult;
+        // Keep block IDs as BigInt
+        tx_id_0 = transfer0Result?.Ok ? [{ BlockIndex: transfer0Result.Ok }] : [];
+        tx_id_1 = transfer1Result?.Ok ? [{ BlockIndex: transfer1Result.Ok }] : [];
+        actor = actorResult;
+      }
     }
 
+    // Format token addresses correctly for cross-chain vs IC tokens
+    const formatTokenAddress = (token: any) => {
+      if (token.symbol === "SOL" || token.address === "11111111111111111111111111111111") {
+        return token.symbol; // Use "SOL" for Solana
+      }
+      return "IC." + token.address; // Use "IC." prefix for IC tokens
+    };
+
     const addLiquidityArgs = {
-      token_0: "IC." + params.token_0.address,
+      token_0: formatTokenAddress(params.token_0),
       amount_0: params.amount_0,
-      token_1: "IC." + params.token_1.address,
+      token_1: formatTokenAddress(params.token_1),
       amount_1: params.amount_1,
       tx_id_0,
       tx_id_1,
+      signature_0: [] as [] | [string], // Empty for ICRC-only operations
+      signature_1: [] as [] | [string], // Empty for ICRC-only operations
+      timestamp: [] as [] | [bigint], // Empty for ICRC-only operations
     };
 
     let result = await actor.add_liquidity_async(addLiquidityArgs);
@@ -350,6 +353,7 @@ export async function pollRequestStatus(
   failureMessagePrefix: string,
   token0Symbol?: string,
   token1Symbol?: string,
+  abortSignal?: AbortSignal,
 ): Promise<any> {
   let attempts = 0;
   const MAX_ATTEMPTS = 50;
@@ -360,12 +364,15 @@ export async function pollRequestStatus(
     toastId = toastStore.info("Processing transaction..."); // Generic initial message
 
     while (attempts < MAX_ATTEMPTS) {
-      const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-        canisterId: canisters.kongBackend.canisterId,
-        idl: canisters.kongBackend.idl,
-        anon: true,
-        requiresSigning: false,
-      });
+      // Check if operation was cancelled
+      if (abortSignal?.aborted) {
+        if (toastId !== undefined) toastStore.dismiss(String(toastId));
+        throw new Error("Operation cancelled");
+      }
+      
+      // For mainnet deployment, always use swapActor
+      const actor = swapActor({anon: true});
+      
       const result = await actor.requests([requestId]);
 
       if ('Err' in result) {
@@ -443,6 +450,13 @@ export async function pollRequestStatus(
       }
 
       attempts++;
+      
+      // Check cancellation before waiting
+      if (abortSignal?.aborted) {
+        if (toastId !== undefined) toastStore.dismiss(String(toastId));
+        throw new Error("Operation cancelled");
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 600));
     }
 
@@ -480,9 +494,17 @@ export async function removeLiquidity(params: {
   token0: string;
   token1: string;
   lpTokenAmount: number | bigint;
+  token_0_obj?: Kong.Token;
+  token_1_obj?: Kong.Token;
+  payout_address_0?: string;
+  payout_address_1?: string;
+  signature_0?: string;
+  signature_1?: string;
+  timestamp?: bigint;
+  tx_id_0?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
+  tx_id_1?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
 }): Promise<string> {
   requireWalletConnection();
-  console.log("Removing liquidity", params);
   try {
     // Ensure we're using BigInt for the amount
     const lpTokenBigInt =
@@ -490,17 +512,41 @@ export async function removeLiquidity(params: {
         ? BigInt(Math.floor(params.lpTokenAmount * 1e8))
         : params.lpTokenAmount;
 
-    const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: false,
-      requiresSigning: false,
-    });
-    const result = await (actor as any).remove_liquidity_async({
-      token_0: "IC." + params.token0,
-      token_1: "IC." + params.token1,
+    // Check if we have cross-chain tokens (like SOL)
+    const isSolToken = (token: any) => token && (token.symbol === "SOL" || token.address === "11111111111111111111111111111111");
+    const isToken0Sol = params.token_0_obj ? isSolToken(params.token_0_obj) : params.token0 === "SOL";
+    const isToken1Sol = params.token_1_obj ? isSolToken(params.token_1_obj) : params.token1 === "SOL";
+    
+    if ((isToken0Sol || isToken1Sol) && (!params.signature_0 && !params.signature_1)) {
+      throw new Error("Cross-chain LP removal with SOL requires signature flow - please use the LP modal interface instead of direct API call");
+    }
+
+    // Format token addresses correctly for cross-chain vs IC tokens
+    const formatTokenAddress = (tokenAddress: string, tokenObj?: any) => {
+      if (tokenObj && isSolToken(tokenObj)) {
+        return tokenObj.symbol; // Use "SOL" for Solana
+      }
+      if (tokenAddress === "SOL" || tokenAddress === "11111111111111111111111111111111") {
+        return "SOL";
+      }
+      return "IC." + tokenAddress; // Use "IC." prefix for IC tokens
+    };
+
+    const actor = swapActor({anon: false, requiresSigning: false});
+    const removeLiquidityArgs = {
+      token_0: formatTokenAddress(params.token0, params.token_0_obj),
+      token_1: formatTokenAddress(params.token1, params.token_1_obj),
       remove_lp_token_amount: lpTokenBigInt,
-    });
+      payout_address_0: params.payout_address_0 ? [params.payout_address_0] : [],
+      payout_address_1: params.payout_address_1 ? [params.payout_address_1] : [],
+      signature_0: params.signature_0 ? [params.signature_0] : [],
+      signature_1: params.signature_1 ? [params.signature_1] : [],
+      timestamp: params.timestamp ? [params.timestamp] : [],
+      tx_id_0: params.tx_id_0 || [],
+      tx_id_1: params.tx_id_1 || [],
+    };
+
+    const result = await (actor as any).remove_liquidity_async(removeLiquidityArgs);
 
     if ('Err' in result) {
       throw new Error(result.Err || "Failed to remove liquidity");
@@ -546,12 +592,7 @@ export async function createPool(params: {
           params.token_1,
           params.amount_1,
         ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
+        swapActor({anon: false, requiresSigning: false}),
       ]);
 
       // For ICRC2 tokens, we don't need to pass transfer block indexes
@@ -571,12 +612,7 @@ export async function createPool(params: {
           canisters.kongBackend.canisterId,
           params.amount_1,
         ),
-        auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-          canisterId: canisters.kongBackend.canisterId,
-          idl: canisters.kongBackend.idl,
-          anon: false,
-          requiresSigning: false,
-        }),
+        swapActor({anon: false, requiresSigning: false}),
       ]);
 
       // Keep block IDs as BigInt
@@ -592,7 +628,10 @@ export async function createPool(params: {
       amount_1: params.amount_1,
       tx_id_0: tx_id_0,
       tx_id_1: tx_id_1,
-      lp_fee_bps: [30] // Hardcoded LP fee basis points
+      lp_fee_bps: [30], // Hardcoded LP fee basis points
+      signature_0: [] as [] | [string], // Empty signature for ICRC-only pools
+      signature_1: [] as [] | [string], // Empty signature for ICRC-only pools
+      timestamp: [] as [] | [bigint], // Empty timestamp for ICRC-only pools
     });
 
     if ('Err' in result) {
@@ -621,12 +660,7 @@ export async function sendLpTokens(params: {
       ? BigInt(Math.floor(params.amount * 1e8))
       : params.amount;
 
-    const actor = auth.pnp.getActor<CanisterType['KONG_BACKEND']>({
-      canisterId: canisters.kongBackend.canisterId,
-      idl: canisters.kongBackend.idl,
-      anon: false,
-      requiresSigning: false,
-    });
+    const actor = swapActor({anon: false, requiresSigning: false});
 
     const result = await actor.send({
       token: params.token,

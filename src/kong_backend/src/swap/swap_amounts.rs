@@ -505,11 +505,27 @@ fn swap_amount_0(
         Some(amount) => amount,
     };
 
+    // Reduce amount_0 by SPL gas fee if receive token is SPL
+    let effective_amount_0 = if is_spl_requiring_gas_deduction(&token_1) {
+        match calculate_spl_gas_fee(&token_0, &token_1) {
+            Ok(spl_fee) => {
+                if spl_fee <= *amount_0 {
+                    nat_subtract(amount_0, &spl_fee).unwrap_or_else(|| amount_0.clone())
+                } else {
+                    amount_0.clone()
+                }
+            }
+            Err(_) => amount_0.clone(),
+        }
+    } else {
+        amount_0.clone()
+    };
+
     // convert amount_0 and pool balances to the max_decimals precision
     let max_decimals = std::cmp::max(token_0.decimals(), token_1.decimals());
     let reserve_0_in_max_decimals = nat_to_decimal_precision(&reserve_0, token_0.decimals(), max_decimals);
     let reserve_1_in_max_decimals = nat_to_decimal_precision(&reserve_1, token_1.decimals(), max_decimals);
-    let amount_0_in_max_decimals = nat_to_decimal_precision(amount_0, token_0.decimals(), max_decimals);
+    let amount_0_in_max_decimals = nat_to_decimal_precision(&effective_amount_0, token_0.decimals(), max_decimals);
 
     // amount_1 = (amount_0 * reserve_1) / (reserve_0 + amount_0)
     let numerator_in_max_decimals = nat_multiply(&amount_0_in_max_decimals, &reserve_1_in_max_decimals);
@@ -533,7 +549,22 @@ fn swap_amount_0(
     // convert amount_1 and lp_fee_1 from max_decimals to token_1 precision
     let amount_1 = nat_to_decimal_precision(&amount_1_in_max_decimals, max_decimals, token_1.decimals());
     let lp_fee = nat_to_decimal_precision(&lp_fee_1_in_max_decimals, max_decimals, token_1.decimals());
-    let gas_fee = use_gas_fee.map_or_else(|| token_1.fee(), |fee| fee.clone());
+    
+    // Calculate gas fee - show SPL gas fee equivalent in receive token denomination
+    let gas_fee = use_gas_fee.map_or_else(|| {
+        if is_spl_requiring_gas_deduction(&token_1) {
+            // For SPL tokens, show the gas fee in receive token denomination
+            match calculate_spl_gas_fee(&token_0, &token_1) {
+                Ok(spl_fee) => {
+                    // Convert SPL fee from pay token to receive token denomination
+                    nat_to_decimal_precision(&spl_fee, token_0.decimals(), token_1.decimals())
+                }
+                Err(_) => token_1.fee(),
+            }
+        } else {
+            token_1.fee()
+        }
+    }, |fee| fee.clone());
 
     if amount_1 > reserve_1 {
         Err(format!("Insufficient {} in pool", token_1.symbol()))?
@@ -597,11 +628,27 @@ fn swap_amount_1(
         Some(amount) => amount,
     };
 
+    // Reduce amount_1 by SPL gas fee if receive token is SPL
+    let effective_amount_1 = if is_spl_requiring_gas_deduction(&token_0) {
+        match calculate_spl_gas_fee(&token_1, &token_0) {
+            Ok(spl_fee) => {
+                if spl_fee <= *amount_1 {
+                    nat_subtract(amount_1, &spl_fee).unwrap_or_else(|| amount_1.clone())
+                } else {
+                    amount_1.clone()
+                }
+            }
+            Err(_) => amount_1.clone(),
+        }
+    } else {
+        amount_1.clone()
+    };
+
     // convert amount_1 and pool balances to the max_decimals precision
     let max_decimals = std::cmp::max(token_0.decimals(), token_1.decimals());
     let reserve_0_in_max_decimals = nat_to_decimal_precision(&reserve_0, token_0.decimals(), max_decimals);
     let reserve_1_in_max_decimals = nat_to_decimal_precision(&reserve_1, token_1.decimals(), max_decimals);
-    let amount_1_in_max_decimals = nat_to_decimal_precision(amount_1, token_1.decimals(), max_decimals);
+    let amount_1_in_max_decimals = nat_to_decimal_precision(&effective_amount_1, token_1.decimals(), max_decimals);
 
     // amount_0 = (amount_1 * reserve_0) / (reserve_1 + amount_1)
     let numerator_in_max_decimals = nat_multiply(&amount_1_in_max_decimals, &reserve_0_in_max_decimals);
@@ -622,7 +669,22 @@ fn swap_amount_1(
     // convert amount_0 and lp_fee_0 to token_0 precision
     let amount_0 = nat_to_decimal_precision(&amount_0_in_max_decimals, max_decimals, token_0.decimals());
     let lp_fee = nat_to_decimal_precision(&lp_fee_0_in_max_decimals, max_decimals, token_0.decimals());
-    let gas_fee = use_gas_fee.map_or_else(|| token_0.fee(), |fee| fee.clone());
+    
+    // Calculate gas fee - show SPL gas fee equivalent in receive token denomination
+    let gas_fee = use_gas_fee.map_or_else(|| {
+        if is_spl_requiring_gas_deduction(&token_0) {
+            // For SPL tokens, show the gas fee in receive token denomination
+            match calculate_spl_gas_fee(&token_1, &token_0) {
+                Ok(spl_fee) => {
+                    // Convert SPL fee from pay token to receive token denomination
+                    nat_to_decimal_precision(&spl_fee, token_1.decimals(), token_0.decimals())
+                }
+                Err(_) => token_0.fee(),
+            }
+        } else {
+            token_0.fee()
+        }
+    }, |fee| fee.clone());
 
     if amount_0 > reserve_0 {
         Err(format!("Insufficient {} in pool", token_0.symbol()))?
@@ -652,4 +714,67 @@ fn get_slippage(price_achieved: &BigRational, price_expected: &BigRational) -> O
         .to_f64()?
         .abs();
     Some(round_f64(raw_slippage, 2)) // 2 decimals
+}
+
+/// Check if a token is an SPL token that requires gas fee deduction from the pay side
+fn is_spl_requiring_gas_deduction(token: &StableToken) -> bool {
+    match token {
+        StableToken::Solana(solana_token) => {
+            // SPL tokens have fee = 0 and symbol != "SOL"
+            solana_token.is_spl_token && solana_token.symbol != "SOL" && nat_is_zero(&solana_token.fee)
+        }
+        _ => false,
+    }
+}
+
+/// Calculate SPL gas fee in the pay token's denomination
+/// Returns the gas fee amount that should be deducted from the pay token
+fn calculate_spl_gas_fee(pay_token: &StableToken, receive_token: &StableToken) -> Result<Nat, String> {
+    if !is_spl_requiring_gas_deduction(receive_token) {
+        return Ok(nat_zero());
+    }
+
+    // TODO: Implement dynamic pricing oracle or configurable gas fees
+    // Current implementation uses hardcoded exchange rates which will become outdated
+    // Consider:
+    // 1. Integrating with a price oracle (e.g., Chainlink, Exchange Rate Canister)
+    // 2. Making gas fees configurable through kong_settings
+    // 3. Implementing a fallback mechanism when price data is unavailable
+    
+    // Fixed SPL gas fee: approximately $0.50 worth
+    // WARNING: These exchange rates are hardcoded and need to be updated regularly
+    
+    match pay_token {
+        StableToken::IC(ic_token) => {
+            match ic_token.symbol.as_str() {
+                "ICP" => {
+                    // HARDCODED: Assumes 1 ICP = $10
+                    // TODO: Fetch real-time ICP price
+                    // $0.50 / $10 = 0.05 ICP = 5,000,000 e8s (ICP has 8 decimals)
+                    Ok(Nat::from(5_000_000_u64))
+                }
+                "ckUSDT" => {
+                    // Stablecoin: $0.50 = 500,000 e6s (ckUSDT has 6 decimals)
+                    Ok(Nat::from(500_000_u64))
+                }
+                _ => {
+                    // For other tokens, use a default equivalent to $0.50 in smallest units
+                    // TODO: Implement proper price calculation for each token
+                    let decimals = ic_token.decimals;
+                    let base_amount = 50_u64; // Base amount for $0.50
+                    let multiplier = 10_u64.pow(decimals.saturating_sub(2) as u32); // Adjust for decimals
+                    Ok(Nat::from(base_amount * multiplier))
+                }
+            }
+        }
+        StableToken::Solana(_) => {
+            // HARDCODED: Fixed SOL amount
+            // TODO: Calculate based on current SOL price
+            Ok(Nat::from(5000_u64)) // 0.000005 SOL in lamports
+        }
+        StableToken::LP(_) => {
+            // LP tokens shouldn't be used as pay tokens for SPL swaps
+            Ok(nat_zero())
+        }
+    }
 }

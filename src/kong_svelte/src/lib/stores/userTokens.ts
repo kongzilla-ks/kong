@@ -1,10 +1,10 @@
 import { browser } from '$app/environment';
 import { fetchTokensByCanisterId } from '$lib/api/tokens';
-import { DEFAULT_TOKENS } from '$lib/constants/canisterConstants';
 import { writable, get, derived } from 'svelte/store';
-import { STORAGE_KEYS, createNamespacedStore } from '$lib/config/localForage.config';
 import { syncTokens as analyzeTokens, applyTokenChanges } from '$lib/utils/tokenSyncUtils';
 import { debounce } from '$lib/utils/debounce';
+import { BackendTokenService } from '$lib/services/tokens/BackendTokenService';
+import { testLocalCanisterConnection } from '$lib/utils/testLocalCanister';
 
 // Define types for sync operations
 interface SyncTokensResult {
@@ -23,15 +23,14 @@ interface UserTokensState {
 }
 
 // Keys for storage
-const STORAGE_KEY_PREFIX = STORAGE_KEYS.USER_TOKENS;
-const CURRENT_PRINCIPAL_KEY = 'current_principal';
-
-// Create namespaced localForage instances
-const userTokensStorage = createNamespacedStore(STORAGE_KEY_PREFIX);
-const principalStorage = createNamespacedStore('principals');
+const STORAGE_KEY_PREFIX = 'userTokens';
+const CURRENT_PRINCIPAL_KEY = 'principals:current_principal';
 
 // Cache for token details to avoid redundant fetches
 const tokenDetailsCache = new Map<string, Kong.Token>();
+
+// Flag to use backend tokens instead of API - ALWAYS use backend for local development
+const USE_BACKEND_TOKENS = true;
 
 // Memoization utility
 function memoize<T>(fn: (...args: any[]) => T): (...args: any[]) => T {
@@ -139,7 +138,7 @@ function createUserTokensStore() {
     try {
       const key = getStorageKey(principal);
       const serialized = safeStringify(serializeState(newState));
-      await userTokensStorage.setItem(key, serialized);
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}:${key}`, JSON.stringify(serialized));
     } catch (error) {
       console.error('[UserTokens] Error updating storage:', error);
     }
@@ -151,7 +150,8 @@ function createUserTokensStore() {
     
     try {
       const key = getStorageKey(principal);
-      const storedData = await userTokensStorage.getItem<any>(key);
+      const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}:${key}`);
+      const storedData = stored ? JSON.parse(stored) : null;
       
       // Otherwise deserialize using the new format
       return deserializeState(storedData);
@@ -163,68 +163,52 @@ function createUserTokensStore() {
   
   // Helper function to check if principal has saved tokens
   const hasSavedTokens = async (principalId: string): Promise<boolean> => {
-    if (!browser) return false;
-    
-    try {
-      const state = await loadFromStorage(principalId);
-      return state.enabledTokens.size > 0;
-    } catch (error) {
-      console.error('[UserTokens] Error checking if principal has saved tokens:', error);
-      return false;
-    }
+    // Always return false to force loading from backend
+    // This ensures consistency between logged in and logged out states
+    return false;
   };
   
   // Load default tokens if none are found
   const loadDefaultTokensIfNeeded = async (principalId?: string): Promise<UserTokensState> => {
     try {
-      // Check if we have saved tokens for this principal
-      const hasSaved = await hasSavedTokens(principalId || currentPrincipal || 'default');
+      // ALWAYS load tokens from backend - it's the source of truth
+      // This ensures consistency between logged in and logged out states
+      const allTokens = await loadAllTokensFromBackend();
       
-      // If no saved tokens, load defaults
-      if (!hasSaved) {
-        console.log('[UserTokens] No saved tokens found, loading defaults');
-        const defaultTokensList = await fetchTokensByCanisterId(Object.values(DEFAULT_TOKENS));
-        
-        // Create new state with defaults
-        const enabledTokensSet = new Set<string>();
-        const tokenDataMap = new Map<string, Kong.Token>();
-        
-        defaultTokensList.forEach(token => {
-          enabledTokensSet.add(token.address);
-          tokenDataMap.set(token.address, token);
-          // Update cache
-          tokenDetailsCache.set(token.address, token);
-        });
-        
-        const newState: UserTokensState = {
-          enabledTokens: enabledTokensSet,
-          tokens: Array.from(tokenDataMap.values()),
-          tokenData: tokenDataMap,
-          isAuthenticated: !!principalId,
-          lastUpdated: Date.now(),
-        };
-        
-        // Save to storage if we have a principal
-        if (principalId || currentPrincipal) {
-          await debouncedUpdateStorage(newState, principalId);
-        }
-        
-        return newState;
-      }
+      // Filter out LP tokens (they have token_type: 'LP')
+      const defaultTokensList = allTokens.filter(token => 
+        token.token_type !== 'LP' &&
+        !token.symbol.includes('_') // LP tokens typically have underscore in symbol like "ICP_ksUSDT"
+      );
       
-      // If we have saved tokens, load them
-      const savedState = await loadFromStorage(principalId);
+      console.log('[UserTokens] Loading backend tokens (auth state: ' + (principalId ? 'logged in' : 'logged out') + '):', defaultTokensList.length, 'out of', allTokens.length);
       
-      // Update cache from loaded state
-      savedState.tokenData.forEach((token, id) => {
-        tokenDetailsCache.set(id, token);
+      // Create new state with backend tokens
+      const enabledTokensSet = new Set<string>();
+      const tokenDataMap = new Map<string, Kong.Token>();
+      
+      // ALWAYS enable all non-LP tokens from backend
+      // This ensures consistency regardless of auth state
+      defaultTokensList.forEach(token => {
+        tokenDataMap.set(token.address, token);
+        tokenDetailsCache.set(token.address, token);
+        enabledTokensSet.add(token.address);
       });
       
-      return {
-        ...savedState,
+      const newState: UserTokensState = {
+        enabledTokens: enabledTokensSet,
+        tokens: Array.from(tokenDataMap.values()),
+        tokenData: tokenDataMap,
         isAuthenticated: !!principalId,
         lastUpdated: Date.now(),
       };
+      
+      // Save to storage if we have a principal
+      if (principalId || currentPrincipal) {
+        await debouncedUpdateStorage(newState, principalId);
+      }
+      
+      return newState;
     } catch (error) {
       console.error('[UserTokens] Error loading default tokens:', error);
       return {
@@ -240,17 +224,24 @@ function createUserTokensStore() {
     if (!browser) return;
     
     try {
-      currentPrincipal = await principalStorage.getItem<string>(CURRENT_PRINCIPAL_KEY);
+      const stored = localStorage.getItem(CURRENT_PRINCIPAL_KEY);
+      currentPrincipal = stored ? JSON.parse(stored) : null;
       
-      // Load state for current principal, including default tokens if needed
-      if (currentPrincipal) {
-        const loadedState = await loadDefaultTokensIfNeeded(currentPrincipal);
-        state.set(loadedState);
-      } else {
-        // Load default tokens even when no principal is available
-        const defaultTokensState = await loadDefaultTokensIfNeeded();
-        state.set(defaultTokensState);
+      // FORCE reload from backend by clearing cache for development
+      console.log('[UserTokens] Force loading fresh tokens from backend...');
+      
+      // Test direct local canister connection
+      if (process.env.DFX_NETWORK === 'local') {
+        console.log('[UserTokens] Testing direct local canister connection...');
+        try {
+          await testLocalCanisterConnection();
+        } catch (error) {
+          console.error('[UserTokens] Direct connection test failed:', error);
+        }
       }
+      
+      const defaultTokensState = await loadDefaultTokensIfNeeded();
+      state.set(defaultTokensState);
     } catch (error) {
       console.error('[UserTokens] Error initializing principal:', error);
       // Fallback to default tokens on error
@@ -305,9 +296,20 @@ function createUserTokensStore() {
       }
     }
     
-    // Fetch from API as last resort
+    // Fetch from API or backend as last resort
     try {
-      const [token] = await fetchTokensByCanisterId([canisterId]);
+      let token: Kong.Token | null = null;
+      
+      if (USE_BACKEND_TOKENS) {
+        // Try to find token in backend
+        const allTokens = await loadAllTokensFromBackend();
+        token = allTokens.find(t => t.address === canisterId) || null;
+      } else {
+        // Use existing API method
+        const [fetchedToken] = await fetchTokensByCanisterId([canisterId]);
+        token = fetchedToken || null;
+      }
+      
       if (token) {
         tokenDetailsCache.set(canisterId, token);
         
@@ -365,6 +367,58 @@ function createUserTokensStore() {
     await loadBatch();
   };
 
+  // Retry configuration
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 1000;
+  let retryCount = 0;
+  let lastRetryTime = 0;
+
+  // Load all tokens from backend with retry logic
+  const loadAllTokensFromBackend = async (): Promise<Kong.Token[]> => {
+    const currentTime = Date.now();
+    
+    // Reset retry count if enough time has passed
+    if (currentTime - lastRetryTime > 60000) { // 1 minute cooldown
+      retryCount = 0;
+    }
+    
+    // Stop retrying if max attempts reached
+    if (retryCount >= MAX_RETRIES) {
+      console.warn('[UserTokens] Max retries reached for backend token loading. Skipping until cooldown.');
+      return [];
+    }
+    
+    try {
+      const tokens = await BackendTokenService.fetchTokens();
+      console.log('[UserTokens] Loaded tokens from backend:', tokens.length);
+      
+      // Reset retry count on success
+      retryCount = 0;
+      
+      // Update cache
+      tokens.forEach(token => {
+        if (token && token.address) {
+          tokenDetailsCache.set(token.address, token);
+        }
+      });
+      
+      return tokens;
+    } catch (error) {
+      retryCount++;
+      lastRetryTime = currentTime;
+      console.error(`[UserTokens] Error loading tokens from backend (attempt ${retryCount}/${MAX_RETRIES}):`, error);
+      
+      // Add exponential backoff delay
+      if (retryCount < MAX_RETRIES) {
+        const delay = RETRY_DELAY_MS * Math.pow(2, retryCount - 1);
+        console.log(`[UserTokens] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      return [];
+    }
+  };
+
   // Refresh token data
   const refreshTokenData = async () => {
     const currentState = get(state);
@@ -373,7 +427,16 @@ function createUserTokensStore() {
     if (canisterIds.length === 0) return;
     
     try {
-      const tokens = await fetchTokensByCanisterId(canisterIds);
+      let tokens: Kong.Token[] = [];
+      
+      if (USE_BACKEND_TOKENS) {
+        // Load all tokens from backend and filter by enabled
+        const allTokens = await loadAllTokensFromBackend();
+        tokens = allTokens.filter(token => canisterIds.includes(token.address));
+      } else {
+        // Use existing API method
+        tokens = await fetchTokensByCanisterId(canisterIds);
+      }
       
       state.update(state => {
         const newTokenData = new Map(state.tokenData);
@@ -425,7 +488,7 @@ function createUserTokensStore() {
       return new Promise<void>((resolve, reject) => {
         try {
           if (browser && principalId) {
-            principalStorage.setItem(CURRENT_PRINCIPAL_KEY, principalId)
+            Promise.resolve(localStorage.setItem(CURRENT_PRINCIPAL_KEY, JSON.stringify(principalId)))
               .then(() => {
                 currentPrincipal = principalId;
                 return loadDefaultTokensIfNeeded(principalId);
@@ -436,7 +499,7 @@ function createUserTokensStore() {
               })
               .catch(reject);
           } else if (browser && principalId === null) {
-            principalStorage.removeItem(CURRENT_PRINCIPAL_KEY)
+            Promise.resolve(localStorage.removeItem(CURRENT_PRINCIPAL_KEY))
               .then(() => {
                 currentPrincipal = null;
                 return loadDefaultTokensIfNeeded();
@@ -460,9 +523,6 @@ function createUserTokensStore() {
       if (!token || !token.address) return;
       
       state.update(state => {
-        console.log(`[UserTokens] enableToken called for ${token.symbol} (${token.address})`);
-        console.log('[UserTokens] State BEFORE enable:', Array.from(state.enabledTokens));
-
         // Create copies of current state
         const newEnabledTokens = new Set(state.enabledTokens);
         const newTokenData = new Map(state.tokenData);
@@ -481,7 +541,6 @@ function createUserTokensStore() {
           lastUpdated: Date.now(),
         };
 
-        console.log('[UserTokens] State AFTER enable:', Array.from(newState.enabledTokens));
         debouncedUpdateStorage(newState);
         return newState;
       });
@@ -518,9 +577,6 @@ function createUserTokensStore() {
     
     disableToken: (canisterId: string) => {
       state.update(state => {
-        console.log(`[UserTokens] disableToken called for ${canisterId}`);
-        console.log('[UserTokens] State BEFORE disable:', Array.from(state.enabledTokens));
-
         // Create copies of current state
         const newEnabledTokens = new Set(state.enabledTokens);
         const newTokenData = new Map(state.tokenData);
@@ -536,7 +592,6 @@ function createUserTokensStore() {
           lastUpdated: Date.now(),
         };
 
-        console.log('[UserTokens] State AFTER disable:', Array.from(newState.enabledTokens));
         debouncedUpdateStorage(newState);
         return newState;
       });
@@ -555,9 +610,14 @@ function createUserTokensStore() {
     },
     
     refreshTokenData,
-    isDefaultToken: (canisterId: string) => Object.values(DEFAULT_TOKENS).includes(canisterId),
+    isDefaultToken: (canisterId: string) => {
+      // Check if token exists in backend tokens
+      const currentState = get(state);
+      return currentState.tokenData.has(canisterId);
+    },
     hasSavedTokens,
     loadDefaultTokensIfNeeded,
+    loadAllTokensFromBackend,
     
     // New search utility with memoization
     searchTokens: (query: string) => {

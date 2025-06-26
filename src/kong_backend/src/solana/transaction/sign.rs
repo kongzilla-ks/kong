@@ -97,9 +97,7 @@ pub async fn build_and_sign_sol_transfer(
     use super::builder::TransactionBuilder;
     
     // Build transaction
-    let builder = TransactionBuilder::new();
-    let instructions = builder
-        .build_transfer_sol_transaction(from_address, to_address, lamports, None)
+    let instructions = TransactionBuilder::build_transfer_sol_transaction(from_address, to_address, lamports, None)
         .await?;
     
     // Sign transaction
@@ -116,9 +114,7 @@ pub async fn build_and_sign_spl_transfer(
     use super::builder::TransactionBuilder;
     
     // Build transaction
-    let builder = TransactionBuilder::new();
-    let instructions = builder
-        .build_transfer_spl_transaction(owner_address, from_token_account, to_token_account, amount, None)
+    let instructions = TransactionBuilder::build_transfer_spl_transaction(owner_address, from_token_account, to_token_account, amount, None)
         .await?;
     
     // Sign transaction
