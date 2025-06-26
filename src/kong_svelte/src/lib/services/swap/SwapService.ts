@@ -883,6 +883,13 @@ export class SwapService {
             try {
               const { transactionId, signature, timestamp } = modalData;
               
+              console.log('[SwapService] Cross-chain swap modalData:', {
+                transactionId,
+                signature,
+                timestamp,
+                modalData
+              });
+              
               // Execute swap with signature
               // IMPORTANT: These values must match exactly what was signed in the canonical message
               const receiveAmountBigInt = SwapService.toBigInt(params.receiveAmount, params.receiveToken.decimals);
@@ -902,6 +909,19 @@ export class SwapService {
                 signature: [signature] as [] | [string],
                 timestamp: [timestamp] as [] | [bigint],
               };
+
+              console.log('[SwapService] Final cross-chain swap_async params:', {
+                pay_token: swapParams.pay_token,
+                pay_amount: swapParams.pay_amount.toString(),
+                receive_token: swapParams.receive_token,
+                receive_amount: swapParams.receive_amount,
+                max_slippage: swapParams.max_slippage,
+                receive_address: swapParams.receive_address,
+                referred_by: swapParams.referred_by,
+                pay_tx_id: swapParams.pay_tx_id,
+                signature: swapParams.signature,
+                timestamp: swapParams.timestamp
+              });
 
               const result = await SwapService.swap_async(swapParams, (attempt, maxAttempts) => {
                 // Show retry progress to user

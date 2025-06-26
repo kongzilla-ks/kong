@@ -6,6 +6,7 @@ import * as dotenv from 'dotenv';
 import * as path from "path";
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import viteCompression from 'vite-plugin-compression';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import type { UserConfig } from 'vite';
 import { execSync } from 'child_process';
 
@@ -43,6 +44,14 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   // Create base plugins array
   const basePlugins = [
     sveltekit(),
+    nodePolyfills({
+      // Include Buffer globally
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+    }),
     environment("all", { prefix: "CANISTER_" }),
     environment("all", { prefix: "DFX_" }),
     SvelteKitPWA({
@@ -146,7 +155,7 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
           global: "globalThis",
         },
       },
-      include: ['comlink', '@dfinity/agent'],
+      include: ['comlink', '@dfinity/agent', 'buffer', '@solana/web3.js', '@solana/spl-token'],
       exclude: ['@sveltejs/kit', '$lib/utils/browser', '@dfinity/candid', '@dfinity/principal']
     },
     server: {
@@ -182,6 +191,7 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
       format: "es" as const,
     },
     define: {
+      global: 'globalThis',
       'process.env': JSON.stringify({
         ...fullEnv,
         VITE_RELEASE: gitHash

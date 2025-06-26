@@ -7,6 +7,7 @@
   import { Flame, TrendingUp, PiggyBank, CheckCircle } from "lucide-svelte";
   import { livePools } from "$lib/stores/poolStore";
   import { tooltip } from "$lib/actions/tooltip";
+  import { formatUsdValue } from "$lib/utils/tokenFormatters";
 
   // Define proper types for the pool data
   type Token = Kong.Token;
@@ -151,7 +152,7 @@
               </div>
             {/if}
           </div>
-          <span class="tvl-badge">TVL: ${pool.tvl}</span>
+          <span class="tvl-badge">{formatUsdValue(pool.displayTvl)}</span>
         </div>
       </div>
     </div>

@@ -566,6 +566,55 @@ export function formatToNonZeroDecimal(value: number): string {
   }
 }
 
+/**
+ * Calculates the TVL (Total Value Locked) for a pool
+ * @param pool Pool data
+ * @param token0Price USD price of token0
+ * @param token1Price USD price of token1
+ * @returns TVL in USD
+ */
+export function calculatePoolTVL(
+  pool: BE.Pool,
+  token0Price: number,
+  token1Price: number
+): number {
+  if (!pool || !pool.balance_0 || !pool.balance_1) return 0;
+  
+  try {
+    // Parse balances (remove underscores)
+    const balance0 = new BigNumber(pool.balance_0.toString().replace(/_/g, ''));
+    const balance1 = new BigNumber(pool.balance_1.toString().replace(/_/g, ''));
+    
+    // Include LP fees if available
+    const lpFee0 = pool.lp_fee_0 ? new BigNumber(pool.lp_fee_0.toString().replace(/_/g, '')) : new BigNumber(0);
+    const lpFee1 = pool.lp_fee_1 ? new BigNumber(pool.lp_fee_1.toString().replace(/_/g, '')) : new BigNumber(0);
+    
+    // Total balances including fees
+    const totalBalance0 = balance0.plus(lpFee0);
+    const totalBalance1 = balance1.plus(lpFee1);
+    
+    // Get token decimals from pool data or use defaults
+    const decimals0 = pool.token0?.decimals || (pool.symbol_0 === 'SOL' ? 9 : pool.symbol_0 === 'ICP' || pool.symbol_0 === 'KONG' ? 8 : 6);
+    const decimals1 = pool.token1?.decimals || (pool.symbol_1 === 'ckUSDT' || pool.symbol_1 === 'USDC' ? 6 : 8);
+    
+    // Convert to human-readable amounts
+    const amount0 = totalBalance0.dividedBy(new BigNumber(10).pow(decimals0));
+    const amount1 = totalBalance1.dividedBy(new BigNumber(10).pow(decimals1));
+    
+    // Calculate USD values
+    const value0USD = amount0.times(token0Price);
+    const value1USD = amount1.times(token1Price);
+    
+    // Total TVL
+    const tvl = value0USD.plus(value1USD);
+    
+    return tvl.toNumber();
+  } catch (error) {
+    console.error('Error calculating pool TVL:', error);
+    return 0;
+  }
+}
+
 // Optimized calculation function with minimized parameters using BigNumber
 export function calculateUserPoolPercentage(
   poolBalance0: bigint | undefined,

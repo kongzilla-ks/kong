@@ -111,15 +111,29 @@ export class CrossChainSwapService {
       referred_by: null // Option<String> serializes to null
     };
     
-    // Use JSON.stringify to match backend's serde_json::to_string
-    const jsonMessage = JSON.stringify(message);
-    console.log('[CrossChainSwapService] Created canonical message:', jsonMessage);
-    console.log('[CrossChainSwapService] Message length:', jsonMessage.length);
+    // Custom JSON stringify that preserves decimal format for max_slippage
+    const jsonMessage = JSON.stringify(message, (key, value) => {
+      // For max_slippage, ensure it always has one decimal place
+      if (key === 'max_slippage' && typeof value === 'number') {
+        // Convert to string with fixed decimal, then back to number to preserve format
+        // This is a workaround for JSON.stringify dropping .0
+        const formatted = value.toFixed(1);
+        // Return as a special marker that we'll replace
+        return `__SLIPPAGE_${formatted}__`;
+      }
+      return value;
+    });
+    
+    // Replace the marker with the properly formatted number
+    const finalMessage = jsonMessage.replace(/"__SLIPPAGE_(\d+\.\d+)__"/g, '$1');
+    
+    console.log('[CrossChainSwapService] Created canonical message:', finalMessage);
+    console.log('[CrossChainSwapService] Message length:', finalMessage.length);
     console.log('[CrossChainSwapService] Pay address in message:', params.payAddress);
     console.log('[CrossChainSwapService] Receive address in message:', params.receiveAddress);
     console.log('[CrossChainSwapService] Original slippage:', params.maxSlippage, 'Formatted slippage:', message.max_slippage);
     
-    return jsonMessage;
+    return finalMessage;
   }
 
   /**
