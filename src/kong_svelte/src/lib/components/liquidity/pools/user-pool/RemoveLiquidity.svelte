@@ -8,6 +8,18 @@
   import { calculateTokenUsdValue } from "$lib/utils/numberFormatUtils";
   import { calculateRemoveLiquidityAmounts, removeLiquidity, pollRequestStatus } from "$lib/api/pools";
   import ButtonV2 from "$lib/components/common/ButtonV2.svelte";
+  import { solanaLiquidityModalStore } from "$lib/stores/solanaLiquidityModal";
+  import { swapActor } from "$lib/stores/auth";
+
+  // Declare window.solana for TypeScript
+  declare global {
+    interface Window {
+      solana?: {
+        isConnected?: boolean;
+        connect(): Promise<{ publicKey: { toString(): string } }>;
+      };
+    }
+  }
   
   const dispatch = createEventDispatcher();
 
@@ -83,6 +95,69 @@
     }
   }
 
+  // Check if we have cross-chain tokens (like SOL)
+  function isSolToken(token: any): boolean {
+    return token && (token.symbol === "SOL" || token.address === "11111111111111111111111111111111");
+  }
+
+  const isToken0Sol = isSolToken(token0);
+  const isToken1Sol = isSolToken(token1);
+  const isCrossChain = isToken0Sol || isToken1Sol;
+
+  async function handleCrossChainRemoveLiquidity(lpTokenBigInt: bigint): Promise<string> {
+    // For cross-chain, we need to get signature from user
+    return new Promise((resolve, reject) => {
+      const numericAmount = parseFloat(removeLiquidityAmount);
+      
+      solanaLiquidityModalStore.show({
+        operation: 'remove',
+        token0: token0,
+        amount0: estimatedAmounts.amount0,
+        token1: token1,
+        amount1: estimatedAmounts.amount1,
+        lpAmount: numericAmount.toString(),
+        onConfirm: async (modalData) => {
+          try {
+            const { signature, timestamp } = modalData;
+            
+            // Call removeLiquidity with cross-chain parameters
+            const requestId = await removeLiquidity({
+              token0: pool.address_0,
+              token1: pool.address_1,
+              lpTokenAmount: lpTokenBigInt,
+              token_0_obj: token0,
+              token_1_obj: token1,
+              payout_address_0: isToken0Sol ? await getCurrentSolanaAddress() : undefined,
+              payout_address_1: isToken1Sol ? await getCurrentSolanaAddress() : undefined,
+              signature_0: isToken0Sol ? signature : undefined,
+              signature_1: isToken1Sol ? signature : undefined,
+              timestamp: timestamp,
+            });
+            
+            resolve(requestId);
+          } catch (error) {
+            console.error("Cross-chain remove liquidity error:", error);
+            reject(error);
+          }
+        }
+      });
+    });
+  }
+
+  async function getCurrentSolanaAddress(): Promise<string> {
+    // Get user's current Solana address from wallet
+    try {
+      if (window.solana?.isConnected) {
+        const response = await window.solana.connect();
+        return response.publicKey.toString();
+      }
+      throw new Error('Solana wallet not connected');
+    } catch (error) {
+      console.error('Error getting Solana address:', error);
+      throw error;
+    }
+  }
+
   async function handleRemoveLiquidity() {
     if (!removeLiquidityAmount || isNaN(parseFloat(removeLiquidityAmount))) {
       error = "Please enter a valid amount";
@@ -95,11 +170,20 @@
       toastStore.info("Removing liquidity...");
       const numericAmount = parseFloat(removeLiquidityAmount);
       const lpTokenBigInt = BigInt(Math.floor(numericAmount * 1e8));
-      const requestId = await removeLiquidity({
-        token0: pool.address_0,
-        token1: pool.address_1,
-        lpTokenAmount: lpTokenBigInt,
-      });
+      
+      let requestId: string;
+      
+      if (isCrossChain) {
+        // Handle cross-chain remove liquidity with signature flow
+        requestId = await handleCrossChainRemoveLiquidity(lpTokenBigInt);
+      } else {
+        // Handle regular ICRC-only remove liquidity
+        requestId = await removeLiquidity({
+          token0: pool.address_0,
+          token1: pool.address_1,
+          lpTokenAmount: lpTokenBigInt,
+        });
+      }
 
       // Poll for request completion
       let isComplete = false;

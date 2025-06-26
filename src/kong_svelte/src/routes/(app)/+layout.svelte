@@ -15,6 +15,8 @@
   import { DEFAULT_TOKENS } from "$lib/constants/canisterConstants";
   import { fetchTokensByCanisterId } from "$lib/api/tokens";
   import GlobalSignatureModal from "$lib/components/wallet/GlobalSignatureModal.svelte";
+  import SolanaLiquidityModal from "$lib/components/liquidity/modals/SolanaLiquidityModal.svelte";
+  import { solanaLiquidityModalStore } from "$lib/stores/solanaLiquidityModal";
   import LoadingIndicator from "$lib/components/common/LoadingIndicator.svelte";
   import PageWrapper from "$lib/components/layout/PageWrapper.svelte";
   import { themeStore } from "$lib/stores/themeStore";
@@ -182,6 +184,19 @@
   <KeyboardShortcutsHelp />
   <GlobalWalletProvider />
   <GlobalSignatureModal />
+  {#if $solanaLiquidityModalStore.data}
+    <SolanaLiquidityModal 
+      show={$solanaLiquidityModalStore.isVisible}
+      operation={$solanaLiquidityModalStore.data.operation}
+      token0={$solanaLiquidityModalStore.data.token0}
+      amount0={$solanaLiquidityModalStore.data.amount0}
+      token1={$solanaLiquidityModalStore.data.token1}
+      amount1={$solanaLiquidityModalStore.data.amount1}
+      lpAmount={$solanaLiquidityModalStore.data.lpAmount}
+      on:confirm={(e) => solanaLiquidityModalStore.handleConfirm(e.detail)}
+      on:close={() => solanaLiquidityModalStore.hide()}
+    />
+  {/if}
 {/if}
 </div>
 

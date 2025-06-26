@@ -8,6 +8,9 @@
   import ConfirmLiquidityModal from "$lib/components/liquidity/modals/ConfirmLiquidityModal.svelte";
   import LoadingIndicator from "$lib/components/common/LoadingIndicator.svelte";
   import { ArrowDown, CheckCircle } from "lucide-svelte";
+  import SolanaTransferModal from "$lib/components/swap/SolanaTransferModal.svelte";
+  import { solanaTransferModalStore } from "$lib/stores/solanaTransferModal";
+  import Portal from "svelte-portal";
   
   import { liquidityStore } from "$lib/stores/liquidityStore";
   import { loadBalances } from "$lib/stores/balancesStore";
@@ -397,4 +400,18 @@
       currentUserPoolsStore.initialize();
     }}
   />
+{/if}
+
+{#if $solanaTransferModalStore.show}
+  <Portal target="body">
+    <SolanaTransferModal
+      show={$solanaTransferModalStore.show}
+      payToken={$solanaTransferModalStore.payToken}
+      payAmount={$solanaTransferModalStore.payAmount}
+      receiveToken={$solanaTransferModalStore.receiveToken}
+      receiveAmount={$solanaTransferModalStore.receiveAmount}
+      maxSlippage={$solanaTransferModalStore.maxSlippage}
+      onConfirm={$solanaTransferModalStore.onConfirm}
+    />
+  </Portal>
 {/if}

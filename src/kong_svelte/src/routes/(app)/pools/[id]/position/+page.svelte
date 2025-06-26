@@ -16,6 +16,9 @@
   import ConfirmLiquidityModal from "$lib/components/liquidity/modals/ConfirmLiquidityModal.svelte";
   import { fetchPoolBalanceHistory } from "$lib/api/pools";
   import TVLHistoryChart from "$lib/components/liquidity/create_pool/charts/TVLHistoryChart.svelte";
+  import SolanaTransferModal from "$lib/components/swap/SolanaTransferModal.svelte";
+  import { solanaTransferModalStore } from "$lib/stores/solanaTransferModal";
+  import Portal from "svelte-portal";
   
   // Constants
   const RETRY_DELAYS = {
@@ -533,4 +536,18 @@
     modalKey={`confirm-liquidity-${pool.address_0}-${pool.address_1}`}
     target="#portal-target"
   />
+{/if}
+
+{#if $solanaTransferModalStore.show}
+  <Portal target="body">
+    <SolanaTransferModal
+      show={$solanaTransferModalStore.show}
+      payToken={$solanaTransferModalStore.payToken}
+      payAmount={$solanaTransferModalStore.payAmount}
+      receiveToken={$solanaTransferModalStore.receiveToken}
+      receiveAmount={$solanaTransferModalStore.receiveAmount}
+      maxSlippage={$solanaTransferModalStore.maxSlippage}
+      onConfirm={$solanaTransferModalStore.onConfirm}
+    />
+  </Portal>
 {/if}

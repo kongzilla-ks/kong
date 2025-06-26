@@ -244,11 +244,16 @@ export type RemoveLiquidityAmountsResult = {
   } |
   { 'Err' : string };
 export interface RemoveLiquidityArgs {
+  'signature_0' : [] | [string],
+  'signature_1' : [] | [string],
   'token_0' : string,
   'token_1' : string,
   'payout_address_0' : [] | [string],
   'payout_address_1' : [] | [string],
   'remove_lp_token_amount' : bigint,
+  'timestamp' : [] | [bigint],
+  'tx_id_0' : [] | [TxId],
+  'tx_id_1' : [] | [TxId],
 }
 export type RemoveLiquidityAsyncResult = { 'Ok' : bigint } |
   { 'Err' : string };

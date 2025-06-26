@@ -273,35 +273,57 @@ export async function addLiquidity(params: {
     } else {
       console.log("token_0", params.token_0);
       console.log("token_1", params.token_1);
-      console.log("adding icrc1 lp");
-      // Handle ICRC1 tokens
-      const [transfer0Result, transfer1Result, actorResult] = await Promise.all([
-        IcrcService.transfer(
-          params.token_0,
-          canisters.kongBackend.canisterId,
-          params.amount_0,
-        ),
-        IcrcService.transfer(
-          params.token_1,
-          canisters.kongBackend.canisterId,
-          params.amount_1,
-        ),
-        swapActor({anon: false, requiresSigning: false}),
-      ]);
+      
+      // Check if we have cross-chain tokens (like SOL)
+      const isSolToken = (token: any) => token.symbol === "SOL" || token.address === "11111111111111111111111111111111";
+      const isToken0Sol = isSolToken(params.token_0);
+      const isToken1Sol = isSolToken(params.token_1);
+      
+      if (isToken0Sol || isToken1Sol) {
+        console.log("adding cross-chain lp with SOL");
+        throw new Error("Cross-chain LP with SOL requires signature flow - please use the LP modal interface instead of direct API call");
+      } else {
+        console.log("adding icrc1 lp");
+        // Handle ICRC1 tokens
+        const [transfer0Result, transfer1Result, actorResult] = await Promise.all([
+          IcrcService.transfer(
+            params.token_0,
+            canisters.kongBackend.canisterId,
+            params.amount_0,
+          ),
+          IcrcService.transfer(
+            params.token_1,
+            canisters.kongBackend.canisterId,
+            params.amount_1,
+          ),
+          swapActor({anon: false, requiresSigning: false}),
+        ]);
 
-      // Keep block IDs as BigInt
-      tx_id_0 = transfer0Result?.Ok ? [{ BlockIndex: transfer0Result.Ok }] : [];
-      tx_id_1 = transfer1Result?.Ok ? [{ BlockIndex: transfer1Result.Ok }] : [];
-      actor = actorResult;
+        // Keep block IDs as BigInt
+        tx_id_0 = transfer0Result?.Ok ? [{ BlockIndex: transfer0Result.Ok }] : [];
+        tx_id_1 = transfer1Result?.Ok ? [{ BlockIndex: transfer1Result.Ok }] : [];
+        actor = actorResult;
+      }
     }
 
+    // Format token addresses correctly for cross-chain vs IC tokens
+    const formatTokenAddress = (token: any) => {
+      if (token.symbol === "SOL" || token.address === "11111111111111111111111111111111") {
+        return token.symbol; // Use "SOL" for Solana
+      }
+      return "IC." + token.address; // Use "IC." prefix for IC tokens
+    };
+
     const addLiquidityArgs = {
-      token_0: "IC." + params.token_0.address,
+      token_0: formatTokenAddress(params.token_0),
       amount_0: params.amount_0,
-      token_1: "IC." + params.token_1.address,
+      token_1: formatTokenAddress(params.token_1),
       amount_1: params.amount_1,
       tx_id_0,
       tx_id_1,
+      signature_0: [] as [] | [string], // Empty for ICRC-only operations
+      signature_1: [] as [] | [string], // Empty for ICRC-only operations
+      timestamp: [] as [] | [bigint], // Empty for ICRC-only operations
     };
 
     let result = await actor.add_liquidity_async(addLiquidityArgs);
@@ -458,6 +480,15 @@ export async function removeLiquidity(params: {
   token0: string;
   token1: string;
   lpTokenAmount: number | bigint;
+  token_0_obj?: Kong.Token;
+  token_1_obj?: Kong.Token;
+  payout_address_0?: string;
+  payout_address_1?: string;
+  signature_0?: string;
+  signature_1?: string;
+  timestamp?: bigint;
+  tx_id_0?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
+  tx_id_1?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
 }): Promise<string> {
   requireWalletConnection();
   try {
@@ -467,12 +498,41 @@ export async function removeLiquidity(params: {
         ? BigInt(Math.floor(params.lpTokenAmount * 1e8))
         : params.lpTokenAmount;
 
+    // Check if we have cross-chain tokens (like SOL)
+    const isSolToken = (token: any) => token && (token.symbol === "SOL" || token.address === "11111111111111111111111111111111");
+    const isToken0Sol = params.token_0_obj ? isSolToken(params.token_0_obj) : params.token0 === "SOL";
+    const isToken1Sol = params.token_1_obj ? isSolToken(params.token_1_obj) : params.token1 === "SOL";
+    
+    if ((isToken0Sol || isToken1Sol) && (!params.signature_0 && !params.signature_1)) {
+      throw new Error("Cross-chain LP removal with SOL requires signature flow - please use the LP modal interface instead of direct API call");
+    }
+
+    // Format token addresses correctly for cross-chain vs IC tokens
+    const formatTokenAddress = (tokenAddress: string, tokenObj?: any) => {
+      if (tokenObj && isSolToken(tokenObj)) {
+        return tokenObj.symbol; // Use "SOL" for Solana
+      }
+      if (tokenAddress === "SOL" || tokenAddress === "11111111111111111111111111111111") {
+        return "SOL";
+      }
+      return "IC." + tokenAddress; // Use "IC." prefix for IC tokens
+    };
+
     const actor = swapActor({anon: false, requiresSigning: false});
-    const result = await (actor as any).remove_liquidity_async({
-      token_0: "IC." + params.token0,
-      token_1: "IC." + params.token1,
+    const removeLiquidityArgs = {
+      token_0: formatTokenAddress(params.token0, params.token_0_obj),
+      token_1: formatTokenAddress(params.token1, params.token_1_obj),
       remove_lp_token_amount: lpTokenBigInt,
-    });
+      payout_address_0: params.payout_address_0 ? [params.payout_address_0] : [],
+      payout_address_1: params.payout_address_1 ? [params.payout_address_1] : [],
+      signature_0: params.signature_0 ? [params.signature_0] : [],
+      signature_1: params.signature_1 ? [params.signature_1] : [],
+      timestamp: params.timestamp ? [params.timestamp] : [],
+      tx_id_0: params.tx_id_0 || [],
+      tx_id_1: params.tx_id_1 || [],
+    };
+
+    const result = await (actor as any).remove_liquidity_async(removeLiquidityArgs);
 
     if ('Err' in result) {
       throw new Error(result.Err || "Failed to remove liquidity");
@@ -554,7 +614,10 @@ export async function createPool(params: {
       amount_1: params.amount_1,
       tx_id_0: tx_id_0,
       tx_id_1: tx_id_1,
-      lp_fee_bps: [30] // Hardcoded LP fee basis points
+      lp_fee_bps: [30], // Hardcoded LP fee basis points
+      signature_0: [] as [] | [string], // Empty signature for ICRC-only pools
+      signature_1: [] as [] | [string], // Empty signature for ICRC-only pools
+      timestamp: [] as [] | [bigint], // Empty timestamp for ICRC-only pools
     });
 
     if ('Err' in result) {
