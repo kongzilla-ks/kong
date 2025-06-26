@@ -194,6 +194,7 @@
       amount1={$solanaLiquidityModalStore.data.amount1}
       lpAmount={$solanaLiquidityModalStore.data.lpAmount}
       on:confirm={(e) => solanaLiquidityModalStore.handleConfirm(e.detail)}
+      on:cancel={() => solanaLiquidityModalStore.hide()}
       on:close={() => solanaLiquidityModalStore.hide()}
     />
   {/if}

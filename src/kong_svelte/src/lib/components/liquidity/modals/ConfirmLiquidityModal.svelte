@@ -33,9 +33,15 @@
   let isLoading = false;
   let error: string | null = null;
   let mounted = true;
+  let pollingController: AbortController | null = null;
 
   onDestroy(() => {
     mounted = false;
+    // Cancel any ongoing polling
+    if (pollingController) {
+      pollingController.abort();
+      pollingController = null;
+    }
   });
 
   // Calculated values
@@ -68,6 +74,36 @@
     console.log("Opening Solana liquidity modal for cross-chain LP");
     
     return new Promise((resolve, reject) => {
+      let isResolved = false;
+      let timeoutId: NodeJS.Timeout;
+      
+      // Set up timeout to prevent hanging promises
+      const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+      timeoutId = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          console.error("Cross-chain LP operation timed out");
+          reject(new Error("Cross-chain operation timed out. Please try again."));
+        }
+      }, TIMEOUT_MS);
+      
+      // Store original resolve/reject to handle cleanup
+      const safeResolve = (value: any) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeoutId);
+          resolve(value);
+        }
+      };
+      
+      const safeReject = (error: any) => {
+        if (!isResolved) {
+          isResolved = true;
+          clearTimeout(timeoutId);
+          reject(error);
+        }
+      };
+      
       solanaLiquidityModalStore.show({
         operation: 'add',
         token0: token0,
@@ -105,11 +141,15 @@
               throw new Error(result.Err);
             }
             
-            resolve(result.Ok);
+            safeResolve(result.Ok);
           } catch (error) {
             console.error("Cross-chain LP error:", error);
-            reject(error);
+            safeReject(error);
           }
+        },
+        onCancel: () => {
+          console.log("Cross-chain LP operation cancelled by user");
+          safeReject(new Error("Operation cancelled by user"));
         }
       });
     });
@@ -198,12 +238,16 @@
         }
 
         if (addLiquidityResult) {
+          // Create new controller for this polling operation
+          pollingController = new AbortController();
+          
           await pollRequestStatus(
             addLiquidityResult, 
             "Successfully added liquidity",
             "Failed to add liquidity",
             token0?.symbol,
-            token1?.symbol
+            token1?.symbol,
+            pollingController?.signal
           );
           
           // Reload balances and pool list after successful liquidity addition
@@ -224,12 +268,37 @@
       if (mounted) {
         error =
           err instanceof Error ? err.message : "Failed to process transaction";
+        // Always reset loading state on error
+        isLoading = false;
+        
+        // Show user-friendly error message
+        if (err instanceof Error && err.message.includes("cancelled")) {
+          toastStore.info("Operation cancelled");
+        } else if (err instanceof Error && err.message.includes("timed out")) {
+          toastStore.error("Operation timed out. Please try again.");
+        } else {
+          toastStore.error(error || "Transaction failed");
+        }
+      }
+    } finally {
+      // Ensure loading state is always reset
+      if (mounted) {
         isLoading = false;
       }
     }
   }
 
   function handleCancel() {
+    // Cancel any ongoing polling
+    if (pollingController) {
+      pollingController.abort();
+      pollingController = null;
+    }
+    
+    // Reset state
+    isLoading = false;
+    error = null;
+    
     show = false;
     onClose();
   }

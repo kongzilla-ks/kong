@@ -14,6 +14,7 @@ interface SolanaLiquidityModalData {
     timestamp: bigint;
     canonicalMessage: string;
   }) => void;
+  onCancel?: () => void; // Add cancellation callback
 }
 
 interface SolanaLiquidityModalStore {
@@ -36,9 +37,15 @@ function createSolanaLiquidityModalStore() {
       });
     },
     hide: () => {
-      set({
-        isVisible: false,
-        data: null,
+      update(store => {
+        // Call onCancel if the modal is being hidden and we have data
+        if (store.data?.onCancel) {
+          store.data.onCancel();
+        }
+        return {
+          isVisible: false,
+          data: null,
+        };
       });
     },
     handleConfirm: (confirmData: {

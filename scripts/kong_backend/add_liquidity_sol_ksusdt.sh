@@ -11,18 +11,28 @@ NETWORK_FLAG=""
 if [ "${NETWORK}" != "local" ]; then
     NETWORK_FLAG="--network ${NETWORK}"
 fi
-IDENTITY="--identity kong_user1"
-KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
+# Use appropriate identity based on network
+if [ "${NETWORK}" == "ic" ]; then
+    IDENTITY="--identity glad"  # Mainnet identity
+    KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"  # Mainnet kong_backend canister
+else
+    IDENTITY="--identity kong_user1"  # Local/staging identity
+    KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
+fi
 
 # Token configurations
 TOKEN_0="SOL"
-TOKEN_0_AMOUNT=1_000_000  # 0.001 SOL (9 decimals)
+TOKEN_0_AMOUNT=300_000_000  # 0.3 SOL (9 decimals)
 TOKEN_0_AMOUNT=${TOKEN_0_AMOUNT//_/}  # remove underscore
 
-TOKEN_1="ksUSDT"
-TOKEN_1_AMOUNT=250_000  # 0.25 ksUSDT (6 decimals) - roughly matching SOL value
+TOKEN_1="ckUSDT"
+TOKEN_1_AMOUNT=46_063_696  # 46.063696 ckUSDT (6 decimals) - matching pool ratio for 0.3 SOL
 TOKEN_1_AMOUNT=${TOKEN_1_AMOUNT//_/}  # remove underscore
-TOKEN_1_LEDGER=$(dfx canister id ${NETWORK_FLAG} ksusdt_ledger)
+if [ "${NETWORK}" == "ic" ]; then
+    TOKEN_1_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT mainnet canister
+else
+    TOKEN_1_LEDGER=$(dfx canister id ${NETWORK_FLAG} ksusdt_ledger)
+fi
 
 # Colors for output
 if [ -t 1 ] && command -v tput >/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
@@ -80,7 +90,11 @@ USER_IC_PRINCIPAL=$(dfx identity get-principal ${IDENTITY})
 print_success "User IC principal: $USER_IC_PRINCIPAL"
 
 # Get Kong backend principal for IC transfers
-KONG_BACKEND_PRINCIPAL=$(dfx canister id kong_backend)
+if [ "${NETWORK}" == "ic" ]; then
+    KONG_BACKEND_PRINCIPAL="u6kfa-6aaaa-aaaam-qdxba-cai"
+else
+    KONG_BACKEND_PRINCIPAL=$(dfx canister id kong_backend)
+fi
 print_success "Kong backend principal: $KONG_BACKEND_PRINCIPAL"
 
 # Step 1: Check current pool state
@@ -99,7 +113,7 @@ print_success "Add liquidity quote: ${ADD_LIQUIDITY_QUOTE}"
 
 # Step 3: Transfer SOL to Kong's address
 print_header "STEP 3: TRANSFER SOL TO KONG"
-print_info "Transferring $(echo "scale=9; $TOKEN_0_AMOUNT / 1000000000" | bc) SOL to Kong..."
+print_info "Transferring $(printf "%.9f" $(echo "scale=9; $TOKEN_0_AMOUNT / 1000000000" | bc)) SOL to Kong..."
 
 # Transfer SOL
 TRANSFER_OUTPUT=$(solana transfer --allow-unfunded-recipient "$KONG_SOLANA_ADDRESS" $(echo "scale=9; $TOKEN_0_AMOUNT / 1000000000" | bc) 2>&1)
@@ -155,14 +169,15 @@ print_header "STEP 6: CREATE SIGNATURE"
 # Create timestamp (milliseconds)
 TIMESTAMP=$(echo "$(date +%s) * 1000" | bc)
 
-# Create canonical add liquidity message
+# Create canonical add liquidity message  
 # Note: The message format must match CanonicalAddLiquidityMessage in the backend
+# IMPORTANT: Candid Nat serializes as arrays in JSON!
 MESSAGE_JSON=$(cat <<EOF
 {
   "token_0": "${TOKEN_0}",
-  "amount_0": $TOKEN_0_AMOUNT,
+  "amount_0": [${TOKEN_0_AMOUNT}],
   "token_1": "${TOKEN_1}",
-  "amount_1": $TOKEN_1_AMOUNT,
+  "amount_1": [${TOKEN_1_AMOUNT}],
   "timestamp": $TIMESTAMP
 }
 EOF
@@ -202,7 +217,7 @@ print_debug "Add liquidity call:"
 echo "$ADD_LIQUIDITY_CALL"
 
 print_info "Submitting add liquidity request..."
-ADD_LIQUIDITY_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY} ${KONG_BACKEND} add_liquidity "$ADD_LIQUIDITY_CALL" 2>&1)
+ADD_LIQUIDITY_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY} ${KONG_BACKEND} add_liquidity_async "$ADD_LIQUIDITY_CALL" 2>&1)
 
 # Check result more carefully
 if echo "${ADD_LIQUIDITY_RESULT}" | grep -q "Ok ="; then

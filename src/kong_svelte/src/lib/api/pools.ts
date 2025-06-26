@@ -353,6 +353,7 @@ export async function pollRequestStatus(
   failureMessagePrefix: string,
   token0Symbol?: string,
   token1Symbol?: string,
+  abortSignal?: AbortSignal,
 ): Promise<any> {
   let attempts = 0;
   const MAX_ATTEMPTS = 50;
@@ -363,6 +364,12 @@ export async function pollRequestStatus(
     toastId = toastStore.info("Processing transaction..."); // Generic initial message
 
     while (attempts < MAX_ATTEMPTS) {
+      // Check if operation was cancelled
+      if (abortSignal?.aborted) {
+        if (toastId !== undefined) toastStore.dismiss(String(toastId));
+        throw new Error("Operation cancelled");
+      }
+      
       // For mainnet deployment, always use swapActor
       const actor = swapActor({anon: true});
       
@@ -443,6 +450,13 @@ export async function pollRequestStatus(
       }
 
       attempts++;
+      
+      // Check cancellation before waiting
+      if (abortSignal?.aborted) {
+        if (toastId !== undefined) toastStore.dismiss(String(toastId));
+        throw new Error("Operation cancelled");
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 600));
     }
 

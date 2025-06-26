@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import { CrossChainSwapService } from '$lib/services/swap/CrossChainSwapService';
   import { toastStore } from '$lib/stores/toastStore';
@@ -32,6 +32,9 @@
   export let lpAmount: string = ''; // for remove liquidity
 
   const dispatch = createEventDispatcher();
+  
+  // Add state tracking
+  let isMounted = true;
 
   let kongSolanaAddress = '';
   let userSolanaAddress = '';
@@ -40,6 +43,7 @@
   let step: 'icrc' | 'sol' | 'confirm' | 'signing' = 'icrc';
   let loading = false;
   let currentPhase = '';
+  let lastError: string | null = null;
 
   // Determine which token is SOL and which is ICRC
   $: solToken = token0.symbol === 'SOL' ? token0 : token1;
@@ -50,6 +54,12 @@
   $: if (show) {
     initializeFlow();
   }
+  
+  onDestroy(() => {
+    isMounted = false;
+    // Clear any ongoing operations
+    loading = false;
+  });
 
   async function initializeFlow() {
     try {
@@ -112,10 +122,15 @@
       
     } catch (error) {
       console.error('ICRC token error:', error);
-      toastStore.error(error instanceof Error ? error.message : `Failed to process ${icrcToken.symbol}`);
-      step = 'icrc'; // Stay on ICRC step for retry
+      if (isMounted) {
+        lastError = error instanceof Error ? error.message : `Failed to process ${icrcToken.symbol}`;
+        toastStore.error(lastError);
+        step = 'icrc'; // Stay on ICRC step for retry
+      }
     } finally {
-      loading = false;
+      if (isMounted) {
+        loading = false;
+      }
     }
   }
 
@@ -194,10 +209,15 @@
       
     } catch (error) {
       console.error('SOL transfer error:', error);
-      toastStore.error(error instanceof Error ? error.message : 'SOL transfer failed');
-      step = 'sol'; // Stay on SOL step for retry
+      if (isMounted) {
+        lastError = error instanceof Error ? error.message : 'SOL transfer failed';
+        toastStore.error(lastError);
+        step = 'sol'; // Stay on SOL step for retry
+      }
     } finally {
-      loading = false;
+      if (isMounted) {
+        loading = false;
+      }
     }
   }
 
@@ -271,10 +291,14 @@
       handleClose();
     } catch (error) {
       console.error('Error signing message:', error);
-      toastStore.error(error instanceof Error ? error.message : 'Failed to sign message');
-      step = 'confirm';
+      if (isMounted) {
+        toastStore.error(error instanceof Error ? error.message : 'Failed to sign message');
+        step = 'confirm';
+      }
     } finally {
-      loading = false;
+      if (isMounted) {
+        loading = false;
+      }
     }
   }
 
@@ -285,6 +309,10 @@
     icrcTransactionId = undefined;
     currentPhase = '';
     loading = false;
+    lastError = null;
+    
+    // Notify parent of cancellation
+    dispatch('cancel');
     dispatch('close');
   }
 
@@ -308,6 +336,13 @@
       </div>
     {:else if step === 'icrc'}
       <div class="space-y-4">
+        {#if lastError}
+          <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h4 class="font-medium text-red-900 mb-2">Error</h4>
+            <p class="text-sm text-red-700 mb-3">{lastError}</p>
+          </div>
+        {/if}
+        
         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
           <h3 class="font-medium text-green-900 mb-2">
             Step 1: Process {icrcToken.symbol}
@@ -330,15 +365,25 @@
         <Button 
           variant="primary" 
           fullWidth 
-          on:click={handleIcrcToken}
+          on:click={() => {
+            lastError = null;
+            handleIcrcToken();
+          }}
           disabled={loading}
         >
-          Process {icrcToken.symbol}
+          {lastError ? 'Retry' : 'Process'} {icrcToken.symbol}
         </Button>
       </div>
 
     {:else if step === 'sol'}
       <div class="space-y-4">
+        {#if lastError}
+          <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h4 class="font-medium text-red-900 mb-2">Error</h4>
+            <p class="text-sm text-red-700 mb-3">{lastError}</p>
+          </div>
+        {/if}
+        
         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
           <h3 class="font-medium text-purple-900 mb-2">
             Step 2: Send SOL
@@ -361,10 +406,13 @@
         <Button 
           variant="primary" 
           fullWidth 
-          on:click={handleSolTransfer}
+          on:click={() => {
+            lastError = null;
+            handleSolTransfer();
+          }}
           disabled={loading}
         >
-          Send SOL
+          {lastError ? 'Retry Send' : 'Send'} SOL
         </Button>
       </div>
 

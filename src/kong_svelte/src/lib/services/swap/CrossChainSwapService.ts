@@ -106,7 +106,7 @@ export class CrossChainSwapService {
       receive_token: params.receiveToken,
       receive_amount: params.receiveAmount.toString(), // Nat serializes to string
       receive_address: params.receiveAddress,
-      max_slippage: params.maxSlippage,
+      max_slippage: parseFloat(params.maxSlippage.toFixed(1)), // Force float format to avoid 2 vs 2.0 issues
       timestamp: Number(params.timestamp), // u64 serializes to number
       referred_by: null // Option<String> serializes to null
     };
@@ -117,6 +117,7 @@ export class CrossChainSwapService {
     console.log('[CrossChainSwapService] Message length:', jsonMessage.length);
     console.log('[CrossChainSwapService] Pay address in message:', params.payAddress);
     console.log('[CrossChainSwapService] Receive address in message:', params.receiveAddress);
+    console.log('[CrossChainSwapService] Original slippage:', params.maxSlippage, 'Formatted slippage:', message.max_slippage);
     
     return jsonMessage;
   }

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
 # Script to create USDC/ksUSDT pool on Kong
-# Uses devnet USDC for local/staging environments
-# use circle faucet to get devnet USDC
-# https://faucet.circle.com/
+# Uses mainnet USDC for ic network, devnet USDC for local/staging environments
+# For devnet USDC use circle faucet: https://faucet.circle.com/
 
 set -eu
 
@@ -13,20 +12,37 @@ NETWORK_FLAG=""
 if [ "${NETWORK}" != "local" ]; then
     NETWORK_FLAG="--network ${NETWORK}"
 fi
-IDENTITY="--identity kong_user1"
+# Use appropriate identity based on network
+if [ "${NETWORK}" == "ic" ]; then
+    IDENTITY="--identity kong"  # Mainnet identity
+else
+    IDENTITY="--identity kong_user1"  # Local/staging identity
+fi
 KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
 
 # Token configurations
-USDC_AMOUNT=1_000_000  # 1 USDC (6 decimals)
+USDC_AMOUNT=49_000_000  # 49 USDC (6 decimals)
 USDC_AMOUNT=${USDC_AMOUNT//_/}  # remove underscore
 USDC_CHAIN="SOL"
-USDC_ADDRESS="4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"  # Devnet USDC
+
+# Use mainnet USDC for ic network, devnet for others
+if [ "${NETWORK}" == "ic" ]; then
+    USDC_ADDRESS="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # Mainnet USDC
+    echo "Using mainnet USDC address: ${USDC_ADDRESS}"
+else
+    USDC_ADDRESS="4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"  # Devnet USDC  
+    echo "Using devnet USDC address: ${USDC_ADDRESS}"
+fi
 
 # ksUSDT configuration
 KSUSDT_SYMBOL="ksUSDT"
 KSUSDT_CHAIN="IC"
-KSUSDT_LEDGER=$(dfx canister id ${NETWORK_FLAG} $(echo ${KSUSDT_SYMBOL} | tr '[:upper:]' '[:lower:]')_ledger)
-KSUSDT_AMOUNT=1_000_000  # 1 ksUSDT (6 decimals)
+if [ "${NETWORK}" == "ic" ]; then
+    KSUSDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT mainnet canister
+else
+    KSUSDT_LEDGER=$(dfx canister id ${NETWORK_FLAG} $(echo ${KSUSDT_SYMBOL} | tr '[:upper:]' '[:lower:]')_ledger)
+fi
+KSUSDT_AMOUNT=49_000_000  # 49 ckUSDT (6 decimals)
 KSUSDT_AMOUNT=${KSUSDT_AMOUNT//_/}
 KSUSDT_FEE=10000  # Standard fee
 
@@ -129,23 +145,10 @@ if [ "$(echo "$USDC_BALANCE" | awk '{print ($1 < 1)}')" -eq 1 ]; then
     exit 1
 fi
 
-# Step 3: Transfer USDC to Kong's address
-print_header "STEP 3: TRANSFER USDC"
-print_info "Transferring $(echo "scale=6; $USDC_AMOUNT / 1000000" | bc) USDC to Kong..."
-
-# Note: --fund-recipient will create Kong's ATA automatically if it doesn't exist
-
-# Transfer USDC
-TRANSFER_OUTPUT=$(spl-token transfer "$USDC_ADDRESS" $(echo "scale=6; $USDC_AMOUNT / 1000000" | bc) "$KONG_SOLANA_ADDRESS" --fund-recipient 2>&1)
-USDC_TX_SIG=$(echo "$TRANSFER_OUTPUT" | grep "Signature" | awk '{print $2}')
-
-if [ -z "$USDC_TX_SIG" ]; then
-    print_error "USDC transfer failed"
-    echo "$TRANSFER_OUTPUT"
-    exit 1
-fi
-
-print_success "USDC transferred!"
+# Step 3: Use existing USDC transaction signature
+print_header "STEP 3: USE EXISTING USDC TRANSACTION"
+USDC_TX_SIG="4EcTXrkEPdKpiE3AxWQpcJDy8F2fr1nsvZH2CxtU5NLfCs3LPUmdVFJh34MJQi3LuZioVtPTh3BMU48dPnfV8Pqu"
+print_success "Using existing USDC transaction!"
 print_info "Transaction: $USDC_TX_SIG"
 
 # Step 4: Wait for transaction confirmation
