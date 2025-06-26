@@ -192,7 +192,19 @@ export class BackendTokenService {
       return '/tokens/not_verified.webp';
     }
     
-    // For IC tokens, return empty string - logos will be fetched from metadata
+    // For known IC tokens with static logos
+    const icLogoMap: Record<string, string> = {
+      'ICP': '/tokens/icp_logo.webp',
+      'ckUSDT': '/tokens/ckusdt_logo.svg',
+      'KONG': '/tokens/kong_logo.png',
+      // Add more IC tokens with static logos as needed
+    };
+    
+    if (icLogoMap[symbol]) {
+      return icLogoMap[symbol];
+    }
+    
+    // For other IC tokens, return empty string - logos will be fetched from metadata
     return '';
   }
 
