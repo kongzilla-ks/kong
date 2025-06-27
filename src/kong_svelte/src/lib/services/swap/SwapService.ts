@@ -75,37 +75,48 @@ export class SwapService {
     try {
       // If decimals provided, handle scaling
       if (decimals !== undefined) {
-        const multiplier = new BigNumber(10).pow(decimals);
-
-        // If it's a BigNumber instance
-        if (value instanceof BigNumber) {
-          if (value.isNaN() || !value.isFinite()) {
-            console.warn("Invalid BigNumber value:", value);
-            return BigInt(0);
-          }
-          return BigInt(
-            value
-              .times(multiplier)
-              .integerValue(BigNumber.ROUND_DOWN)
-              .toString(),
-          );
-        }
-
-        // If it's a string or number
-        if (!this.isValidNumber(value)) {
+        // Use higher precision for intermediate calculations
+        const tempBigNumber = new BigNumber(value);
+        
+        if (tempBigNumber.isNaN() || !tempBigNumber.isFinite()) {
           console.warn("Invalid numeric value:", value);
           return BigInt(0);
         }
 
-        const bn = new BigNumber(value);
-        if (bn.isNaN() || !bn.isFinite()) {
-          console.warn("Invalid conversion to BigNumber:", value);
-          return BigInt(0);
+        // For better precision, use string manipulation for simple decimal shifts
+        // This avoids floating point errors
+        const valueStr = tempBigNumber.toFixed();
+        const parts = valueStr.split('.');
+        const integerPart = parts[0] || '0';
+        const decimalPart = parts[1] || '';
+        
+        // Pad or trim decimal part to match decimals
+        let scaledDecimal = decimalPart.padEnd(decimals, '0').slice(0, decimals);
+        
+        // Remove leading zeros from integer part (but keep at least one zero)
+        let cleanInteger = integerPart.replace(/^0+/, '') || '0';
+        
+        // Combine integer and decimal parts
+        const result = cleanInteger + scaledDecimal;
+        
+        // Remove any leading zeros from final result (but keep at least one digit)
+        const finalResult = result.replace(/^0+/, '') || '0';
+        
+        // Debug logging for USDC conversion issues
+        if (decimals === 6 && (valueStr.includes('0.258109') || finalResult === '258108' || finalResult === '258109')) {
+          console.log('[SwapService] toBigInt precision check:', {
+            input: value.toString(),
+            valueStr,
+            integerPart,
+            decimalPart,
+            scaledDecimal,
+            result,
+            finalResult,
+            decimals
+          });
         }
-
-        return BigInt(
-          bn.times(multiplier).integerValue(BigNumber.ROUND_DOWN).toString(),
-        );
+        
+        return BigInt(finalResult);
       }
 
       // Original logic for when no decimals provided
@@ -461,6 +472,14 @@ export class SwapService {
       updates.receiveToken = token;
       updates.showReceiveTokenSelector = false;
     }
+
+    // Debug log to check token chain
+    console.log(`[SwapService] Selected ${type} token:`, {
+      symbol: token.symbol,
+      chain: token.chain,
+      address: token.address,
+      token_type: token.token_type
+    });
 
     swapState.update(state => ({ ...state, ...updates }));
   }
@@ -883,6 +902,13 @@ export class SwapService {
             try {
               const { transactionId, signature, timestamp } = modalData;
               
+              console.log('[SwapService] Cross-chain swap modalData:', {
+                transactionId,
+                signature,
+                timestamp,
+                modalData
+              });
+              
               // Execute swap with signature
               // IMPORTANT: These values must match exactly what was signed in the canonical message
               const receiveAmountBigInt = SwapService.toBigInt(params.receiveAmount, params.receiveToken.decimals);
@@ -903,10 +929,23 @@ export class SwapService {
                 timestamp: [timestamp] as [] | [bigint],
               };
 
+              console.log('[SwapService] Final cross-chain swap_async params:', {
+                pay_token: swapParams.pay_token,
+                pay_amount: swapParams.pay_amount.toString(),
+                receive_token: swapParams.receive_token,
+                receive_amount: swapParams.receive_amount,
+                max_slippage: swapParams.max_slippage,
+                receive_address: swapParams.receive_address,
+                referred_by: swapParams.referred_by,
+                pay_tx_id: swapParams.pay_tx_id,
+                signature: swapParams.signature,
+                timestamp: swapParams.timestamp
+              });
+
               const result = await SwapService.swap_async(swapParams, (attempt, maxAttempts) => {
                 // Show retry progress to user
                 if (attempt === 1) {
-                  toastStore.info("Initiating cross-chain swap...");
+                  // Silent - no need for initiation toast
                 } else {
                   toastStore.info(
                     `Verifying Solana transaction... (attempt ${attempt}/${maxAttempts})`,
@@ -919,7 +958,7 @@ export class SwapService {
               });
 
               if (result.Ok) {
-                toastStore.success("Cross-chain swap initiated!");
+                // Silent - will show success message when complete
                 // Start monitoring the transaction
                 this.monitorTransaction(result.Ok, swapId, "");
                 resolve(result.Ok);
@@ -984,10 +1023,10 @@ export class SwapService {
                 
                 if (status.toLowerCase() === "swap success") {
                   toastStore.dismiss(toastId);
-                  toastStore.info(`Swap completed`);
+                  // Silent - will show detailed message below
                   swapState.setShowSuccessModal(true);
                 } else if (status === "Success") {
-                  toastStore.info(`Balances updated!`);
+                  // Silent - balances update automatically
                 } else if (status.toLowerCase().includes("failed")) {
                   toastStore.dismiss(toastId);
                   toastStore.error(`${status}`);

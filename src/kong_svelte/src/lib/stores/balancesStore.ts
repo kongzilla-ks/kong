@@ -3,8 +3,27 @@ import { Principal } from "@dfinity/principal";
 import { auth } from "$lib/stores/auth";
 import { userTokens } from "$lib/stores/userTokens";
 
-// Create a store for balances
-export const currentUserBalancesStore = writable<Record<string, TokenBalance>>({});
+// Create a store for balances with custom methods
+function createBalancesStore() {
+  const { subscribe, set, update } = writable<Record<string, TokenBalance>>({});
+
+  return {
+    subscribe,
+    set,
+    update,
+    updateBalance: (address: string, balance: { balance: bigint; in_tokens: bigint; token: string; in_usd?: string }) => {
+      update(balances => ({
+        ...balances,
+        [address]: {
+          in_tokens: balance.in_tokens,
+          in_usd: balance.in_usd || "0"
+        }
+      }));
+    }
+  };
+}
+
+export const currentUserBalancesStore = createBalancesStore();
 
 // Define a new implementation of loadBalances to avoid circular dependencies
 export const loadBalances = async (

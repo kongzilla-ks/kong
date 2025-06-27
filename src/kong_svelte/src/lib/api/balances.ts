@@ -17,40 +17,18 @@ function convertPrincipalId(principalId: string | Principal): Principal {
 
 // Fetch Solana balance for a specific token
 async function fetchSolanaBalance(token: Kong.Token): Promise<TokenBalance> {
-  const authData = get(auth);
+  // Always use the balance from polling service (updated every second)
+  // This avoids PNP's Jupiter API calls that are blocked by CSP
+  const { currentUserBalancesStore } = await import("$lib/stores/balancesStore");
+  const currentBalances = get(currentUserBalancesStore);
   
-  // Check if user is connected and provider is available
-  if (!authData.isConnected || !pnp.provider) {
-    console.warn('Solana provider not available or user not connected');
-    return {
-      in_tokens: BigInt(0),
-      in_usd: formatToNonZeroDecimal(0),
-    };
+  if (currentBalances[token.address]) {
+    // Use the balance from polling service
+    return currentBalances[token.address];
   }
-
-  try {
-    // For native SOL
-    if (token.symbol === 'SOL') {
-      const solBalance = await pnp.provider.getSolBalance?.();
-      if (solBalance && typeof solBalance.amount === 'number') {
-        const balanceInLamports = BigInt(Math.floor(solBalance.amount * Math.pow(10, token.decimals)));
-        return formatTokenBalance(balanceInLamports, token.decimals, token?.metrics?.price ?? DEFAULT_PRICE);
-      }
-    } else {
-      // For SPL tokens
-      const splBalances = await pnp.provider.getSplTokenBalances?.();
-      if (Array.isArray(splBalances)) {
-        const tokenBalance = splBalances.find(t => t.mint === token.address);
-        if (tokenBalance) {
-          const balanceInSmallestUnit = BigInt(tokenBalance.amount || 0);
-          return formatTokenBalance(balanceInSmallestUnit, token.decimals, token?.metrics?.price ?? DEFAULT_PRICE);
-        }
-      }
-    }
-  } catch (error) {
-    console.error(`Error fetching Solana balance for ${token.symbol}:`, error);
-  }
-
+  
+  // If no balance in store yet, return zero
+  // The polling service will update it within 1 second
   return {
     in_tokens: BigInt(0),
     in_usd: formatToNonZeroDecimal(0),

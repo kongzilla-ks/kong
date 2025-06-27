@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 
 use crate::ic::network::ICNetwork;
 use crate::solana::error::SolanaError;
-use crate::solana::network::{ASSOCIATED_TOKEN_PROGRAM_ID, MEMO_PROGRAM_ID, SYSVAR_RENT_PROGRAM_ID, SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
+use crate::solana::network::{ASSOCIATED_TOKEN_PROGRAM_ID, COMPUTE_BUDGET_PROGRAM_ID, MEMO_PROGRAM_ID, SYSVAR_RENT_PROGRAM_ID, SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
 use crate::solana::sdk::account_meta::AccountMeta;
 use crate::solana::sdk::instruction::Instruction;
 use crate::solana::utils::validation;
@@ -29,6 +29,16 @@ pub struct TransactionBuilder;
 
 // Define a constant for the blockhash freshness threshold (45 seconds in nanoseconds)
 const BLOCKHASH_FRESHNESS_THRESHOLD_NANOS: u64 = 45 * 1_000_000_000;
+
+// Compute unit constants for different transaction types
+const COMPUTE_UNITS_SOL_TRANSFER: u32 = 50_000;
+const COMPUTE_UNITS_SPL_TRANSFER: u32 = 100_000;
+const COMPUTE_UNITS_SPL_WITH_ATA: u32 = 150_000;
+
+// Priority fee constants (in microlamports per compute unit)
+const PRIORITY_FEE_SOL: u64 = 100; // 100 microlamports/CU = 5,000 lamports total for 50k CU
+const PRIORITY_FEE_SPL: u64 = 150; // 150 microlamports/CU = 15,000 lamports total for 100k CU
+const PRIORITY_FEE_SPL_WITH_ATA: u64 = 100; // 100 microlamports/CU = 15,000 lamports total for 150k CU
 
 /// Parameters for building a SPL token transfer transaction with ATA creation
 #[derive(Debug, Clone)]
@@ -89,9 +99,15 @@ impl TransactionBuilder {
         // Validate addresses
         validation::validate_addresses(&[from_address, to_address])?;
 
-        // Create the transfer instructions
+        // Start with compute budget instructions
+        let mut instructions = Self::create_compute_budget_instructions(
+            COMPUTE_UNITS_SOL_TRANSFER,
+            PRIORITY_FEE_SOL,
+        )?;
+
+        // Add the transfer instruction
         let transfer_instruction = Self::create_transfer_sol_instruction(from_address, to_address, lamports)?;
-        let mut instructions = vec![transfer_instruction];
+        instructions.push(transfer_instruction);
         
         // Add memo instruction if provided
         if let Some(memo_text) = memo {
@@ -158,10 +174,16 @@ impl TransactionBuilder {
         // Validate addresses
         validation::validate_addresses(&[owner_address, from_token_account, to_token_account])?;
 
-        // Create the transfer instructions
+        // Start with compute budget instructions
+        let mut instructions = Self::create_compute_budget_instructions(
+            COMPUTE_UNITS_SPL_TRANSFER,
+            PRIORITY_FEE_SPL,
+        )?;
+
+        // Add the transfer instruction
         let token_transfer_instruction =
             Self::create_transfer_spl_instruction(owner_address, from_token_account, to_token_account, amount)?;
-        let mut instructions = vec![token_transfer_instruction];
+        instructions.push(token_transfer_instruction);
         
         // Add memo instruction if provided
         if let Some(memo_text) = memo {
@@ -233,6 +255,42 @@ impl TransactionBuilder {
             accounts,
             data: memo.as_bytes().to_vec(),
         })
+    }
+
+    /// Create SetComputeUnitLimit instruction
+    fn create_set_compute_unit_limit_instruction(units: u32) -> Result<Instruction> {
+        // Instruction discriminator 0x02 for SetComputeUnitLimit
+        let mut data = vec![0x02];
+        // Add units as little-endian u32
+        data.extend_from_slice(&units.to_le_bytes());
+
+        Ok(Instruction {
+            program_id: COMPUTE_BUDGET_PROGRAM_ID.to_string(),
+            accounts: vec![], // No accounts needed
+            data,
+        })
+    }
+
+    /// Create SetComputeUnitPrice instruction
+    fn create_set_compute_unit_price_instruction(microlamports: u64) -> Result<Instruction> {
+        // Instruction discriminator 0x03 for SetComputeUnitPrice
+        let mut data = vec![0x03];
+        // Add price as little-endian u64
+        data.extend_from_slice(&microlamports.to_le_bytes());
+
+        Ok(Instruction {
+            program_id: COMPUTE_BUDGET_PROGRAM_ID.to_string(),
+            accounts: vec![], // No accounts needed
+            data,
+        })
+    }
+
+    /// Create compute budget instructions for a transaction
+    fn create_compute_budget_instructions(compute_units: u32, priority_fee: u64) -> Result<Vec<Instruction>> {
+        Ok(vec![
+            Self::create_set_compute_unit_limit_instruction(compute_units)?,
+            Self::create_set_compute_unit_price_instruction(priority_fee)?,
+        ])
     }
 
     /// Derive the associated token account address for a wallet and mint
@@ -400,7 +458,11 @@ impl TransactionBuilder {
             ).into());
         }
 
-        let mut instructions = Vec::new();
+        // Start with compute budget instructions
+        let mut instructions = Self::create_compute_budget_instructions(
+            COMPUTE_UNITS_SPL_WITH_ATA,
+            PRIORITY_FEE_SPL_WITH_ATA,
+        )?;
 
         // 1. Create ATA instruction (idempotent - no error if ATA exists)
         let create_ata_instruction = Self::create_associated_token_account_instruction(

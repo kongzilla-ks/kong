@@ -2,11 +2,13 @@
   import { app } from "$lib/state/app.state.svelte";
   import TokenImages from "$lib/components/common/TokenImages.svelte";
   import Panel from "$lib/components/common/Panel.svelte";
+  import ChainBadge from "$lib/components/common/ChainBadge.svelte";
   import { onMount } from "svelte";
   import { KONG_CANISTER_ID } from "$lib/constants/canisterConstants";
   import { Flame, TrendingUp, PiggyBank, CheckCircle } from "lucide-svelte";
   import { livePools } from "$lib/stores/poolStore";
   import { tooltip } from "$lib/actions/tooltip";
+  import { formatUsdValue } from "$lib/utils/tokenFormatters";
 
   // Define proper types for the pool data
   type Token = Kong.Token;
@@ -18,6 +20,8 @@
     tvl: number | bigint;
     rolling_24h_volume: number | bigint;
     rolling_24h_apy: number;
+    chain_0?: string;
+    chain_1?: string;
   };
 
   let { row, userPosition = null } = $props<{
@@ -85,6 +89,17 @@
       <div class="pool-name">
         <div class="flex items-center gap-2">
           <span>{pool.token0?.symbol}/{pool.token1?.symbol}</span>
+          {#if pool.chain_0 && pool.chain_1}
+            {#if pool.chain_0 !== pool.chain_1}
+              <div class="flex items-center gap-1">
+                <ChainBadge chain={pool.chain_0} size="small" />
+                <span class="text-kong-text-secondary text-xs">·</span>
+                <ChainBadge chain={pool.chain_1} size="small" />
+              </div>
+            {:else}
+              <ChainBadge chain={pool.chain_0} size="small" />
+            {/if}
+          {/if}
           {#if userPosition}
             <div class="bg-kong-accent-green/10 text-kong-accent-green text-xs font-medium px-2 py-0.5 rounded-md flex items-center gap-1">
               <CheckCircle size={10} />
@@ -131,6 +146,17 @@
         <div class="token-details">
           <div class="flex items-center gap-2">
             <span class="token-pair">{pool.token0?.symbol}/{pool.token1?.symbol}</span>
+            {#if pool.chain_0 && pool.chain_1}
+              {#if pool.chain_0 !== pool.chain_1}
+                <div class="flex items-center gap-1">
+                  <ChainBadge chain={pool.chain_0} size="small" />
+                  <span class="text-kong-text-secondary text-xs">·</span>
+                  <ChainBadge chain={pool.chain_1} size="small" />
+                </div>
+              {:else}
+                <ChainBadge chain={pool.chain_0} size="small" />
+              {/if}
+            {/if}
             {#if isTopVolume || isTopTVL || isTopAPY}
               <div class="flex gap-1 items-center">
                 {#if isTopVolume}
@@ -151,7 +177,7 @@
               </div>
             {/if}
           </div>
-          <span class="tvl-badge">TVL: ${pool.tvl}</span>
+          <span class="tvl-badge">{formatUsdValue(pool.displayTvl)}</span>
         </div>
       </div>
     </div>

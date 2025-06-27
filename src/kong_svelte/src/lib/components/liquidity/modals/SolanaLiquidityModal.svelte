@@ -10,6 +10,7 @@
   import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
   import { IcrcService } from '$lib/services/icrc/IcrcService';
   import { canisters } from '$lib/config/auth.config';
+  import { SOLANA_RPC_ENDPOINT } from '$lib/config/solana.config';
 
   // Declare window.solana for TypeScript
   declare global {
@@ -147,7 +148,7 @@
       }
 
       // Create connection
-      const connection = new Connection('https://mainnet.solana.validationcloud.io/v1/vEH0znkrmOFeAxXCJAyIGLQFSPVY38NzDe2NkNvNQt4');
+      const connection = new Connection(SOLANA_RPC_ENDPOINT);
       
       // Convert amount to lamports
       const amountInLamports = Math.floor(parseFloat(solAmount) * LAMPORTS_PER_SOL);

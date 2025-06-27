@@ -47,11 +47,17 @@
               <span class="text-xs text-kong-text-secondary uppercase tracking-wider">24H Volume</span>
             </div>
             <div class="text-2xl font-bold text-kong-text-primary mb-1">
-              {formatUsdValue(poolTotals.total_volume_24h)}
+              {#if poolTotals.total_volume_24h > 0}
+                {formatUsdValue(poolTotals.total_volume_24h)}
+              {:else}
+                <span class="text-lg italic opacity-60">Early Access</span>
+              {/if}
             </div>
-            <div class="text-sm text-kong-success font-medium">
-              = {formatUsdValue(poolTotals.total_volume_24h * 0.003)} in fees
-            </div>
+            {#if poolTotals.total_volume_24h > 0}
+              <div class="text-sm text-kong-success font-medium">
+                = {formatUsdValue(poolTotals.total_volume_24h * 0.003)} in fees
+              </div>
+            {/if}
           </div>
 
           <!-- Total TVL -->
@@ -79,11 +85,17 @@
               <span class="text-xs text-kong-success uppercase tracking-wider font-semibold">Top APR</span>
             </div>
             <div class="text-2xl font-bold text-kong-success mb-1">
-              {highestAPY.toFixed(2)}%
+              {#if highestAPY > 0}
+                {highestAPY.toFixed(2)}%
+              {:else}
+                <span class="text-lg italic opacity-60 text-kong-text-primary">Early Access</span>
+              {/if}
             </div>
-            <div class="text-sm text-kong-text-secondary">
-              Best performing pool
-            </div>
+            {#if highestAPY > 0}
+              <div class="text-sm text-kong-text-secondary">
+                Best performing pool
+              </div>
+            {/if}
           </div>
         </div>
 

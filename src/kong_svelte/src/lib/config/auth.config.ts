@@ -87,7 +87,6 @@ export const canisters: CanisterConfigs = {
 
 // --- PNP Initialization ---
 let globalPnp: PNP | null = null;
-const isDev = process.env.DFX_NETWORK === "local";
 // Use the current kong_svelte canister ID
 const frontendCanisterId = "uxjo4-iiaaa-aaaam-qdxaq-cai";
 
@@ -119,18 +118,19 @@ export function initializePNP(): PNP {
     console.log('[PNP] CANISTER_ID_KONG_BACKEND:', process.env.CANISTER_ID_KONG_BACKEND);
     console.log('[PNP] Kong backend canister ID from declarations:', kongBackendCanisterId);
     
-    // Create a stable configuration object - always use mainnet
+    // Create configuration based on environment
+    const isLocal = process.env.DFX_NETWORK === 'local';
     const config = {
-      dfxNetwork: 'ic',
-      // Always use mainnet host
-      hostUrl: 'https://icp0.io',
+      dfxNetwork: isLocal ? 'local' : 'ic',
+      // Use appropriate host based on environment
+      hostUrl: isLocal ? 'http://127.0.0.1:4943' : 'https://icp0.io',
       frontendCanisterId,
       timeout: BigInt(30 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 30 days
       delegationTimeout: BigInt(30 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 30 days
       delegationTargets,
-      derivationOrigin: `https://${frontendCanisterId}.icp0.io`,
+      derivationOrigin: isLocal ? undefined : `https://${frontendCanisterId}.icp0.io`,
       siwsProviderCanisterId,
-      fetchRootKeys: false, // Never fetch root keys on mainnet
+      fetchRootKeys: isLocal, // Fetch root keys only for local development
       adapters: {
         ii: {
           enabled: true,
@@ -179,13 +179,13 @@ export function initializePNP(): PNP {
     } as GlobalPnpConfig;
 
     console.log('[PNP] Final config being used:');
+    console.log('[PNP] - Environment:', isLocal ? 'LOCAL' : 'MAINNET');
     console.log('[PNP] - dfxNetwork:', config.dfxNetwork);
-    console.log('[PNP] - host:', config.host);
     console.log('[PNP] - hostUrl:', config.hostUrl);
-    console.log('[PNP] - replicaPort:', config.replicaPort);
+    console.log('[PNP] - fetchRootKeys:', config.fetchRootKeys);
     console.log('[PNP] - delegationTargets:', config.delegationTargets);
 
-    // Initialize PNP with the stable config
+    // Initialize PNP with the environment-aware config
     globalPnp = createPNP(config);
 
     return globalPnp;

@@ -7,6 +7,7 @@
   import TokenInput from "./TokenInput.svelte";
   import { calculateLiquidityAmounts } from "$lib/api/pools";
   import ButtonV2 from "$lib/components/common/ButtonV2.svelte";
+  import EarlyAccessScreen from "./EarlyAccessScreen.svelte";
 
   interface Props {
     pool: any;
@@ -16,6 +17,9 @@
   }
 
   let { pool, token0, token1, onShowConfirmModal }: Props = $props();
+  
+  // Check if early access is enabled (you can modify this condition based on your requirements)
+  const EARLY_ACCESS_ENABLED = true; // Set to false when ready to launch publicly
 
   // Unified state for atomic updates
   let state = $state({
@@ -166,8 +170,11 @@
   });
 </script>
 
-<div in:fade={{ duration: 200 }} class="add-liquidity-container">
-  <TokenInput
+{#if EARLY_ACCESS_ENABLED}
+  <EarlyAccessScreen />
+{:else}
+  <div in:fade={{ duration: 200 }} class="add-liquidity-container">
+    <TokenInput
     token={token0}
     tokenBalance={balances[0]}
     bind:displayValue={state.displayValues[0]}
@@ -259,6 +266,7 @@
     </div>
   </div>
 </div>
+{/if}
 
 <style lang="postcss" scoped>
   .add-liquidity-container {

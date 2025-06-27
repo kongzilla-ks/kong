@@ -99,10 +99,13 @@
       : []
   );
   
-  // Debug log to see what tokens we have
+  // Debug log to see what tokens we have - use untrack to prevent reactive loops
+  let lastLoggedTokenCount = 0;
   $effect(() => {
-    if (browser && tokens.length > 0) {
+    if (browser && tokens.length > 0 && tokens.length !== lastLoggedTokenCount) {
+      lastLoggedTokenCount = tokens.length;
       console.log('[TokenSelector] Available tokens:', tokens.map(t => `${t.symbol} (${t.address})`));
+      // Use untrack to read enabledTokens without creating reactive dependency
       console.log('[TokenSelector] Total enabled tokens:', $userTokens.enabledTokens.size);
     }
   });
@@ -156,6 +159,13 @@
   let solTokensCount = $derived(
     baseFilteredTokens.filter((t) => t.chain === "Solana").length
   );
+  
+  // Debug token chains
+  $effect(() => {
+    const chains = baseFilteredTokens.map(t => ({ symbol: t.symbol, chain: t.chain }));
+    console.log('[TokenSelector] Token chains:', chains);
+    console.log('[TokenSelector] ICP count:', icpTokensCount, 'SOL count:', solTokensCount);
+  });
   let suiTokensCount = $derived(0); // Coming soon
   let bnbTokensCount = $derived(0); // Coming soon
 
@@ -344,6 +354,21 @@
     if (userToken) {
       selectedToken = userToken;
     }
+    
+    // Debug token selection
+    console.log('[TokenSelector] Selecting token:', {
+      original: {
+        symbol: token.symbol,
+        chain: token.chain,
+        address: token.address
+      },
+      selected: {
+        symbol: selectedToken.symbol,
+        chain: selectedToken.chain,
+        address: selectedToken.address
+      }
+    });
+    
     onSelect(selectedToken);
     searchQuery = "";
   }
@@ -501,9 +526,13 @@
     }
   });
 
+  let hasLoadedForCurrentShow = false;
+  
   $effect(() => {
-    // Load data when dropdown is shown
-    if (show && browser) {
+    // Load data when dropdown is shown - prevent multiple loads
+    if (show && browser && !hasLoadedForCurrentShow) {
+      hasLoadedForCurrentShow = true;
+      
       // Load balances if authenticated
       if (isUserAuthenticated && $auth.account?.owner) {
         loadVisibleTokenBalances();
@@ -525,12 +554,25 @@
         window.addEventListener("click", handleClickOutside);
         window.addEventListener("keydown", handleKeydown);
       }, 0);
+    } else if (!show) {
+      // Reset flag when dropdown is hidden
+      hasLoadedForCurrentShow = false;
     }
   });
 
+  let lastVisibleTokensLength = 0;
+  
   $effect(() => {
-    // Balance loading when visible tokens change
-    if (show && browser) loadVisibleTokenBalances();
+    // Balance loading when visible tokens change - debounce to prevent loops
+    if (show && browser && filteredTokens.length !== lastVisibleTokensLength) {
+      lastVisibleTokensLength = filteredTokens.length;
+      // Debounce balance loading to prevent rapid calls
+      setTimeout(() => {
+        if (show && browser) {
+          loadVisibleTokenBalances();
+        }
+      }, 100);
+    }
   });
 
   // Cleanup

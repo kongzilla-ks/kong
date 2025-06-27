@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import { CrossChainSwapService } from '$lib/services/swap/CrossChainSwapService';
   import { toastStore } from '$lib/stores/toastStore';
@@ -8,6 +8,14 @@
   import { Copy, ExternalLink } from 'lucide-svelte';
   import { auth } from '$lib/stores/auth';
   import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+  import { 
+    TOKEN_PROGRAM_ID,
+    getAssociatedTokenAddress,
+    createAssociatedTokenAccountInstruction,
+    createTransferInstruction
+  } from '@solana/spl-token';
+  import { SOLANA_RPC_ENDPOINT } from '$lib/config/solana.config';
+  import { solanaPollingService } from '$lib/services/solana/SolanaPollingService';
 
   // Declare window.solana for TypeScript
   declare global {
@@ -38,7 +46,14 @@
 
   $: if (show) {
     loadAddresses();
+    // Enable silent mode to reduce logging during swap
+    solanaPollingService.setSilentMode(true);
   }
+
+  onDestroy(() => {
+    // Re-enable logging when modal closes
+    solanaPollingService.setSilentMode(false);
+  });
 
   async function loadAddresses() {
     try {
@@ -124,7 +139,7 @@
         if (!signature && (provider as any).request) {
           try {
             const serializedTx = transaction.serialize({ requireAllSignatures: false });
-            const base64Tx = Buffer.from(serializedTx).toString('base64');
+            const base64Tx = btoa(String.fromCharCode(...serializedTx));
             
             signature = await (provider as any).request({
               method: 'sendTransaction',
@@ -148,8 +163,131 @@
           throw new Error('Unable to send transaction with current wallet');
         }
       } else {
-        // For SPL token transfers, we'd need to handle differently
-        toastStore.error('SPL token transfers not yet implemented');
+        // SPL token transfer implementation
+        console.log('[SolanaTransferModal] Initiating SPL token transfer:', payToken.symbol);
+        
+        // Create connection
+        const connection = new Connection(SOLANA_RPC_ENDPOINT);
+        
+        // Get token mint address from token data
+        const tokenMintAddress = payToken.address;
+        if (!tokenMintAddress) {
+          throw new Error('Token mint address not found');
+        }
+        
+        const mintPubkey = new PublicKey(tokenMintAddress);
+        const fromPubkey = new PublicKey(userSolanaAddress);
+        const toPubkey = new PublicKey(kongSolanaAddress);
+        
+        // Get associated token accounts
+        const fromTokenAccount = await getAssociatedTokenAddress(
+          mintPubkey,
+          fromPubkey
+        );
+        
+        const toTokenAccount = await getAssociatedTokenAddress(
+          mintPubkey,
+          toPubkey
+        );
+        
+        // Check if the recipient's token account exists
+        const toTokenAccountInfo = await connection.getAccountInfo(toTokenAccount);
+        
+        // Create transaction
+        const transaction = new Transaction();
+        
+        // If the recipient's token account doesn't exist, create it
+        if (!toTokenAccountInfo) {
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              fromPubkey, // payer
+              toTokenAccount, // associated token account
+              toPubkey, // owner
+              mintPubkey // token mint
+            )
+          );
+        }
+        
+        // Convert amount to token units (handle decimals)
+        const tokenDecimals = payToken.decimals || 6; // Default to 6 decimals for USDC
+        const amountInTokenUnits = Math.floor(parseFloat(payAmount) * Math.pow(10, tokenDecimals));
+        
+        // Add transfer instruction
+        transaction.add(
+          createTransferInstruction(
+            fromTokenAccount, // from token account
+            toTokenAccount, // to token account
+            fromPubkey, // from owner
+            amountInTokenUnits, // amount
+            [], // multi-signers
+            TOKEN_PROGRAM_ID // token program
+          )
+        );
+        
+        // Get recent blockhash
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = fromPubkey;
+        
+        // Try different methods to send the transaction
+        let signature = '';
+        
+        // Method 1: Try using the window.solana object directly (Phantom specific)
+        if (window.solana && window.solana.isPhantom) {
+          try {
+            const phantomProvider = window.solana;
+            
+            // Request connection if needed
+            if (!phantomProvider.isConnected) {
+              await phantomProvider.connect();
+            }
+            
+            // Send transaction
+            const { signature: txSig } = await phantomProvider.signAndSendTransaction(transaction);
+            signature = txSig;
+          } catch (e) {
+            console.error('Phantom direct method failed:', e);
+          }
+        }
+        
+        // Method 2: Try using sendTransaction if available
+        if (!signature && (provider as any).sendTransaction) {
+          try {
+            signature = await (provider as any).sendTransaction(transaction, connection);
+            await connection.confirmTransaction(signature, 'confirmed');
+          } catch (e) {
+            console.error('sendTransaction method failed:', e);
+          }
+        }
+        
+        // Method 3: Try using request method (for some wallet adapters)
+        if (!signature && (provider as any).request) {
+          try {
+            const serializedTx = transaction.serialize({ requireAllSignatures: false });
+            const base64Tx = btoa(String.fromCharCode(...serializedTx));
+            
+            signature = await (provider as any).request({
+              method: 'sendTransaction',
+              params: {
+                transaction: base64Tx,
+                options: { skipPreflight: false }
+              }
+            });
+          } catch (e) {
+            console.error('request method failed:', e);
+          }
+        }
+        
+        if (signature) {
+          transactionId = signature;
+          console.log('[SolanaTransferModal] SPL transfer signature:', signature);
+          toastStore.success('SPL token transfer completed! Preparing swap...');
+          step = 'confirm';
+          // Automatically proceed to sign the message
+          await handleConfirmSwap();
+        } else {
+          throw new Error('Unable to send SPL token transaction with current wallet');
+        }
       }
     } catch (error) {
       console.error('Transfer error:', error);

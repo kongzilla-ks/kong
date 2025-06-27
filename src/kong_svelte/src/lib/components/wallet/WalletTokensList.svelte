@@ -5,7 +5,9 @@
 	import { currentUserBalancesStore } from "$lib/stores/balancesStore";
 	import { fade, slide } from "svelte/transition";
 	import { onMount } from "svelte";
+	import { get } from "svelte/store";
 	import { goto } from '$app/navigation';
+	import { auth } from "$lib/stores/auth";
 	import { toastStore } from '$lib/stores/toastStore';
 	import AddNewTokenModal from "$lib/components/wallet/AddNewTokenModal.svelte";
 	import ManageTokensModal from "$lib/components/wallet/ManageTokensModal.svelte";
@@ -67,10 +69,10 @@
 	}: WalletTokensListProps = $props();
 
 	// --- Solana State ---
-	// let solNativeBalance = $state<number | null>(null);
-	// let splTokens = $state<SplTokenBalance[]>([]);
-	// let isLoadingSolana = $state(false);
-	// let solanaLoadError = $state<string | null>(null);
+	let solNativeBalance = $state<number | null>(null);
+	let splTokens = $state<SplTokenBalance[]>([]);
+	let isLoadingSolana = $state(false);
+	let solanaLoadError = $state<string | null>(null);
 	// --------------------
 
 	// Process tokens with balance information when we need to do it internally
@@ -103,39 +105,31 @@
 				.filter(Boolean); // Filter out any nulls (missing tokens)
 
 			// --- Process Solana Tokens ---
-			// const solProcessed: Kong.Token[] = [];
+			const solProcessed: Kong.Token[] = [];
 			
-			// Add SPL tokens
-			// splTokens.forEach(spl => {
-			// 	// Placeholder token for SPL
-			// 	const splToken: Kong.Token = {
-			// 		id: 0,
-			// 		name: spl.name,
-			// 		symbol: spl.symbol,
-			// 		address: spl.mint,
-			// 		chain: 'Solana',
-			// 		fee: 0,
-			// 		fee_fixed: '0',
-			// 		token_type: 'SPL',
-			// 		standards: ['SPL'],
-			// 		decimals: Number(spl.decimals),
-			// 		metrics: {
-			// 			price: String(spl.usdValue / spl.uiAmount),
-			// 			price_change_24h: '0',
-			// 			total_supply: '0',
-			// 			market_cap: '0',
-			// 			volume_24h: '0',
-			// 			tvl: '0',
-			// 			updated_at: new Date().toISOString()
-			// 		},
-			// 		logo_url: spl.logo || ''
-			// 	};
-				
-			// 	solProcessed.push(splToken);
-			// });
+			// Add native SOL from balance store
+			const solTokenFromStore = Array.from($userTokens.tokenData.values()).find(
+				token => token.chain === 'Solana' && token.symbol === 'SOL'
+			);
+			if (solTokenFromStore) {
+				const balanceInfo = $currentUserBalancesStore[solTokenFromStore.address];
+				if (balanceInfo && Number(balanceInfo.in_tokens) > 0) {
+					solProcessed.push(solTokenFromStore);
+				}
+			}
+			
+			// Add SPL tokens from balance store
+			Array.from($userTokens.tokenData.values())
+				.filter(token => token.chain === 'Solana' && token.symbol !== 'SOL' && $userTokens.enabledTokens.has(token.address))
+				.forEach(token => {
+					const balanceInfo = $currentUserBalancesStore[token.address];
+					if (balanceInfo && Number(balanceInfo.in_tokens) > 0) {
+						solProcessed.push(token);
+					}
+				});
 
 			// --- Combine and Sort ---
-			const combined = [...icpProcessed]; // Use only ICP tokens for now
+			const combined = [...icpProcessed, ...solProcessed]; // Include both ICP and Solana tokens
 			
 			// Sort by USD value - we'll get USD values from the store
 			const sorted = combined.sort((a, b) => {
@@ -191,49 +185,50 @@
 	});
 
 	// --- Fetch Solana Balances ---
-	// async function fetchSolanaBalances() {
-	// 	if (!auth.pnp?.provider?.getSolBalance || !auth.pnp?.provider?.getSplTokenBalances) {
-	// 		console.log("[WalletTokensList] Solana provider methods not available.");
-	// 		return;
-	// 	}
+	async function fetchSolanaBalances() {
+		const authState = get(auth);
+		if (!authState.pnp?.provider?.getSolBalance || !authState.pnp?.provider?.getSplTokenBalances) {
+			console.log("[WalletTokensList] Solana provider methods not available.");
+			return;
+		}
 		
-	// 	isLoadingSolana = true;
-	// 	solanaLoadError = null;
+		isLoadingSolana = true;
+		solanaLoadError = null;
 		
-	// 	try {
-	// 		const [solBalance, splBalances] = await Promise.all([
-	// 			auth.pnp.provider.getSolBalance(),
-	// 			auth.pnp.provider.getSplTokenBalances()
-	// 		]);
+		try {
+			const [solBalance, splBalances] = await Promise.all([
+				authState.pnp.provider.getSolBalance(),
+				authState.pnp.provider.getSplTokenBalances()
+			]);
 			
-	// 		console.log('[WalletTokensList] SOL Balance:', solBalance);
-	// 		console.log('[WalletTokensList] SPL Balances:', splBalances);
+			console.log('[WalletTokensList] SOL Balance:', solBalance);
+			console.log('[WalletTokensList] SPL Balances:', splBalances);
 			
-	// 		// Ensure solBalance is a number (or handle potential errors)
-	// 		if (typeof solBalance === 'number') {
-	// 			solNativeBalance = solBalance;
-	// 		} else {
-	// 			console.warn('[WalletTokensList] Received non-number SOL balance:', solBalance);
-	// 			solNativeBalance = 0; // Default to 0 if invalid
-	// 		}
+			// Ensure solBalance is a number (or handle potential errors)
+			if (typeof solBalance === 'number') {
+				solNativeBalance = solBalance;
+			} else {
+				console.warn('[WalletTokensList] Received non-number SOL balance:', solBalance);
+				solNativeBalance = 0; // Default to 0 if invalid
+			}
 			
-	// 		// Ensure splBalances is an array (or handle potential errors)
-	// 		if (Array.isArray(splBalances)) {
-	// 			splTokens = splBalances;
-	// 		} else {
-	// 			console.warn('[WalletTokensList] Received non-array SPL balances:', splBalances);
-	// 			splTokens = []; // Default to empty array if invalid
-	// 		}
+			// Ensure splBalances is an array (or handle potential errors)
+			if (Array.isArray(splBalances)) {
+				splTokens = splBalances;
+			} else {
+				console.warn('[WalletTokensList] Received non-array SPL balances:', splBalances);
+				splTokens = []; // Default to empty array if invalid
+			}
 			
-	// 	} catch (error) {
-	// 		console.error("Error fetching Solana balances:", error);
-	// 		solanaLoadError = error instanceof Error ? error.message : "Failed to load Solana balances";
-	// 		solNativeBalance = null; // Reset on error
-	// 		splTokens = [];         // Reset on error
-	// 	} finally {
-	// 		isLoadingSolana = false;
-	// 	}
-	// }
+		} catch (error) {
+			console.error("Error fetching Solana balances:", error);
+			solanaLoadError = error instanceof Error ? error.message : "Failed to load Solana balances";
+			solNativeBalance = null; // Reset on error
+			splTokens = [];         // Reset on error
+		} finally {
+			isLoadingSolana = false;
+		}
+	}
 	// ---------------------------
 
 	// Run a thorough token discovery process that finds tokens with balances
@@ -321,6 +316,12 @@
 		
 		try {
 			const balancesLoaded = await loadUserBalances(walletId, forceRefresh);
+			
+			// Also fetch Solana balances if user has Solana connection
+			const authState = get(auth);
+			if (authState.isConnected && authState.pnp?.adapter?.chain === 'SOL') {
+				await fetchSolanaBalances();
+			}
 			
 			if (balancesLoaded) {
 				const refreshTimestamp = Date.now();
@@ -565,14 +566,14 @@
 				}
 
 				// Check if either token is SOL Native or an SPL token
-				// const isSolanaToken = (id: string) => id === 'SOL_NATIVE' || splTokens.some(spl => spl.mint === id);
+				const isSolanaToken = (id: string) => id === 'SOL_NATIVE' || splTokens.some(spl => spl.mint === id);
 				
-				// if (isSolanaToken(token0Id) || isSolanaToken(token1Id)) {
-				// 	console.warn("[WalletTokensList] Add LP action is not yet implemented for Solana tokens.");
-				// 	toastStore.warning("Add LP for Solana tokens is not yet available.");
-				// 	shouldCloseDropdown = true; // Close dropdown as action is not supported
-				// 	break;
-				// }
+				if (isSolanaToken(token0Id) || isSolanaToken(token1Id)) {
+					console.warn("[WalletTokensList] Add LP action is not yet implemented for Solana tokens.");
+					toastStore.warning("Add LP for Solana tokens is not yet available.");
+					shouldCloseDropdown = true; // Close dropdown as action is not supported
+					break;
+				}
 
 				const url = `/pools/${token0Id}_${token1Id}/position`;	
 				goto(url);
@@ -595,6 +596,8 @@
 
 	// Effect to load balances when walletId becomes available or changes
 	let previousWalletId: string | undefined = undefined;
+	let isLoadingWalletBalances = false;
+	
 	$effect.pre(() => {
 		// Capture the previous walletId before the main effect runs
 		previousWalletId = walletId;
@@ -602,24 +605,54 @@
 
 	$effect(() => {
 		// Run only if walletId is now truthy AND different from the previous value
-		if (walletId && walletId !== previousWalletId) {
-			loadUserBalancesWrapper(false); // Use false, let internal logic decide if refresh needed
+		// Also prevent concurrent loading operations
+		if (walletId && walletId !== previousWalletId && !isLoadingWalletBalances) {
+			isLoadingWalletBalances = true;
+			// Debounce the balance loading to prevent rapid calls
+			setTimeout(async () => {
+				try {
+					await loadUserBalancesWrapper(false); // Use false, let internal logic decide if refresh needed
+				} finally {
+					isLoadingWalletBalances = false;
+				}
+			}, 100);
 		}
 	});
 
 	// Effect to load Solana balances when provider is ready
-	// $effect(() => {
-	// 	if ($auth.isConnected && auth?.pnp?.adapter?.chain === 'SOL' && auth.pnp?.provider?.getSolBalance && auth.pnp?.provider?.getSplTokenBalances) {
-	// 		console.log("[WalletTokensList] Solana provider available, fetching balances.");
-	// 		fetchSolanaBalances();
-	// 	} else {
-	// 		// Reset if disconnected or provider changes
-	// 		solNativeBalance = null;
-	// 		splTokens = [];
-	// 		isLoadingSolana = false;
-	// 		solanaLoadError = null;
-	// 	}
-	// });
+	let isLoadingSolanaBalances = false;
+	let lastSolanaAuthStateHash = '';
+	
+	$effect(() => {
+		const authState = get(auth);
+		// Create a hash to detect actual changes in Solana auth state
+		const authStateHash = `${authState.isConnected}-${authState.pnp?.adapter?.chain}-${!!authState.pnp?.provider?.getSolBalance}`;
+		
+		if (authState.isConnected && authState.pnp?.adapter?.chain === 'SOL' && authState.pnp?.provider?.getSolBalance && authState.pnp?.provider?.getSplTokenBalances) {
+			// Only fetch if auth state actually changed and not already loading
+			if (authStateHash !== lastSolanaAuthStateHash && !isLoadingSolanaBalances) {
+				lastSolanaAuthStateHash = authStateHash;
+				isLoadingSolanaBalances = true;
+				console.log("[WalletTokensList] Solana provider available, fetching balances.");
+				// Debounce Solana balance fetching
+				setTimeout(async () => {
+					try {
+						await fetchSolanaBalances();
+					} finally {
+						isLoadingSolanaBalances = false;
+					}
+				}, 200);
+			}
+		} else {
+			// Reset if disconnected or provider changes
+			lastSolanaAuthStateHash = authStateHash;
+			solNativeBalance = null;
+			splTokens = [];
+			isLoadingSolana = false;
+			solanaLoadError = null;
+			isLoadingSolanaBalances = false;
+		}
+	});
 
 	// Close the receive token modal
 	function closeReceiveTokenModal() {
@@ -654,14 +687,14 @@
 	<WalletListHeader 
 		title="Assets"
 		count={processedTokenBalances.length}
-		isLoading={isLoading || isLoadingBalances}
+		isLoading={isLoading || isLoadingBalances || isLoadingSolana}
 		onRefresh={onRefresh || handleRefresh}
 	>
 		<svelte:fragment slot="actions">
 			<button 
 				class="text-xs text-kong-text-secondary/70 hover:text-kong-primary px-2 py-1 rounded flex items-center gap-1.5 hover:bg-kong-bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 				onclick={handleSyncButtonClick}
-				disabled={isSyncing || isLoading || isLoadingBalances}
+				disabled={isSyncing || isLoading || isLoadingBalances || isLoadingSolana}
 			>
 				<Shuffle size={12} class={isSyncing ? 'text-kong-primary animate-glow' : ''} />
 				<span class={isSyncing ? 'text-kong-primary' : ''}>{isSyncing ? 'Syncing...' : 'Sync'}</span>
@@ -718,7 +751,13 @@
 			</div>
 		{/if}
 
-		{#if processedTokenBalances.length === 0 && !isLoading && !isLoadingBalances}
+		{#if solanaLoadError}
+			<div class="text-xs text-kong-error mt-1 px-4 mb-2">
+				Error loading Solana balances: {solanaLoadError}
+			</div>
+		{/if}
+
+		{#if processedTokenBalances.length === 0 && !isLoading && !isLoadingBalances && !isLoadingSolana}
 			<div class="py-10 text-center">
 				<div
 					class="p-5 rounded-full bg-kong-text-primary/5 inline-block mb-3 mx-auto"
@@ -727,10 +766,10 @@
 					<Coins size={24} class="text-kong-primary/40" />
 				</div>
 				<p class="text-base font-medium text-kong-text-primary">
-					{isLoading || isLoadingBalances ? "Loading balances..." : "No Tokens Found"}
+					{isLoading || isLoadingBalances || isLoadingSolana ? "Loading balances..." : "No Tokens Found"}
 				</p>
 				<p class="text-sm text-kong-text-secondary/70 mt-1 max-w-[280px] mx-auto">
-					{isLoading || isLoadingBalances
+					{isLoading || isLoadingBalances || isLoadingSolana
 						? "Please wait while we fetch your token balances."
 						: "You may not have any tokens yet or need to connect your wallet."}
 				</p>

@@ -500,12 +500,18 @@
       >
         <TokenSelectorDropdown
           show={true}
-          onSelect={(selectedToken: Kong.Token) => {
+          onSelect={async (selectedToken: Kong.Token) => {
             SwapService.handleSelectToken(
               $swapState.tokenSelectorOpen,
               selectedToken,
             );
             swapState.closeTokenSelector();
+            
+            // Trigger quote update after token selection
+            await tick();
+            if ($swapState.payAmount && $swapState.payAmount !== "0") {
+              await updateSwapQuote(hasValidPool);
+            }
           }}
           onClose={() => swapState.closeTokenSelector()}
           currentToken={$swapState.tokenSelectorOpen === PANELS.PAY

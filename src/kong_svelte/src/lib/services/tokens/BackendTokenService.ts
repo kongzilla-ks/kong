@@ -114,7 +114,7 @@ export class BackendTokenService {
           fee: Number(solanaToken.fee),
           fee_fixed: solanaToken.fee.toString(),
           decimals: Number(solanaToken.decimals),
-          token_type: solanaToken.is_spl_token ? 'SPL' : 'IC', // Use 'IC' for native SOL to match frontend
+          token_type: solanaToken.is_spl_token ? 'SPL' : 'SOL', // Use 'SOL' for native SOL
           chain: 'Solana',
           standards: [], // Solana tokens don't have ICRC standards
           logo_url: BackendTokenService.getTokenLogoUrl(solanaToken.symbol, 'Solana'),
