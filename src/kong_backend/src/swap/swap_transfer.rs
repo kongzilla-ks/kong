@@ -173,6 +173,11 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
 
         match verification {
             PaymentVerification::SolanaPayment { tx_signature, .. } => {
+                // Check if this Solana transaction has already been used
+                if transfer_map::contains_tx_signature(pay_token.token_id(), &tx_signature) {
+                    return Err("Solana transaction signature already used for this token".to_string());
+                }
+                
                 // For Solana payments, we create a transfer record with the transaction hash
                 let transfer_id = transfer_map::insert(&StableTransfer {
                     transfer_id: 0,

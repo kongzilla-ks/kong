@@ -880,7 +880,13 @@ async fn verify_cross_chain_transfer(
 
     // Create transfer record based on verification result
     let final_tx_id = match verification {
-        PoolPaymentVerification::SolanaPayment { tx_signature, .. } => TxId::TransactionId(tx_signature),
+        PoolPaymentVerification::SolanaPayment { tx_signature, .. } => {
+            // Check if this Solana transaction has already been used
+            if transfer_map::contains_tx_signature(token.token_id(), &tx_signature) {
+                return Err(format!("Solana transaction signature already used for {}", token.symbol()));
+            }
+            TxId::TransactionId(tx_signature)
+        }
     };
 
     let transfer_id = transfer_map::insert(&StableTransfer {

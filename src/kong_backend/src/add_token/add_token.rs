@@ -35,17 +35,16 @@ async fn add_token(args: AddTokenArgs) -> Result<AddTokenReply, String> {
         Err(format!("Token {} already exists", args.token))?
     }
 
-    // Support IC tokens (IC.CanisterId) and Solana tokens (SOL.MintAddress)
+    // Route based on chain type
     match token_map::get_chain(&args.token) {
-        Some(chain) if chain == IC_CHAIN => to_add_token_reply(&add_ic_token(&args.token).await?),
+        Some(chain) if chain == IC_CHAIN => {
+            // IC tokens can be added by anyone (controllers)
+            to_add_token_reply(&add_ic_token(&args.token).await?)
+        }
         Some(chain) if chain == SOL_CHAIN => {
-            // Check if caller is proxy for automatic addition
-            if caller_is_proxy().is_ok() {
-                to_add_token_reply(&add_solana_token_from_proxy(&args).await?)
-            } else {
-                // Manual addition by controllers (existing functionality)
-                to_add_token_reply(&add_solana_token(&args).await?)
-            }
+            // Solana tokens can only be added by the proxy
+            caller_is_proxy()?;
+            to_add_token_reply(&add_solana_token_from_proxy(&args).await?)
         }
         Some(_) | None => Err("Chain not supported")?,
     }
@@ -84,77 +83,12 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
     token_map::get_by_token_id(token_id).ok_or_else(|| format!("Failed to add token {}", token))
 }
 
-/// Adds a Solana token to the system.
+/// Adds a Solana token to the system (deprecated - use add_solana_token_from_proxy)
 ///
-/// # Arguments
-///
-/// * `args` - The arguments containing Solana token information.
-///
-/// # Returns
-///
-/// * `Ok(StableToken)` - The newly added token.
-/// * `Err(String)` - An error message if the operation fails.
-pub async fn add_solana_token(args: &AddTokenArgs) -> Result<StableToken, String> {
-    // Extract mint address from token string (format: SOL.MintAddress)
-    let mint_address = token_map::get_address(&args.token).ok_or_else(|| format!("Invalid address {}", args.token))?;
-
-    // Only allow hardcoded SOL and USDC tokens
-    // Note: USDC mint address changes based on environment:
-    // - Production: Uses mainnet USDC (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v)
-    // - Local/Staging: Uses devnet kUSDC (nnKagNSBhpEe5DAYGzvFhRCoETSTec6FJVCj5wPK155)
-    let (name, symbol, decimals, fee, program_id) = match mint_address.as_str() {
-        // Native SOL - same across all environments
-        "11111111111111111111111111111111" => (
-            "Solana".to_string(),
-            "SOL".to_string(),
-            9u8,
-            Nat::from(5000u64),                             // 0.005 SOL
-            "11111111111111111111111111111111".to_string(), // System program
-        ),
-        // USDC on Solana mainnet (production only)
-        #[cfg(feature = "prod")]
-        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" => (
-            "USD Coin".to_string(),
-            "USDC".to_string(),
-            6u8,
-            Nat::from(5000u64),                                        // 0.005 SOL for transfer fee
-            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(), // SPL Token program
-        ),
-        // USDC on Solana devnet (local/staging only)
-        #[cfg(any(feature = "local", feature = "staging"))]
-        "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" => (
-            "USD Coin".to_string(),
-            "USDC".to_string(),
-            6u8,
-            Nat::from(5000u64),                                        // 0.005 SOL for transfer fee
-            "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA".to_string(), // SPL Token program
-        ),
-        _ => {
-            #[cfg(feature = "prod")]
-            return Err("Only SOL and mainnet USDC Solana tokens are supported".to_string());
-            #[cfg(any(feature = "local", feature = "staging"))]
-            return Err("Only SOL and devnet USDC Solana tokens are supported".to_string());
-            #[cfg(not(any(feature = "prod", feature = "local", feature = "staging")))]
-            return Err("Only SOL and USDC Solana tokens are supported".to_string());
-        }
-    };
-
-    let solana_token = StableToken::Solana(SolanaToken {
-        token_id: 0, // Will be set by insert
-        name,
-        symbol,
-        decimals,
-        fee,
-        mint_address: mint_address.to_string(),
-        program_id,
-        total_supply: None,                                               // We don't track total supply for now
-        is_spl_token: mint_address != "11111111111111111111111111111111", // False for native SOL
-    });
-
-    let token_id = token_map::insert(&solana_token)?;
-
-    // Retrieves the inserted token by its token_id
-    token_map::get_by_token_id(token_id).ok_or_else(|| format!("Failed to add Solana token {}", args.token))
+/// This function is kept for backwards compatibility but should not be used.
+/// All Solana tokens should be added through the proxy.
+pub async fn add_solana_token(_args: &AddTokenArgs) -> Result<StableToken, String> {
+    Err("Direct Solana token addition is deprecated. Solana tokens should be added through the proxy.".to_string())
 }
 
 /// Adds a Solana token from the proxy with dynamic metadata.
