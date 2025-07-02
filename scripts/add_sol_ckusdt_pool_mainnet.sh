@@ -6,11 +6,10 @@
 set -eu
 
 # Configuration - Always mainnet with --ic
-NETWORK_FLAG="--ic"
-KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
+KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"  # Current Kong backend mainnet canister
 
 # Token configurations
-SOL_AMOUNT=30_000_000  # 0.03 SOL (9 decimals)
+SOL_AMOUNT=1_000_000  # 0.001 SOL (9 decimals)
 SOL_AMOUNT=${SOL_AMOUNT//_/}  # remove underscore
 SOL_CHAIN="SOL"
 SOL_ADDRESS="11111111111111111111111111111111"  # Native SOL
@@ -19,117 +18,60 @@ SOL_ADDRESS="11111111111111111111111111111111"  # Native SOL
 CKUSDT_SYMBOL="ckUSDT"
 CKUSDT_CHAIN="IC"
 CKUSDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT mainnet canister
-CKUSDT_AMOUNT=4_390_000  # 4.39 ckUSDT (6 decimals)
+if [ -z "$CKUSDT_LEDGER" ] || [ "$CKUSDT_LEDGER" = "null" ] || [ "$CKUSDT_LEDGER" = "" ]; then
+    echo "Error: Could not get ckUSDT ledger canister ID"
+    exit 1
+fi
+CKUSDT_AMOUNT=1_000_000  # 1.0 ckUSDT (6 decimals)
 CKUSDT_AMOUNT=${CKUSDT_AMOUNT//_/}
 CKUSDT_FEE=10000  # Standard fee
 
-# Colors for output
-if [ -t 1 ] && command -v tput >/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
-    BOLD="$(tput bold)"
-    NORMAL="$(tput sgr0)"
-    GREEN="$(tput setaf 2)"
-    BLUE="$(tput setaf 4)"
-    RED="$(tput setaf 1)"
-    YELLOW="$(tput setaf 3)"
-else
-    BOLD=""
-    NORMAL=""
-    GREEN=""
-    BLUE=""
-    RED=""
-    YELLOW=""
-fi
-
-print_header() {
-    echo
-    echo "${BOLD}========== $1 ==========${NORMAL}"
-    echo
-}
-
-print_success() {
-    echo "${GREEN}✓${NORMAL} $1"
-}
-
-print_error() {
-    echo "${RED}✗${NORMAL} $1" >&2
-}
-
-print_info() {
-    echo "${BLUE}ℹ${NORMAL} $1"
-}
-
-print_debug() {
-    echo "${YELLOW}[DEBUG]${NORMAL} $1"
-}
-
 # Get Kong's Solana address
-print_header "SETUP"
-KONG_SOLANA_ADDRESS=$(dfx canister call kong_backend get_solana_address ${NETWORK_FLAG} --output json | jq -r '.Ok // .Err')
+echo "SETUP"
+KONG_SOLANA_ADDRESS=$(dfx canister call kong_backend get_solana_address --ic --output json | jq -r '.Ok // .Err')
 if [ -z "$KONG_SOLANA_ADDRESS" ] || [ "$KONG_SOLANA_ADDRESS" = "null" ] || echo "$KONG_SOLANA_ADDRESS" | grep -q "Error"; then
-    print_error "Failed to get Kong Solana address"
+    echo "Failed to get Kong Solana address" >&2
     exit 1
 fi
-print_success "Kong Solana address: $KONG_SOLANA_ADDRESS"
+echo "Kong Solana address: $KONG_SOLANA_ADDRESS"
 
 # Get user's Solana address
 USER_SOLANA_ADDRESS=$(solana address)
-print_success "User Solana address: $USER_SOLANA_ADDRESS"
+echo "User Solana address: $USER_SOLANA_ADDRESS"
 
 # Get user's IC principal (current identity)
 USER_IC_PRINCIPAL=$(dfx identity get-principal)
-print_success "User IC principal: $USER_IC_PRINCIPAL"
+echo "User IC principal: $USER_IC_PRINCIPAL"
 
-# Step 1: Add SOL token (if needed)
-print_header "STEP 1: ADD SOL TOKEN"
-TOKEN_EXISTS=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} tokens | grep -c "SOL" || true)
-if [ "$TOKEN_EXISTS" -gt 0 ]; then
-    print_info "SOL token already exists, skipping..."
-else
-    print_info "Adding SOL token..."
-    SOL_TOKEN_RESULT=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} add_token --output json "(record {
-        token = \"${SOL_CHAIN}.${SOL_ADDRESS}\";
-        on_kong = opt true;
-    })" 2>&1)
-    
-    if echo "${SOL_TOKEN_RESULT}" | grep -q "Ok"; then
-        print_success "SOL token added successfully!"
-    else
-        print_error "Failed to add SOL token: ${SOL_TOKEN_RESULT}"
-        exit 1
-    fi
-fi
-
-# Step 2: Transfer SOL to Kong's address
-print_header "STEP 2: TRANSFER SOL"
-print_info "Transferring $(echo "scale=9; $SOL_AMOUNT / 1000000000" | bc) SOL to Kong..."
+# Step 1: Transfer SOL to Kong's address
+echo "STEP 1: TRANSFER SOL"
+echo "Transferring $(echo "scale=9; $SOL_AMOUNT / 1000000000" | bc) SOL to Kong..."
 
 # Transfer SOL
 TRANSFER_OUTPUT=$(solana transfer --allow-unfunded-recipient "$KONG_SOLANA_ADDRESS" $(echo "scale=9; $SOL_AMOUNT / 1000000000" | bc) 2>&1)
 SOL_TX_SIG=$(echo "$TRANSFER_OUTPUT" | grep "Signature" | awk '{print $2}' | tr -d '[]"')
 
 if [ -z "$SOL_TX_SIG" ]; then
-    print_error "SOL transfer failed"
+    echo "SOL transfer failed" >&2
     echo "$TRANSFER_OUTPUT"
     exit 1
 fi
 
-print_success "SOL transferred!"
-print_info "Transaction: $SOL_TX_SIG"
+echo "SOL transferred!"
+echo "Transaction: $SOL_TX_SIG"
 
-# Step 3: Wait for transaction confirmation
-print_header "STEP 3: WAIT FOR CONFIRMATION"
-print_info "Waiting for transaction confirmation..."
-
-echo "sleeping for 5 seconds"
+# Step 2: Wait for transaction confirmation
+echo "STEP 2: WAIT FOR CONFIRMATION"
+echo "Waiting for transaction confirmation..."
 sleep 5
 
-# Step 4: Approve ckUSDT spending
-print_header "STEP 4: APPROVE CKUSDT"
-EXPIRES_AT=$(echo "$(date +%s)*1000000000 + 300000000000" | bc)  # 5 minutes from now
-APPROVE_AMOUNT=$((CKUSDT_AMOUNT + CKUSDT_FEE))
+# Step 3: Approve ckUSDT spending
+echo "STEP 3: APPROVE CKUSDT"
+EXPIRES_AT=$(echo "($(date +%s) + 300) * 1000000000" | bc)  # 5 minutes from now in nanoseconds
+APPROVE_AMOUNT=$((10 * (CKUSDT_AMOUNT + CKUSDT_FEE)))
 
-print_info "Approving $APPROVE_AMOUNT ckUSDT..."
-APPROVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${CKUSDT_LEDGER} icrc2_approve "(record {
+echo "Approving $APPROVE_AMOUNT ckUSDT..."
+APPROVE_RESULT=$(dfx canister call --ic ${CKUSDT_LEDGER} icrc2_approve "(record {
     amount = ${APPROVE_AMOUNT};
     expires_at = opt ${EXPIRES_AT};
     spender = record {
@@ -138,13 +80,13 @@ APPROVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${CKUSDT_LEDGER} icrc2_approv
 })" 2>&1)
 
 if echo "$APPROVE_RESULT" | grep -q "Err"; then
-    print_error "ckUSDT approval failed: $APPROVE_RESULT"
+    echo "ckUSDT approval failed: $APPROVE_RESULT" >&2
     exit 1
 fi
-print_success "ckUSDT approved!"
+echo "ckUSDT approved!"
 
-# Step 5: Create canonical pool message and sign it
-print_header "STEP 5: CREATE SIGNATURE"
+# Step 4: Create canonical pool message and sign it
+echo "STEP 4: CREATE SIGNATURE"
 
 # Create timestamp (milliseconds)
 TIMESTAMP=$(echo "$(date +%s) * 1000" | bc)
@@ -163,21 +105,21 @@ EOF
 )
 
 MESSAGE_COMPACT=$(echo "$MESSAGE_JSON" | jq -c .)
-print_info "Signing canonical pool message..."
-print_debug "Message: $MESSAGE_COMPACT"
+echo "Signing canonical pool message..."
+echo "Message: $MESSAGE_COMPACT"
 
 SIGNATURE=$(solana sign-offchain-message "$MESSAGE_COMPACT" 2>&1)
 if [ -z "$SIGNATURE" ] || echo "$SIGNATURE" | grep -q "Error"; then
-    print_error "Failed to sign message"
+    echo "Failed to sign message" >&2
     echo "Signature output: $SIGNATURE"
     exit 1
 fi
 
-print_success "Message signed"
+echo "Message signed"
 
-# Step 6: Create the pool with proper cross-chain data
-print_header "STEP 6: CREATE POOL"
-print_info "Creating SOL/ckUSDT pool..."
+# Step 5: Create the pool with proper cross-chain data
+echo "STEP 5: CREATE POOL"
+echo "Creating SOL/ckUSDT pool..."
 
 POOL_CALL="(record {
     token_0 = \"${SOL_CHAIN}.${SOL_ADDRESS}\";
@@ -192,21 +134,21 @@ POOL_CALL="(record {
     timestamp = opt ${TIMESTAMP};
 })"
 
-print_debug "Pool call:"
+echo "Pool call:"
 echo "$POOL_CALL"
 
-print_info "Submitting pool creation..."
-POOL_RESULT=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} add_pool --output json "$POOL_CALL" 2>&1)
+echo "Submitting pool creation..."
+POOL_RESULT=$(dfx canister call --ic ${KONG_BACKEND} add_pool --output json "$POOL_CALL" 2>&1)
 
 # Check result
 if echo "${POOL_RESULT}" | grep -q "\"Ok\""; then
-    print_success "Pool created successfully!"
+    echo "Pool created successfully!"
     echo "${POOL_RESULT}" | jq
 else
-    print_error "Pool creation failed:"
+    echo "Pool creation failed:" >&2
     echo "${POOL_RESULT}"
 fi
 
-print_header "VERIFICATION"
-print_info "Checking if SOL pool exists..."
-dfx canister call ${NETWORK_FLAG} kong_backend pools | grep -A10 -B10 "SOL" || print_info "SOL pool not found"
+echo "VERIFICATION"
+echo "Checking if SOL pool exists..."
+dfx canister call --ic kong_backend pools | grep -A10 -B10 "SOL" || echo "SOL pool not found"

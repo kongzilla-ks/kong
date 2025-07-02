@@ -213,6 +213,48 @@ if [ "${NETWORK}" == "ic" ]; then
     fi
 fi
 
+# Step 7: Add core tokens if needed
+print_header "TOKEN SETUP"
+
+# Set token addresses based on network
+if [ "${NETWORK}" == "ic" ]; then
+    ICP_TOKEN="IC.ryjl3-tyaaa-aaaaa-aaaba-cai"
+    CKUSDT_TOKEN="IC.cngnf-vqaaa-aaaar-qag4q-cai"
+else
+    # Local network
+    ICP_TOKEN="IC.nppha-riaaa-aaaal-ajf2q-cai"
+    CKUSDT_TOKEN="IC.zdzgz-siaaa-aaaar-qaiba-cai"
+fi
+
+# Function to add token if it doesn't exist
+add_token_if_missing() {
+    local token_id="$1"
+    local token_address="$2"
+    local token_name="$3"
+    
+    print_info "Checking if $token_name exists..."
+    
+    # Check if token exists by calling tokens and grepping for the address
+    if dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} kong_backend tokens 2>/dev/null | grep -q "$token_address"; then
+        print_success "$token_name already exists"
+    else
+        print_info "Adding $token_name ($token_address)..."
+        if dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} kong_backend add_token "(record { token = \"$token_address\" })" 2>/dev/null; then
+            print_success "$token_name added successfully"
+        else
+            print_warning "Failed to add $token_name (may already exist or network issue)"
+        fi
+    fi
+}
+
+dfx canister call kong_backend cache_solana_address ${NETWORK_FLAG}
+
+# Add ckUSDT first (should get token_id = 1 if system is clean)  
+add_token_if_missing "1" "$CKUSDT_TOKEN" "ckUSDT"
+
+# Add ICP second (should get token_id = 2 if system is clean)
+add_token_if_missing "2" "$ICP_TOKEN" "ICP"
+
 # Summary
 print_header "SUMMARY"
 print_success "Hot update completed!"
