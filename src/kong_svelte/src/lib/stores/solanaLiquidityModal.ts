@@ -10,7 +10,7 @@ interface SolanaLiquidityModalData {
   onConfirm: (data: {
     solTransactionId?: string;
     icrcTransactionId?: bigint;
-    signature: string;
+    pay_signature: string;
     timestamp: bigint;
     canonicalMessage: string;
   }) => void;
@@ -50,7 +50,7 @@ function createSolanaLiquidityModalStore() {
     },
     handleConfirm: (confirmData: {
       transactionId?: string;
-      signature: string;
+      pay_signature: string;
       timestamp: bigint;
       canonicalMessage: string;
     }) => {

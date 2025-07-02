@@ -321,8 +321,8 @@ export async function addLiquidity(params: {
       amount_1: params.amount_1,
       tx_id_0,
       tx_id_1,
-      signature_0: [] as [] | [string], // Empty for ICRC-only operations
-      signature_1: [] as [] | [string], // Empty for ICRC-only operations
+      pay_signature_0: [] as [] | [string], // Empty for ICRC-only operations
+      pay_signature_1: [] as [] | [string], // Empty for ICRC-only operations
       timestamp: [] as [] | [bigint], // Empty for ICRC-only operations
     };
 
@@ -498,8 +498,8 @@ export async function removeLiquidity(params: {
   token_1_obj?: Kong.Token;
   payout_address_0?: string;
   payout_address_1?: string;
-  signature_0?: string;
-  signature_1?: string;
+  pay_signature_0?: string;
+  pay_signature_1?: string;
   timestamp?: bigint;
   tx_id_0?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
   tx_id_1?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
@@ -517,7 +517,7 @@ export async function removeLiquidity(params: {
     const isToken0Sol = params.token_0_obj ? isSolToken(params.token_0_obj) : params.token0 === "SOL";
     const isToken1Sol = params.token_1_obj ? isSolToken(params.token_1_obj) : params.token1 === "SOL";
     
-    if ((isToken0Sol || isToken1Sol) && (!params.signature_0 && !params.signature_1)) {
+    if ((isToken0Sol || isToken1Sol) && (!params.pay_signature_0 && !params.pay_signature_1)) {
       throw new Error("Cross-chain LP removal with SOL requires signature flow - please use the LP modal interface instead of direct API call");
     }
 
@@ -539,8 +539,8 @@ export async function removeLiquidity(params: {
       remove_lp_token_amount: lpTokenBigInt,
       payout_address_0: params.payout_address_0 ? [params.payout_address_0] : [],
       payout_address_1: params.payout_address_1 ? [params.payout_address_1] : [],
-      signature_0: params.signature_0 ? [params.signature_0] : [],
-      signature_1: params.signature_1 ? [params.signature_1] : [],
+      pay_signature_0: params.pay_signature_0 ? [params.pay_signature_0] : [],
+      pay_signature_1: params.pay_signature_1 ? [params.pay_signature_1] : [],
       timestamp: params.timestamp ? [params.timestamp] : [],
       tx_id_0: params.tx_id_0 || [],
       tx_id_1: params.tx_id_1 || [],
@@ -629,8 +629,8 @@ export async function createPool(params: {
       tx_id_0: tx_id_0,
       tx_id_1: tx_id_1,
       lp_fee_bps: [30], // Hardcoded LP fee basis points
-      signature_0: [] as [] | [string], // Empty signature for ICRC-only pools
-      signature_1: [] as [] | [string], // Empty signature for ICRC-only pools
+      pay_signature_0: [] as [] | [string], // Empty signature for ICRC-only pools
+      pay_signature_1: [] as [] | [string], // Empty signature for ICRC-only pools
       timestamp: [] as [] | [bigint], // Empty timestamp for ICRC-only pools
     });
 

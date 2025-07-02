@@ -333,7 +333,6 @@ export const idlFactory = ({ IDL }) => {
   });
   const SwapArgs = IDL.Record({
     'receive_token' : IDL.Text,
-    'signature' : IDL.Opt(IDL.Text),
     'max_slippage' : IDL.Opt(IDL.Float64),
     'pay_amount' : IDL.Nat,
     'referred_by' : IDL.Opt(IDL.Text),
@@ -342,6 +341,7 @@ export const idlFactory = ({ IDL }) => {
     'timestamp' : IDL.Opt(IDL.Nat64),
     'pay_token' : IDL.Text,
     'pay_tx_id' : IDL.Opt(TxId),
+    'pay_signature' : IDL.Opt(IDL.Text),
   });
   const RequestRequest = IDL.Variant({
     'AddLiquidity' : AddLiquidityArgs,

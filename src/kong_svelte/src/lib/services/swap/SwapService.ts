@@ -527,7 +527,7 @@ export class SwapService {
       receive_address: [] | [string];
       referred_by: [] | [string];
       pay_tx_id: [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }];
-      signature: [] | [string];
+      pay_signature: [] | [string];
       timestamp: [] | [bigint];
     },
     onRetryProgress?: (attempt: number, maxAttempts: number) => void
@@ -808,7 +808,7 @@ export class SwapService {
         receive_address: solanaReceiveAddress ? [solanaReceiveAddress] as [] | [string] : [] as [] | [string],
         referred_by: [] as [] | [string],
         pay_tx_id: [] as [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }],
-        signature: [] as [] | [string],
+        pay_signature: [] as [] | [string],
         timestamp: [] as [] | [bigint],
       };
       
@@ -828,7 +828,7 @@ export class SwapService {
         receive_address: swapParams.receive_address,
         referred_by: swapParams.referred_by,
         pay_tx_id: swapParams.pay_tx_id,
-        signature: swapParams.signature,
+        pay_signature: swapParams.pay_signature,
         timestamp: swapParams.timestamp
       });
 
@@ -900,7 +900,7 @@ export class SwapService {
           maxSlippage: params.userMaxSlippage,
           onConfirm: async (modalData) => {
             try {
-              const { transactionId, signature, timestamp } = modalData;
+              const { transactionId, pay_signature: signature, timestamp } = modalData;
               
               console.log('[SwapService] Cross-chain swap modalData:', {
                 transactionId,
@@ -925,7 +925,7 @@ export class SwapService {
                 receive_address: [receiveAddress] as [] | [string], // Must match signed message
                 referred_by: [] as [] | [string],
                 pay_tx_id: [{ TransactionId: transactionId }] as [] | [{ TransactionId: string }],
-                signature: [signature] as [] | [string],
+                pay_signature: [signature] as [] | [string],
                 timestamp: [timestamp] as [] | [bigint],
               };
 
@@ -938,7 +938,7 @@ export class SwapService {
                 receive_address: swapParams.receive_address,
                 referred_by: swapParams.referred_by,
                 pay_tx_id: swapParams.pay_tx_id,
-                signature: swapParams.signature,
+                pay_signature: swapParams.pay_signature,
                 timestamp: swapParams.timestamp
               });
 

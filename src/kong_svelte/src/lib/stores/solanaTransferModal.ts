@@ -9,7 +9,7 @@ interface SolanaTransferModalState {
   maxSlippage: number;
   onConfirm: ((data: {
     transactionId: string;
-    signature: string;
+    pay_signature: string;
     timestamp: bigint;
     canonicalMessage: string;
   }) => void) | null;
@@ -36,7 +36,7 @@ function createSolanaTransferModalStore() {
       maxSlippage: number;
       onConfirm: (data: {
         transactionId: string;
-        signature: string;
+        pay_signature: string;
         timestamp: bigint;
         canonicalMessage: string;
       }) => void;

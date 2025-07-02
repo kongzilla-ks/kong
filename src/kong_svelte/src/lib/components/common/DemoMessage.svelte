@@ -9,8 +9,8 @@
   let timeLeft = $state({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   let countdownInterval: number | null = null;
   
-  // Launch date: July 14, 2025
-  const launchDate = new Date('2025-07-14T00:00:00Z');
+  // Launch date: July 31, 2025  
+  const launchDate = new Date('2025-07-31T00:00:00Z');
   
   function updateCountdown() {
     const now = new Date();

@@ -353,7 +353,6 @@ export interface SwapAmountsTxReply {
 }
 export interface SwapArgs {
   'receive_token' : string,
-  'signature' : [] | [string],
   'max_slippage' : [] | [number],
   'pay_amount' : bigint,
   'referred_by' : [] | [string],
@@ -362,6 +361,7 @@ export interface SwapArgs {
   'timestamp' : [] | [bigint],
   'pay_token' : string,
   'pay_tx_id' : [] | [TxId],
+  'pay_signature' : [] | [string],
 }
 export type SwapAsyncResult = { 'Ok' : bigint } |
   { 'Err' : string };

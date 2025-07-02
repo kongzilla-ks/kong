@@ -354,7 +354,7 @@
       // Dispatch event with swap details
       dispatch('confirm', {
         transactionId,
-        signature,
+        pay_signature: signature,
         timestamp,
         canonicalMessage
       });
