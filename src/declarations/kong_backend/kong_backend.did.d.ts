@@ -244,16 +244,11 @@ export type RemoveLiquidityAmountsResult = {
   } |
   { 'Err' : string };
 export interface RemoveLiquidityArgs {
-  'signature_0' : [] | [string],
-  'signature_1' : [] | [string],
   'token_0' : string,
   'token_1' : string,
   'payout_address_0' : [] | [string],
   'payout_address_1' : [] | [string],
   'remove_lp_token_amount' : bigint,
-  'timestamp' : [] | [bigint],
-  'tx_id_0' : [] | [TxId],
-  'tx_id_1' : [] | [TxId],
 }
 export type RemoveLiquidityAsyncResult = { 'Ok' : bigint } |
   { 'Err' : string };
@@ -547,6 +542,7 @@ export interface _SERVICE {
   'swap' : ActorMethod<[SwapArgs], SwapResult>,
   'swap_amounts' : ActorMethod<[string, bigint, string], SwapAmountsResult>,
   'swap_async' : ActorMethod<[SwapArgs], SwapAsyncResult>,
+  'token_exists' : ActorMethod<[string], boolean>,
   'tokens' : ActorMethod<[[] | [string]], TokensResult>,
   'update_solana_latest_blockhash' : ActorMethod<
     [string],

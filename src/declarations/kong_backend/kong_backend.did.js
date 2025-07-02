@@ -580,6 +580,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'swap_async' : IDL.Func([SwapArgs], [SwapAsyncResult], []),
+    'token_exists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'tokens' : IDL.Func([IDL.Opt(IDL.Text)], [TokensResult], ['query']),
     'update_solana_latest_blockhash' : IDL.Func(
         [IDL.Text],
