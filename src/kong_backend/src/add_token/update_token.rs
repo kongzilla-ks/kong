@@ -2,7 +2,7 @@ use candid::Principal;
 use ic_cdk::update;
 
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
-use crate::ic::guards::{caller_is_proxy, not_in_maintenance_mode};
+use crate::ic::guards::{caller_is_kingkong, not_in_maintenance_mode};
 use crate::stable_token::ic_token::ICToken;
 use crate::stable_token::solana_token::SolanaToken;
 use crate::stable_token::stable_token::StableToken;
@@ -21,8 +21,8 @@ async fn update_token(args: UpdateTokenArgs) -> Result<UpdateTokenReply, String>
     match token_map::get_chain(&args.token) {
         Some(chain) if chain == IC_CHAIN => to_update_token_reply(&update_ic_token(&args.token).await?),
         Some(chain) if chain == SOL_CHAIN => {
-            // Solana token updates are only allowed from the proxy
-            caller_is_proxy()?;
+            // Solana token updates are only allowed from King Kong
+            caller_is_kingkong()?;
             to_update_token_reply(&update_solana_token(&args).await?)
         }
         Some(_) | None => Err("Chain not supported")?,
@@ -60,7 +60,7 @@ pub async fn update_ic_token(token: &str) -> Result<StableToken, String> {
 }
 
 /// Updates a Solana token's metadata
-/// Only callable by the proxy to ensure metadata comes from trusted source
+/// Only callable by King Kong to ensure metadata changes are authorized
 pub async fn update_solana_token(args: &UpdateTokenArgs) -> Result<StableToken, String> {
     let stable_token = token_map::get_by_token(&args.token)?;
     
@@ -73,10 +73,9 @@ pub async fn update_solana_token(args: &UpdateTokenArgs) -> Result<StableToken, 
             if let Some(symbol) = &args.symbol {
                 solana_token.symbol = symbol.clone();
             }
-            if let Some(decimals) = args.decimals {
-                solana_token.decimals = decimals;
+            if args.decimals.is_some() {
+                return Err("Token decimals cannot be changed after creation".to_string());
             }
-            // Note: fee and program_id should not change for existing tokens
             
             // Update the token in storage
             token_map::update(&StableToken::Solana(solana_token.clone()));

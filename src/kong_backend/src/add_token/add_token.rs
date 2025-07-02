@@ -9,7 +9,7 @@ use crate::stable_token::solana_token::SolanaToken;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token_map;
 
-use super::add_token_args::AddTokenArgs;
+use super::add_token_args::{AddTokenArgs, AddSplTokenArgs};
 use super::add_token_reply::AddTokenReply;
 use super::add_token_reply_helpers::to_add_token_reply;
 
@@ -42,9 +42,8 @@ async fn add_token(args: AddTokenArgs) -> Result<AddTokenReply, String> {
             to_add_token_reply(&add_ic_token(&args.token).await?)
         }
         Some(chain) if chain == SOL_CHAIN => {
-            // Solana tokens can only be added by the proxy
-            caller_is_proxy()?;
-            to_add_token_reply(&add_solana_token_from_proxy(&args).await?)
+            // Solana tokens are added automatically via ATA discovery
+            Err("Solana tokens are added automatically. Use add_spl_token endpoint for proxy calls.".to_string())?
         }
         Some(_) | None => Err("Chain not supported")?,
     }
@@ -83,49 +82,58 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
     token_map::get_by_token_id(token_id).ok_or_else(|| format!("Failed to add token {}", token))
 }
 
-/// Adds a Solana token to the system (deprecated - use add_solana_token_from_proxy)
+/// Adds an SPL token with metadata (proxy-only endpoint).
 ///
-/// This function is kept for backwards compatibility but should not be used.
-/// All Solana tokens should be added through the proxy.
-pub async fn add_solana_token(_args: &AddTokenArgs) -> Result<StableToken, String> {
-    Err("Direct Solana token addition is deprecated. Solana tokens should be added through the proxy.".to_string())
-}
-
-/// Adds a Solana token from the proxy with dynamic metadata.
+/// This endpoint is used by the kong_rpc proxy during ATA discovery:
+/// 1. Proxy detects new token accounts on Solana  
+/// 2. Proxy fetches token metadata from Solana RPC
+/// 3. Proxy calls this function to add the token to Kong
 ///
 /// # Arguments
 ///
-/// * `args` - The arguments containing Solana token information from the proxy.
+/// * `args` - SPL token address and metadata fetched from Solana
 ///
 /// # Returns
 ///
-/// * `Ok(StableToken)` - The newly added token.
-/// * `Err(String)` - An error message if the operation fails.
+/// * `Ok(AddTokenReply)` - The newly added token information
+/// * `Err(String)` - Error if token creation fails
 ///
 /// # Security
 ///
-/// This function should only be called by the proxy (verified by the caller_is_proxy guard).
-pub async fn add_solana_token_from_proxy(args: &AddTokenArgs) -> Result<StableToken, String> {
+/// Only callable by the kong_rpc proxy via caller_is_proxy guard.
+#[update(guard = "not_in_maintenance_mode")]
+async fn add_spl_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
+    // Only proxy can call this endpoint
+    caller_is_proxy()?;
+    
+    // Ensure it's a Solana token
+    match token_map::get_chain(&args.token) {
+        Some(chain) if chain == SOL_CHAIN => {
+            if token_map::get_by_address(&args.token).is_ok() {
+                Err(format!("Token {} already exists", args.token))?
+            }
+            to_add_token_reply(&add_solana_token_internal(&args).await?)
+        }
+        _ => Err("This endpoint is only for Solana tokens".to_string())?
+    }
+}
+
+/// Internal function to create a Solana token from SPL token args
+async fn add_solana_token_internal(args: &AddSplTokenArgs) -> Result<StableToken, String> {
     // Extract mint address from token string (format: SOL.MintAddress)
     let mint_address = token_map::get_address(&args.token).ok_or_else(|| format!("Invalid address {}", args.token))?;
 
-    // Validate required fields from proxy
-    let name = args.name.clone().ok_or("Missing token name")?;
-    let symbol = args.symbol.clone().ok_or("Missing token symbol")?;
-    let decimals = args.decimals.ok_or("Missing token decimals")?;
-    let program_id = args.solana_program_id.clone().ok_or("Missing program ID")?;
-    
     // Use provided fee or default to 5000 (0.005 SOL)
     let fee = args.fee.clone().unwrap_or_else(|| Nat::from(5000u64));
 
     let solana_token = StableToken::Solana(SolanaToken {
         token_id: 0, // Will be set by insert
-        name,
-        symbol,
-        decimals,
+        name: args.name.clone(),
+        symbol: args.symbol.clone(),
+        decimals: args.decimals,
         fee,
         mint_address: mint_address.to_string(),
-        program_id,
+        program_id: args.program_id.clone(),
         total_supply: None,                                               // We don't track total supply for now
         is_spl_token: mint_address != "11111111111111111111111111111111", // False for native SOL
     });
@@ -143,3 +151,4 @@ pub fn add_lp_token(token_0: &StableToken, token_1: &StableToken) -> Result<Stab
     // Retrieves the inserted token by its token_id
     token_map::get_by_token_id(token_id).ok_or_else(|| "Failed to add LP token".to_string())
 }
+

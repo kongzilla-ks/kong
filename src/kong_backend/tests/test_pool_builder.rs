@@ -632,12 +632,6 @@ pub fn run_pool_test(config: PoolTestConfig) -> Result<()> {
         // First, add these unique tokens to make them valid
         let add_token_a_args = AddTokenArgs {
             token: unique_token_a.clone(),
-            name: None,
-            symbol: None,
-            decimals: None,
-            fee: None,
-            solana_program_id: None,
-            solana_mint_address: None,
         };
         let args_a = encode_one(&add_token_a_args).expect("Failed to encode add_token arguments");
         let response_a = setup.ic
@@ -647,12 +641,6 @@ pub fn run_pool_test(config: PoolTestConfig) -> Result<()> {
         
         let add_token_b_args = AddTokenArgs {
             token: unique_token_b.clone(),
-            name: None,
-            symbol: None,
-            decimals: None,
-            fee: None,
-            solana_program_id: None,
-            solana_mint_address: None,
         };
         let args_b = encode_one(&add_token_b_args).expect("Failed to encode add_token arguments");
         let response_b = setup.ic
