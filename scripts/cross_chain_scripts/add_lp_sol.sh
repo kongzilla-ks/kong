@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# adds liquidity to existing SOL/USDT pool
+# usage: sh add_lp_sol.sh [local|ic]   (default local)
+
+# Ensure Solana CLI network is already configured
+
+# ============================ CONFIG ============================
+NETWORK="${1:-local}"                   # "local" or "ic"
+IDENTITY_FLAG="--identity kong_user1"
+
+# Token 0 (Solana - SOL)
+SOL_CHAIN="SOL"
+SOL_ADDRESS="11111111111111111111111111111111"   # Native SOL mint
+SOL_AMOUNT=4000000            # 0.004 SOL (9 decimals)
+
+# Token 1 (USDT on IC)
+USDT_CHAIN="IC"
+USDT_SYMBOL=$([ "${NETWORK}" == "local" ] && echo "ksUSDT" || echo "ckUSDT")
+USDT_AMOUNT=1000000           # 1 USDT (6 decimals)
+USDT_FEE=10000
+# ckUSDT ic : cngnf-vqaaa-aaaar-qag4q-cai
+# ksUSDT local : zdzgz-siaaa-aaaar-qaiba-cai
+# ===============================================================
+
+NETWORK_FLAG=$([ "${NETWORK}" == "local" ] && echo "" || echo "--network ${NETWORK}")
+KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
+USDT_LEDGER_NAME="$(echo ${USDT_SYMBOL} | tr '[:upper:]' '[:lower:]')_ledger"
+USDT_LEDGER=$(dfx canister id ${NETWORK_FLAG} ${USDT_LEDGER_NAME})
+
+# --- Helper ---
+check_ok() { local r="$1"; local ctx="$2"; echo "$r" | grep -q -e "Ok" -e "ok" || { echo "Error: $ctx" >&2; echo "$r" >&2; exit 1; }; }
+
+# --- 0. Setup ---
+KONG_SOL_RAW=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} get_solana_address --output json)
+check_ok "$KONG_SOL_RAW" "get_solana_address failed"
+KONG_SOL_ADDR=$(echo "$KONG_SOL_RAW" | jq -r '.Ok')
+
+echo "Kong Solana Address: $KONG_SOL_ADDR"
+
+# --- 1. Transfer SOL ---
+SOL_DEC=$(bc <<< "scale=9; ${SOL_AMOUNT}/1000000000")
+TX_OUT=$(solana transfer --allow-unfunded-recipient "$KONG_SOL_ADDR" "$SOL_DEC")
+SOL_TX_SIG=$(echo "$TX_OUT" | grep -o 'Signature: .*' | awk '{print $2}')
+
+echo "Transferred $SOL_DEC SOL (tx $SOL_TX_SIG)"; sleep 5
+
+# --- 2. Approve USDT ---
+APPROVE_AMOUNT=$((USDT_AMOUNT+USDT_FEE))
+APR=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGER} icrc2_approve "(record { amount = ${APPROVE_AMOUNT}; spender = record { owner = principal \"${KONG_BACKEND}\" }; })")
+check_ok "$APR" "USDT approve failed"
+
+# --- 3. Sign message ---
+TS=$(($(date +%s)*1000))
+MSG=$(printf '{"token_0":"%s.%s","amount_0":%s,"token_1":"%s.%s","amount_1":%s,"timestamp":%s}' \
+  "$SOL_CHAIN" "$SOL_ADDRESS" "$SOL_AMOUNT" \
+  "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT" "$TS")
+SIG=$(solana sign-offchain-message "$MSG")
+
+# --- 4. Add liquidity ---
+CALL="(record { token_0 = \"${SOL_CHAIN}.${SOL_ADDRESS}\"; amount_0=${SOL_AMOUNT}; tx_id_0 = opt variant { TransactionId = \"${SOL_TX_SIG}\" }; token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\"; amount_1=${USDT_AMOUNT}; tx_id_1 = null; signature_0 = opt \"${SIG}\"; signature_1 = null; timestamp = opt ${TS}; })"
+RES=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_liquidity --output json "$CALL")
+check_ok "$RES" "add_liquidity failed"
+REQ_ID=$(echo "$RES" | jq -r '.Ok.request_id // .request_id // empty')
+[[ -n "$REQ_ID" ]] && echo "Liquidity add request submitted: $REQ_ID" || echo "$RES"
