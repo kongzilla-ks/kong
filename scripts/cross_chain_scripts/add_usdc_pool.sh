@@ -12,7 +12,7 @@ set -euo pipefail
 
 # ============================ CONFIG ============================
 NETWORK="${1:-local}"                   # "local" or "ic"
-IDENTITY_FLAG="--identity glad"   # change if needed
+IDENTITY_FLAG="--identity kong_user1"   # change if needed
 
 # Token 0 (USDC on Solana)
 USDC_CHAIN="SOL"
@@ -21,7 +21,7 @@ if [ "${NETWORK}" == "ic" ]; then
 else
     USDC_ADDRESS="4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"   # Devnet mint
 fi
-USDC_AMOUNT=1000           # 1 USDC (6 decimals)
+USDC_AMOUNT=1000000           # 1 USDC (6 decimals)
 
 # Token 1 (USDT on IC)
 USDT_CHAIN="IC"

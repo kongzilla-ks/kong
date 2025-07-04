@@ -22,4 +22,4 @@ elif [ "$1" == "local" ]; then
     fi
 fi
 
-dfx canister call kong_backend cache_solana_address
+dfx canister call kong_backend cache_solana_address --identity kong

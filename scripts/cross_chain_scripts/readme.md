@@ -12,9 +12,9 @@ cargo run -r
 cd scripts
 sh deploy_kong.sh local
 ### cache the solana address into stable memory
-## since this has to be done once so it is in the stable memory and we dont need to call ic management canister everything for something thats static / safe to be cached in our eyes so far
 dfx canister call kong_backend cache_solana_address --identity kong
 
+### frontend 
 dfx deploy kong_svelte
 
 
