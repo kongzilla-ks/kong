@@ -9,8 +9,8 @@
   let timeLeft = $state({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   let countdownInterval: number | null = null;
   
-  // Launch date: July 31, 2025  
-  const launchDate = new Date('2025-07-31T00:00:00Z');
+  // Launch date: July 21, 2025
+  const launchDate = new Date('2025-07-21T00:00:00Z');
   
   function updateCountdown() {
     const now = new Date();
@@ -99,7 +99,7 @@
         class="try-demo-btn relative px-8 py-4 text-lg font-bold text-kong-primary border-2 border-kong-primary rounded-xl overflow-hidden group transition-all duration-300 hover:text-white hover:shadow-2xl hover:shadow-kong-primary/50 hover:-translate-y-1"
       >
         <span class="relative z-10 flex items-center gap-2">
-          Try Demo Now
+          Explore Features
           <svg class="w-5 h-5 animate-bounce-x" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
           </svg>

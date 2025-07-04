@@ -53,7 +53,7 @@ check_ok "$APR" "USDT approve failed"
 
 # --- 3. Sign message ---
 TS=$(($(date +%s)*1000))
-MSG=$(printf '{"token_0":"%s.%s","amount_0":%s,"token_1":"%s.%s","amount_1":%s,"timestamp":%s}' \
+MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s],"timestamp":%s}' \
   "$SOL_CHAIN" "$SOL_ADDRESS" "$SOL_AMOUNT" \
   "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT" "$TS")
 SIG=$(solana sign-offchain-message "$MSG")
