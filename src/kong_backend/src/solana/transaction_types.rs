@@ -68,9 +68,6 @@ pub struct SolanaTransaction {
     // Transaction instruction type
     pub instruction_type: Option<String>,
 
-    // Balance change amount if available
-    pub balance_change: Option<u64>,
-
     // Additional metadata (JSON string)
     pub metadata: Option<String>,
 }

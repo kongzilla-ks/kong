@@ -68,10 +68,6 @@ async fn verify_solana_pool_payment(
     signature: &str,
     sol_token: &crate::stable_token::solana_token::SolanaToken,
 ) -> Result<PoolPaymentVerification, String> {
-    ic_cdk::println!("DEBUG verify_solana_pool_payment: args = {:?}", args);
-    ic_cdk::println!("DEBUG verify_solana_pool_payment: amount = {:?}", amount);
-    ic_cdk::println!("DEBUG verify_solana_pool_payment: tx_id = {:?}", tx_id);
-    ic_cdk::println!("DEBUG verify_solana_pool_payment: signature = {}", signature);
     
     // Extract transaction signature
     let tx_signature_str = match tx_id {
@@ -89,10 +85,6 @@ async fn verify_solana_pool_payment(
     let canonical_message = CanonicalAddPoolMessage::from_add_pool_args(args);
     let message_to_verify = canonical_message.to_signing_message();
     
-    ic_cdk::println!("DEBUG: Canonical message created: {:?}", canonical_message);
-    ic_cdk::println!("DEBUG: Message to verify: {}", message_to_verify);
-    ic_cdk::println!("DEBUG: Sender pubkey: {}", sender_pubkey);
-    ic_cdk::println!("DEBUG: Signature: {}", signature);
     
     verify_canonical_message(&message_to_verify, &sender_pubkey, signature)
         .map_err(|e| format!("Pool signature verification failed: {}", e))?;

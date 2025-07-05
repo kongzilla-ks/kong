@@ -35,8 +35,6 @@ impl CanonicalSwapMessage {
     /// Create a canonical message from SwapArgs
     /// NOTE: This must create a message that serializes identically to the frontend
     pub fn from_swap_args(args: &SwapArgs) -> Self {
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args receive_amount: {:?}", args.receive_amount));
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args receive_address: {:?}", args.receive_address));
         
         // For cross-chain swaps, we need to use the same values that the frontend used when signing
         // The frontend includes receive_amount and receive_address in the signed message
@@ -69,7 +67,6 @@ impl CanonicalSwapMessage {
     /// Serialize to JSON string for signing
     pub fn to_signing_message(&self) -> String {
         let json_message = serde_json::to_string(self).expect("Failed to serialize message");
-        ICNetwork::info_log(&format!("DEBUG: to_signing_message JSON: {}", json_message));
         json_message
     }
 }
