@@ -18,6 +18,4 @@ pub struct RemoveLiquidityArgs {
     pub signature_0: Option<String>,       // Ed25519 signature for token_0 payout
     #[serde(default)]
     pub signature_1: Option<String>,       // Ed25519 signature for token_1 payout
-    #[serde(default)]
-    pub timestamp: Option<u64>,            // Required when signatures are present (milliseconds)
 }

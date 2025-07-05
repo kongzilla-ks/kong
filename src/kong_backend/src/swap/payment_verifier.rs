@@ -10,7 +10,6 @@ use crate::stable_token::stable_token::StableToken;
 use crate::solana::payment_verification::{
     extract_solana_sender_from_transaction,
     verify_solana_transaction,
-    verify_solana_timestamp_freshness,
 };
 
 use super::swap_args::SwapArgs;
@@ -138,9 +137,6 @@ async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &cr
     
     verify_canonical_message(&message_to_verify, &sender_pubkey, signature)
         .map_err(|e| format!("Signature verification failed: {}", e))?;
-    
-    // Check timestamp freshness
-    verify_solana_timestamp_freshness(args.timestamp)?;
 
     // Verify the actual Solana transaction from storage
     verify_solana_transaction(&tx_signature_str, &sender_pubkey, pay_amount, is_spl_token).await?;

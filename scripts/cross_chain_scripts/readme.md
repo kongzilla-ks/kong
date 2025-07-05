@@ -1,23 +1,78 @@
-# hints in running the project locally
--- copy the example.env into an .env at the same place as the example.env, change accordingly
--- some nuance logic about kong_rpc is also explain in /kong_rpc/readme.md
+# Solana Cross-Chain Integration Guide
 
-# easiest way to setup kong locally:
-## terminal: 1
-### with two terminals/consoles its nice to see what the kong_backend is doing / if transactions are being pushed
-cd kong_rpc
+This document provides instructions for setting up Solana cross-chain functionality with Kong's backend services.
+
+## Prerequisites
+1. Install DFX development environment
+2. Set up Solana CLI with devnet configuration (`solana config set --url devnet`)
+
+## Setup Procedure
+
+### 1. Start DFX Environment
+```sh
+dfx start --clean --background
+```
+
+### 2. Deploy Kong Backend
+```sh
+cd scripts/ && sh deploy_kong.sh local
+```
+
+### 3. Navigate to Kong RPC Directory
+```sh
+cd ../kong_rpc
+```
+
+### 4. Initialize Service
+```sh
+cp example.env .env
 cargo run -r
+```
 
-## terminal 2:
-cd scripts
-sh deploy_kong.sh local
-### cache the solana address into stable memory
-dfx canister call kong_backend cache_solana_address --identity kong
+## Key Operations
 
-### frontend 
-dfx deploy kong_svelte
+### Retrieve Solana Address
+```sh
+dfx canister call kong_backend get_solana_address
+```
 
-
-# should have icp native pools + devnet sol/local ckusdt (ksUSDT) pool
-dfx canister call kong_backend pools '(null)'
+### Verify Token Balances
+```sh
 dfx canister call kong_backend tokens '(null)'
+```
+*Expected: Both ICP and Solana token balances*
+
+### Manage Liquidity Pools
+```sh
+# Add SOL pool
+sh scripts/cross_chain_scripts/add_sol_pool.sh local
+
+# Add USDC pool
+sh scripts/cross_chain_scripts/add_usdc_pool.sh local
+```
+
+### Liquidity Operations
+```sh
+# Add liquidity
+sh scripts/cross_chain_scripts/add_sol_lp.sh local
+sh scripts/cross_chain_scripts/add_usdc_lp.sh local
+
+# Remove liquidity
+sh scripts/cross_chain_scripts/remove_sol_lp.sh local
+sh scripts/cross_chain_scripts/remove_usdc_lp.sh local
+```
+
+### Token Swaps
+```sh
+# SOL to USDC
+sh scripts/cross_chain_scripts/swap_sol_to_usdc.sh local
+
+# KSUSDT to SOL
+sh scripts/cross_chain_scripts/swap_ksusdt_to_sol.sh local
+```
+
+## Notes
+- Use Solana devnet (faucet available via `solana airdrop 1`)
+- USDC faucet: https://faucet.circle.com
+- All commands assume execution from project root directory
+- Ensure `.env` is properly configured with RPC endpoints

@@ -45,14 +45,13 @@ APR=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGER} icrc2_ap
 check_ok "$APR" "USDT approve failed"
 
 # 3. Sign message
-TS=$(($(date +%s)*1000))
-MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s],"timestamp":%s}' \
+MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s]}' \
  "$USDC_CHAIN" "$USDC_ADDRESS" "$USDC_AMOUNT" \
- "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT" "$TS")
+ "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT")
 SIG=$(solana sign-offchain-message "$MSG")
 
 # 4. Add liquidity (with 4 second timeout)
-CALL="(record { token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\"; amount_0=${USDC_AMOUNT}; tx_id_0=opt variant { TransactionId = \"${USDC_TX_SIG}\" }; token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\"; amount_1=${USDT_AMOUNT}; tx_id_1 = null; signature_0 = opt \"${SIG}\"; signature_1 = null; timestamp = opt ${TS}; })"
+CALL="(record { token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\"; amount_0=${USDC_AMOUNT}; tx_id_0=opt variant { TransactionId = \"${USDC_TX_SIG}\" }; token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\"; amount_1=${USDT_AMOUNT}; tx_id_1 = null; signature_0 = opt \"${SIG}\"; signature_1 = null; })"
 RES=$(timeout 4 dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_liquidity --output json "$CALL")
 if [ $? -eq 124 ]; then
     echo "Error: add_liquidity call timed out after 4 seconds"

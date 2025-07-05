@@ -50,6 +50,36 @@ pub async fn verify_solana_transaction(
         status => return Err(format!("Solana transaction {} has unexpected status: {}", tx_signature, status)),
     }
     
+    // Verify blockchain timestamp freshness (5 minute window)
+    // Solana transactions must be recent to prevent replay attacks with old transactions
+    const MAX_TRANSACTION_AGE_MS: u64 = 300_000; // 5 minutes in milliseconds
+    
+    if let Some(metadata_json) = &transaction.metadata {
+        let metadata: serde_json::Value = serde_json::from_str(metadata_json)
+            .map_err(|e| format!("Failed to parse transaction metadata: {}", e))?;
+        
+        // Extract blockTime from metadata (unix timestamp in seconds from Solana RPC)
+        let block_time = metadata.get("blockTime")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| format!("Solana transaction {} missing blockTime in metadata", tx_signature))?;
+        
+        // Convert to milliseconds and check age
+        let tx_timestamp_ms = (block_time as u64) * 1000;
+        let current_time_ms = ICNetwork::get_time() / 1_000_000; // Convert from nanoseconds
+        let age_ms = current_time_ms.saturating_sub(tx_timestamp_ms);
+        
+        if age_ms > MAX_TRANSACTION_AGE_MS {
+            return Err(format!(
+                "Solana transaction {} is too old: {} minutes ago. Transactions must be less than {} minutes old.", 
+                tx_signature, 
+                age_ms / 60_000,
+                MAX_TRANSACTION_AGE_MS / 60_000
+            ));
+        }
+    } else {
+        return Err(format!("Solana transaction {} missing metadata for timestamp validation", tx_signature));
+    }
+    
     // Parse metadata to verify transaction details
     if let Some(metadata_json) = &transaction.metadata {
         let metadata: serde_json::Value = serde_json::from_str(metadata_json)
@@ -96,15 +126,3 @@ pub async fn verify_solana_transaction(
     Ok(())
 }
 
-/// Verify timestamp freshness for Solana payments (5 minute window)
-pub fn verify_solana_timestamp_freshness(timestamp: Option<u64>) -> Result<(), String> {
-    let current_time_ms = ICNetwork::get_time() / 1_000_000;
-    let message_timestamp = timestamp.unwrap_or(current_time_ms);
-    let age_ms = current_time_ms.saturating_sub(message_timestamp);
-    
-    if age_ms > 300_000 {  // 5 minutes in milliseconds
-        return Err(format!("Solana payment signature timestamp too old: {} ms", age_ms));
-    }
-    
-    Ok(())
-}

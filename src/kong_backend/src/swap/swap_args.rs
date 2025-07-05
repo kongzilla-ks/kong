@@ -22,8 +22,6 @@ pub struct SwapArgs {
     // Cross-chain fields
     #[serde(default)]
     pub pay_signature: Option<String>,   // Ed25519 signature of canonical message for payment verification
-    #[serde(default)]
-    pub timestamp: Option<u64>,          // Required when pay_signature is present (milliseconds)
 }
 
 impl Default for SwapArgs {
@@ -38,7 +36,6 @@ impl Default for SwapArgs {
             max_slippage: None,
             referred_by: None,
             pay_signature: None,
-            timestamp: None,
         }
     }
 }

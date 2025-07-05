@@ -1,8 +1,6 @@
 use candid::Nat;
 use serde::{Deserialize, Serialize};
 
-use crate::ic::network::ICNetwork;
-
 use super::add_liquidity_args::AddLiquidityArgs;
 
 /// A structure representing the canonical message format for signing liquidity additions
@@ -12,7 +10,6 @@ pub struct CanonicalAddLiquidityMessage {
     pub amount_0: Nat,
     pub token_1: String,
     pub amount_1: Nat,
-    pub timestamp: u64,
 }
 
 impl CanonicalAddLiquidityMessage {
@@ -23,9 +20,6 @@ impl CanonicalAddLiquidityMessage {
             amount_0: args.amount_0.clone(),
             token_1: args.token_1.clone(),
             amount_1: args.amount_1.clone(),
-            timestamp: args
-                .timestamp
-                .unwrap_or_else(|| ICNetwork::get_time() / 1_000_000), // Use current IC time in milliseconds if not provided
         }
     }
 

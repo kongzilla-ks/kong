@@ -18,7 +18,6 @@ pub struct CanonicalSwapMessage {
     pub receive_amount: Nat,
     pub receive_address: String,
     pub max_slippage: f64,
-    pub timestamp: u64,
     pub referred_by: Option<String>,
 }
 
@@ -36,12 +35,6 @@ impl CanonicalSwapMessage {
     /// Create a canonical message from SwapArgs
     /// NOTE: This must create a message that serializes identically to the frontend
     pub fn from_swap_args(args: &SwapArgs) -> Self {
-        let timestamp = args
-            .timestamp
-            .unwrap_or_else(|| ICNetwork::get_time() / 1_000_000); // Use current IC time in milliseconds if not provided
-        
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args timestamp from args: {:?}", args.timestamp));
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args final timestamp: {}", timestamp));
         ICNetwork::info_log(&format!("DEBUG: from_swap_args receive_amount: {:?}", args.receive_amount));
         ICNetwork::info_log(&format!("DEBUG: from_swap_args receive_address: {:?}", args.receive_address));
         
@@ -63,7 +56,6 @@ impl CanonicalSwapMessage {
             receive_amount,
             receive_address,
             max_slippage: args.max_slippage.unwrap_or(1.0),
-            timestamp,
             referred_by: args.referred_by.clone(),
         }
     }

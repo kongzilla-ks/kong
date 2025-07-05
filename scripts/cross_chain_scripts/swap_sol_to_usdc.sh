@@ -115,9 +115,6 @@ sleep 15
 # Step 4: Create and sign canonical swap message
 print_header "STEP 4: CREATE SIGNATURE"
 
-# Create timestamp (milliseconds)
-TIMESTAMP=$(echo "$(date +%s) * 1000" | bc)
-
 # Create canonical swap message
 MESSAGE_JSON=$(cat <<EOF
 {
@@ -128,7 +125,6 @@ MESSAGE_JSON=$(cat <<EOF
   "receive_amount": $RECEIVE_AMOUNT,
   "receive_address": "${USER_SOLANA_ADDRESS}",
   "max_slippage": $MAX_SLIPPAGE,
-  "timestamp": $TIMESTAMP,
   "referred_by": null
 }
 EOF
@@ -160,8 +156,7 @@ SWAP_CALL="(record {
     receive_amount = opt ${RECEIVE_AMOUNT};
     max_slippage = opt ${MAX_SLIPPAGE};
     receive_address = opt \"${USER_SOLANA_ADDRESS}\";
-    signature = opt \"${SIGNATURE}\";
-    timestamp = opt ${TIMESTAMP};
+    pay_signature = opt \"${SIGNATURE}\";
 })"
 
 print_debug "Swap call:"

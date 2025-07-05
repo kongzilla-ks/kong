@@ -1,8 +1,6 @@
 use candid::Nat;
 use serde::{Deserialize, Serialize};
 
-use crate::ic::network::ICNetwork;
-
 use super::remove_liquidity_args::RemoveLiquidityArgs;
 
 /// A structure representing the canonical message format for signing liquidity removals
@@ -13,7 +11,6 @@ pub struct CanonicalRemoveLiquidityMessage {
     pub remove_lp_token_amount: Nat,
     pub payout_address_0: Option<String>,
     pub payout_address_1: Option<String>,
-    pub timestamp: u64,
 }
 
 impl CanonicalRemoveLiquidityMessage {
@@ -25,9 +22,6 @@ impl CanonicalRemoveLiquidityMessage {
             remove_lp_token_amount: args.remove_lp_token_amount.clone(),
             payout_address_0: args.payout_address_0.clone(),
             payout_address_1: args.payout_address_1.clone(),
-            timestamp: args
-                .timestamp
-                .unwrap_or_else(|| ICNetwork::get_time() / 1_000_000), // Use current IC time in milliseconds if not provided
         }
     }
 
