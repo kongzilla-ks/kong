@@ -2,8 +2,7 @@ use candid::Nat;
 use ic_cdk::update;
 use icrc_ledger_types::icrc1::account::Account;
 
-use crate::add_token::add_token::{add_ic_token, add_lp_token, add_solana_token};
-use crate::add_token::add_token_args::AddTokenArgs;
+use crate::add_token::add_token::{add_ic_token, add_lp_token};
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::helpers::nat_helpers::{nat_add, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero};
 use crate::ic::{
@@ -174,17 +173,8 @@ async fn check_arguments(
             match token_map::get_chain(&args.token_0) {
                 Some(chain) if chain == IC_CHAIN => add_ic_token(&args.token_0).await?,
                 Some(chain) if chain == SOL_CHAIN => {
-                    // For Solana tokens, create AddTokenArgs with default values
-                    let add_token_args = AddTokenArgs {
-                        token: args.token_0.clone(),
-                        name: None,
-                        symbol: None,
-                        decimals: None,
-                        fee: None,
-                        solana_program_id: None,
-                        solana_mint_address: None,
-                    };
-                    add_solana_token(&add_token_args).await?
+                    // Solana tokens should be added automatically via ATA discovery
+                    Err("Solana tokens are added automatically via ATA discovery. Manual pool creation with Solana tokens not supported.".to_string())?
                 }
                 Some(_) | None => Err("Token_0 chain not supported")?,
             }
@@ -880,7 +870,13 @@ async fn verify_cross_chain_transfer(
 
     // Create transfer record based on verification result
     let final_tx_id = match verification {
-        PoolPaymentVerification::SolanaPayment { tx_signature, .. } => TxId::TransactionId(tx_signature),
+        PoolPaymentVerification::SolanaPayment { tx_signature, .. } => {
+            // Check if this Solana transaction has already been used
+            if transfer_map::contains_tx_signature(token.token_id(), &tx_signature) {
+                return Err(format!("Solana transaction signature already used for {}", token.symbol()));
+            }
+            TxId::TransactionId(tx_signature)
+        }
     };
 
     let transfer_id = transfer_map::insert(&StableTransfer {

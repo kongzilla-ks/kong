@@ -1,21 +1,31 @@
 use candid::{CandidType, Nat};
 use serde::{Deserialize, Serialize};
 
-/// Arguments for adding a token.
+/// Arguments for adding an IC token.
+/// 
+/// Solana tokens are added automatically via ATA discovery - use add_spl_token for proxy calls.
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AddTokenArgs {
+    /// IC token address (format: IC.CanisterId)
     pub token: String,
-    // Optional fields for Solana tokens
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub symbol: Option<String>,
-    #[serde(default)]
-    pub decimals: Option<u8>,
-    #[serde(default)]
+}
+
+/// Arguments for adding an SPL token (proxy-only).
+/// 
+/// This is used internally by the kong_rpc proxy during ATA discovery.
+/// All metadata is fetched from Solana and provided by the proxy.
+#[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
+pub struct AddSplTokenArgs {
+    /// SPL token address (format: SOL.MintAddress)
+    pub token: String,
+    /// Token name (from Solana metadata)
+    pub name: String,
+    /// Token symbol (from Solana metadata)
+    pub symbol: String,
+    /// Token decimals (from Solana metadata)
+    pub decimals: u8,
+    /// Transaction fee in lamports (defaults to 5000)
     pub fee: Option<Nat>,
-    #[serde(default)]
-    pub solana_program_id: Option<String>,
-    #[serde(default)]
-    pub solana_mint_address: Option<String>,
+    /// Solana program ID (from Solana metadata)
+    pub program_id: String,
 }

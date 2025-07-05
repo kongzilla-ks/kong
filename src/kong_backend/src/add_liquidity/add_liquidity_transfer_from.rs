@@ -3,7 +3,7 @@ use icrc_ledger_types::icrc1::account::Account;
 
 use super::add_liquidity::TokenIndex;
 use super::add_liquidity_args::AddLiquidityArgs;
-use super::liquidity_payment_verifier::LiquidityPaymentVerifier;
+use super::liquidity_payment_verifier::{LiquidityPaymentVerifier, LiquidityPaymentVerification};
 use crate::chains::chains::SOL_CHAIN;
 use super::add_liquidity_reply::AddLiquidityReply;
 use super::add_liquidity_reply_helpers::{to_add_liquidity_reply, to_add_liquidity_reply_failed};
@@ -238,8 +238,17 @@ async fn process_add_liquidity(
         let tx_id_0 = args.tx_id_0.as_ref().ok_or("Token_0: Solana tokens require tx_id")?;
         let signature = args.signature_0.as_ref().ok_or("Token_0: Solana tokens require signature")?;
         
-        verifier.verify_liquidity_payment(&args, &token_0, add_amount_0, tx_id_0, signature).await
+        let verification = verifier.verify_liquidity_payment(&args, &token_0, add_amount_0, tx_id_0, signature).await
             .map_err(|e| format!("Token_0 Solana payment verification failed. {}", e))?;
+        
+        // Check if this Solana transaction has already been used
+        match &verification {
+            LiquidityPaymentVerification::SolanaPayment { tx_signature, .. } => {
+                if transfer_map::contains_tx_signature(token_0.token_id(), tx_signature) {
+                    return Err(format!("Token_0 Solana transaction signature already used"));
+                }
+            }
+        }
         
         // Record the transfer
         let transfer_id = transfer_map::insert(&StableTransfer {
@@ -279,7 +288,16 @@ async fn process_add_liquidity(
         match (tx_id_1, signature) {
             (Ok(tx_id), Ok(sig)) => {
                 match verifier.verify_liquidity_payment(&args, &token_1, add_amount_1, tx_id, sig).await {
-                    Ok(_) => {
+                    Ok(verification) => {
+                        // Check if this Solana transaction has already been used
+                        match &verification {
+                            LiquidityPaymentVerification::SolanaPayment { tx_signature, .. } => {
+                                if transfer_map::contains_tx_signature(token_1.token_id(), tx_signature) {
+                                    return Err(format!("Token_1 Solana transaction signature already used"));
+                                }
+                            }
+                        }
+                        
                         // Record the transfer
                         let transfer_id = transfer_map::insert(&StableTransfer {
                             transfer_id: 0,

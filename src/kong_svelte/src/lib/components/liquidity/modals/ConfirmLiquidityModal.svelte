@@ -113,7 +113,7 @@
         lpAmount: '', // not used for add liquidity
         onConfirm: async (modalData) => {
           try {
-            const { solTransactionId, icrcTransactionId, signature, timestamp } = modalData;
+            const { solTransactionId, icrcTransactionId, pay_signature, timestamp } = modalData;
             
             // Call add_liquidity_async with both transaction details
             const actor = await swapActor({ anon: false, requiresSigning: false });
@@ -129,8 +129,8 @@
               tx_id_1: isToken1Sol 
                 ? (solTransactionId ? [{ TransactionId: solTransactionId }] : [])
                 : (icrcTransactionId ? [{ BlockIndex: icrcTransactionId }] : []),
-              signature_0: isToken0Sol ? [signature] : [] as [] | [string],
-              signature_1: isToken1Sol ? [signature] : [] as [] | [string],
+              pay_signature_0: isToken0Sol ? [pay_signature] : [] as [] | [string],
+              pay_signature_1: isToken1Sol ? [pay_signature] : [] as [] | [string],
               timestamp: [timestamp] as [] | [bigint],
             };
 

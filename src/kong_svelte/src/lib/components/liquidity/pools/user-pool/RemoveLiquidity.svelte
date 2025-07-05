@@ -118,7 +118,7 @@
         lpAmount: numericAmount.toString(),
         onConfirm: async (modalData) => {
           try {
-            const { signature, timestamp } = modalData;
+            const { pay_signature, timestamp } = modalData;
             
             // Call removeLiquidity with cross-chain parameters
             const requestId = await removeLiquidity({
@@ -129,8 +129,8 @@
               token_1_obj: token1,
               payout_address_0: isToken0Sol ? await getCurrentSolanaAddress() : undefined,
               payout_address_1: isToken1Sol ? await getCurrentSolanaAddress() : undefined,
-              signature_0: isToken0Sol ? signature : undefined,
-              signature_1: isToken1Sol ? signature : undefined,
+              pay_signature_0: isToken0Sol ? pay_signature : undefined,
+              pay_signature_1: isToken1Sol ? pay_signature : undefined,
               timestamp: timestamp,
             });
             

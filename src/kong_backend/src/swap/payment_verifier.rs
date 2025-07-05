@@ -97,8 +97,8 @@ impl PaymentVerifier {
 /// Verify Solana payment by checking signature and transaction data
 async fn verify_solana_payment(args: &SwapArgs, pay_amount: &Nat, sol_token: &crate::stable_token::solana_token::SolanaToken) -> Result<PaymentVerification, String> {
     // Solana tokens require signature
-    let signature = args.signature.as_ref()
-        .ok_or_else(|| "Signature is required for Solana/SPL tokens".to_string())?;
+    let signature = args.pay_signature.as_ref()
+        .ok_or_else(|| "Payment signature is required for Solana/SPL tokens".to_string())?;
     
     // Get transaction ID
     let tx_id = args.pay_tx_id.as_ref()

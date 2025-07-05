@@ -516,7 +516,7 @@ type SwapArgs = record {
     receive_address : opt text;
     max_slippage : opt float64;
     referred_by : opt text;
-    signature : opt text;
+    pay_signature : opt text;
     timestamp : opt nat64;
 };
 type SwapTxReply = record {
@@ -611,6 +611,7 @@ service : {
     
     // tokens(opt wildcard) - returns all tokens or wildcard search
     tokens : (opt text) -> (TokensResult) query;
+    token_exists : (text) -> (bool) query;
     // pools(opt wildcard) - returns all pools or wildcard search
     pools : (opt text) -> (PoolsResult) query;
 

@@ -284,7 +284,7 @@
       dispatch('confirm', {
         solTransactionId: operation === 'add' ? solTransactionId : undefined,
         icrcTransactionId: operation === 'add' ? icrcTransactionId : undefined,
-        signature,
+        pay_signature: signature,
         timestamp,
         canonicalMessage
       });

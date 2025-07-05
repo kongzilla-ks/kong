@@ -19,9 +19,6 @@ use super::wumbo::Transaction1;
 
 const SUBACCOUNT_LENGTH: usize = 32;
 
-#[cfg(not(feature = "prod"))]
-const ICP_CANISTER_ID: &str = "IC.nppha-riaaa-aaaal-ajf2q-cai"; // Testnet ICP Ledger
-#[cfg(feature = "prod")]
 const ICP_CANISTER_ID: &str = "IC.ryjl3-tyaaa-aaaaa-aaaba-cai"; // Mainnet ICP Ledger
 const WUMBO_CANISTER_ID: &str = "IC.wkv3f-iiaaa-aaaap-ag73a-cai";
 const DAMONIC_CANISTER_ID: &str = "IC.zzsnb-aaaaa-aaaap-ag66q-cai";

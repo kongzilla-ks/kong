@@ -19,6 +19,24 @@ pub fn contain(token_id: u32, block_id: &Nat) -> bool {
     })
 }
 
+/// Check if a transaction (either IC block or Solana signature) has already been used
+pub fn contains_tx_id(token_id: u32, tx_id: &TxId) -> bool {
+    TRANSFER_MAP.with(|m| {
+        m.borrow()
+            .iter()
+            .any(|(_, v)| v.token_id == token_id && &v.tx_id == tx_id)
+    })
+}
+
+/// Check if a Solana transaction signature has already been used for a token
+pub fn contains_tx_signature(token_id: u32, tx_signature: &str) -> bool {
+    TRANSFER_MAP.with(|m| {
+        m.borrow()
+            .iter()
+            .any(|(_, v)| v.token_id == token_id && v.tx_id == TxId::TransactionId(tx_signature.to_string()))
+    })
+}
+
 pub fn insert(transfer: &StableTransfer) -> u64 {
     TRANSFER_MAP.with(|m| {
         let mut map = m.borrow_mut();
