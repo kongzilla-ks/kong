@@ -7,13 +7,11 @@ use super::tokens_reply::TokensReply;
 
 #[query(guard = "not_in_maintenance_mode")]
 fn tokens(symbol: Option<String>) -> Result<Vec<TokensReply>, String> {
-    let tokens = match symbol.as_deref() {
-        Some(symbol) => token_map::get_by_token_wildcard(symbol),
+    Ok(match symbol {
+        Some(symbol) => token_map::get_by_token_wildcard(&symbol),
         None => token_map::get(),
     }
     .iter()
     .map(TokensReply::from)
-    .collect();
-
-    Ok(tokens)
+    .collect())
 }
