@@ -28,6 +28,9 @@ use crate::stable_transfer::transfer_archive::archive_transfer_map;
 use crate::stable_tx::tx_archive::archive_tx_map;
 use crate::stable_user::principal_id_map::create_principal_id_map;
 use crate::swap::swap_args::SwapArgs;
+use crate::remove_liquidity::remove_liquidity_args::RemoveLiquidityArgs;
+use crate::chains::chains::SOL_CHAIN;
+use crate::solana::utils::validation;
 
 use super::kong_backend::KongBackend;
 use super::stable_memory::{get_cached_solana_address, get_solana_transaction};
@@ -143,6 +146,13 @@ fn inspect_message() {
             ic_cdk::trap(&e);
         }
     }
+    
+    // Add validation for remove liquidity operations
+    if method_name == "remove_liquidity" || method_name == "remove_liquidity_async" {
+        if let Err(e) = validate_remove_liquidity_request() {
+            ic_cdk::trap(&e);
+        }
+    }
 
     ic_cdk::api::call::accept_message();
 }
@@ -170,11 +180,6 @@ fn validate_swap_request() -> Result<(), String> {
                 return Err("Pay amount cannot be zero".to_string());
             }
             
-            // Basic rate limiting - allow more frequent calls for authenticated users
-            if let Err(e) = check_rate_limit() {
-                return Err(e);
-            }
-            
             // Check if Solana transaction is ready (zero-cost early rejection)
             if let Some(tx_id) = &args.pay_tx_id {
                 if let TxId::TransactionId(signature) = tx_id {
@@ -191,19 +196,61 @@ fn validate_swap_request() -> Result<(), String> {
     }
 }
 
-/// Simple rate limiting based on caller frequency
-fn check_rate_limit() -> Result<(), String> {
-    // For now, just implement a basic check
-    // In a full implementation, this would track call frequency per caller
-    // and enforce stricter limits for anonymous users vs authenticated users
+/// Validation for remove liquidity requests to prevent invalid cross-chain operations
+fn validate_remove_liquidity_request() -> Result<(), String> {
+    let args_bytes = ic_cdk::api::call::arg_data_raw();
     
-    // TODO: Implement proper rate limiting with:
-    // - Per-caller tracking
-    // - Different limits for anonymous vs authenticated users  
-    // - Time-based windows (requests per hour)
-    // - Cleanup of old rate limit data
+    // Basic size check
+    if args_bytes.len() > 10_000 {
+        return Err("Request payload too large".to_string());
+    }
     
-    Ok(())
+    // Try to decode remove liquidity args
+    match decode_one::<RemoveLiquidityArgs>(&args_bytes) {
+        Ok(args) => {
+            // Basic parameter validation
+            if args.token_0.is_empty() || args.token_1.is_empty() {
+                return Err("Invalid token parameters".to_string());
+            }
+            
+            // Amount validation
+            if args.remove_lp_token_amount == Nat::from(0_u8) {
+                return Err("Remove amount cannot be zero".to_string());
+            }
+            
+            // Parse tokens to check if they're Solana tokens
+            let (chain_0, _) = args.token_0.split_once('.').unwrap_or(("", ""));
+            let (chain_1, _) = args.token_1.split_once('.').unwrap_or(("", ""));
+            
+            // If token_0 is Solana and no payout_address_0, reject early
+            if chain_0 == SOL_CHAIN && args.payout_address_0.is_none() {
+                return Err("Solana token payouts require payout_address_0".to_string());
+            }
+            
+            // If token_1 is Solana and no payout_address_1, reject early
+            if chain_1 == SOL_CHAIN && args.payout_address_1.is_none() {
+                return Err("Solana token payouts require payout_address_1".to_string());
+            }
+            
+            // Validate Solana addresses if provided
+            if let Some(ref addr) = args.payout_address_0 {
+                if chain_0 == SOL_CHAIN {
+                    validation::validate_address(addr)
+                        .map_err(|_| format!("Invalid Solana address for payout_address_0: {}", addr))?;
+                }
+            }
+            
+            if let Some(ref addr) = args.payout_address_1 {
+                if chain_1 == SOL_CHAIN {
+                    validation::validate_address(addr)
+                        .map_err(|_| format!("Invalid Solana address for payout_address_1: {}", addr))?;
+                }
+            }
+            
+            Ok(())
+        }
+        Err(_) => Err("Invalid remove liquidity arguments format".to_string()),
+    }
 }
 
 #[query]
