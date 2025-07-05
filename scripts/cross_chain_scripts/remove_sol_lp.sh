@@ -24,9 +24,11 @@ USDT_LEDGER=$(dfx canister id ${NETWORK_FLAG} ${USDT_LEDGER_NAME})
 # Helper function
 check_ok() { local r="$1"; local ctx="$2"; echo "$r" | grep -q -e "Ok" -e "ok" || { echo "Error: $ctx" >&2; echo "$r" >&2; exit 1; }; }
 
-# Get current principal
+# Get current principal and Solana address
 PRINCIPAL=$(dfx identity get-principal ${IDENTITY_FLAG})
-echo "Checking LP balance for principal: $PRINCIPAL"
+SOLANA_ADDRESS=$(solana address)
+echo "Principal: $PRINCIPAL"
+echo "Solana address: $SOLANA_ADDRESS"
 
 # 1. Check initial balance
 echo ""
@@ -65,16 +67,35 @@ SOL_DEC=$(echo "scale=9; $SOL_AMOUNT / 1000000000" | bc)
 USDT_DEC=$(echo "scale=6; $USDT_AMOUNT / 1000000" | bc)
 
 echo "Expected to receive:"
-echo "  - SOL: $SOL_DEC ($SOL_AMOUNT units)"
+echo "  - SOL: $SOL_DEC ($SOL_AMOUNT units) → to $SOLANA_ADDRESS"
 echo "  - ${USDT_SYMBOL}: $USDT_DEC ($USDT_AMOUNT units)"
 
-# 4. Remove liquidity
+# 4. Sign message for Solana payout
+echo ""
+echo "=== Signing Message for Solana Payout ==="
+TIMESTAMP=$(($(date +%s) * 1000))
+MESSAGE_JSON=$(printf '{"token_0":"%s.%s","token_1":"%s.%s","remove_lp_token_amount":[%s],"payout_address_0":"%s","payout_address_1":null,"timestamp":%s}' \
+    "${SOL_CHAIN}" "${SOL_ADDRESS}" \
+    "${USDT_CHAIN}" "${USDT_LEDGER}" \
+    "${REMOVE_AMOUNT}" \
+    "${SOLANA_ADDRESS}" \
+    "${TIMESTAMP}")
+echo "Message to sign: $MESSAGE_JSON"
+SIGNATURE=$(solana sign-offchain-message "$MESSAGE_JSON")
+echo "Signature generated"
+
+# 5. Remove liquidity
 echo ""
 echo "=== Removing Liquidity ==="
 REMOVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} remove_liquidity "(record {
     token_0 = \"${SOL_CHAIN}.${SOL_ADDRESS}\";
     token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\";
     remove_lp_token_amount = $REMOVE_AMOUNT;
+    payout_address_0 = opt \"${SOLANA_ADDRESS}\";
+    payout_address_1 = null;
+    signature_0 = opt \"${SIGNATURE}\";
+    signature_1 = null;
+    timestamp = opt ${TIMESTAMP};
 })" --output json)
 check_ok "$REMOVE_RESULT" "Remove liquidity failed"
 
@@ -85,7 +106,7 @@ echo "Remove liquidity request submitted: $REQUEST_ID"
 echo "Waiting for transaction to process..."
 sleep 5
 
-# 5. Check final balance
+# 6. Check final balance
 echo ""
 echo "=== Final LP Balance ==="
 FINAL_BALANCE_RAW=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} user_balances "(\"$PRINCIPAL\")" --output json)
