@@ -41,7 +41,6 @@ pub struct CanonicalSwapMessage {
     pub receive_amount: u64,
     pub receive_address: String,
     pub max_slippage: f64,
-    pub timestamp: u64,
     pub referred_by: Option<String>,
 }
 
@@ -58,7 +57,6 @@ impl CanonicalSwapMessage {
             Receive Amount: {}\n\
             Receive Address: {}\n\
             Max Slippage: {}\n\
-            Timestamp: {}\n\
             Referred By: {}",
             self.pay_token,
             self.pay_amount,
@@ -67,25 +65,9 @@ impl CanonicalSwapMessage {
             self.receive_amount,
             self.receive_address,
             self.max_slippage,
-            self.timestamp,
             self.referred_by.as_deref().unwrap_or("None")
         );
         
         message.into_bytes()
-    }
-    
-    /// Verify the message is recent (within 5 minutes)
-    pub fn verify_timestamp(&self, current_time: u64) -> Result<()> {
-        const FIVE_MINUTES_NANOS: u64 = 5 * 60 * 1_000_000_000;
-        
-        if current_time < self.timestamp {
-            return Err(SolanaError::InvalidTransaction("Timestamp is in the future".to_string()).into());
-        }
-        
-        if current_time - self.timestamp > FIVE_MINUTES_NANOS {
-            return Err(SolanaError::InvalidTransaction("Timestamp is too old (> 5 minutes)".to_string()).into());
-        }
-        
-        Ok(())
     }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Script to swap SOL to ksUSDT
-# This demonstrates swapping from Solana (SOL) to IC token (ksUSDT)
+# Script to swap SOL to USDC
+# This demonstrates swapping from native SOL to SPL token (USDC)
 
 set -eu
 
@@ -21,11 +21,11 @@ PAY_AMOUNT=${PAY_AMOUNT//_/}  # remove underscore
 SOL_CHAIN="SOL"
 SOL_ADDRESS="11111111111111111111111111111111"  # Native SOL
 
-RECEIVE_TOKEN="ksUSDT"
-RECEIVE_CHAIN="IC"
-RECEIVE_TOKEN_LEDGER=$(dfx canister id ${NETWORK_FLAG} $(echo ${RECEIVE_TOKEN} | tr '[:upper:]' '[:lower:]')_ledger)
+RECEIVE_TOKEN="USDC"
+RECEIVE_CHAIN="SOL"
+RECEIVE_TOKEN_ADDRESS="4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"  # Devnet USDC
 RECEIVE_AMOUNT=0  # Let the system calculate optimal amount
-MAX_SLIPPAGE=90.0  # 90%
+MAX_SLIPPAGE=95.0  # 95% - high slippage for testing with small liquidity pools
 
 # Colors for output
 if [ -t 1 ] && command -v tput >/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
@@ -110,18 +110,12 @@ print_info "Transaction signature: $SOL_TX_SIG"
 print_header "STEP 3: WAIT FOR CONFIRMATION"
 print_info "Waiting for transaction confirmation and kong_rpc processing..."
 print_info "This takes about 10-15 seconds..."
-sleep 15 # not yet made with ic timer / spawn stuff
+sleep 15
 
 # Step 4: Create and sign canonical swap message
 print_header "STEP 4: CREATE SIGNATURE"
 
-# Create timestamp (milliseconds)
-TIMESTAMP=$(echo "$(date +%s) * 1000" | bc)
-
-# Create canonical swap message (matching what payment verifier expects)
-# IMPORTANT: The message MUST use simple token symbols (e.g., "SOL", "ksUSDT")
-# NOT the full chain-prefixed format (e.g., "SOL.11111111...", "IC.zdzgz...")
-# The backend uses token symbols from SwapArgs, not the full identifiers
+# Create canonical swap message
 MESSAGE_JSON=$(cat <<EOF
 {
   "pay_token": "${PAY_TOKEN}",
@@ -129,9 +123,8 @@ MESSAGE_JSON=$(cat <<EOF
   "pay_address": "${USER_SOLANA_ADDRESS}",
   "receive_token": "${RECEIVE_TOKEN}",
   "receive_amount": $RECEIVE_AMOUNT,
-  "receive_address": "${USER_IC_PRINCIPAL}",
+  "receive_address": "${USER_SOLANA_ADDRESS}",
   "max_slippage": $MAX_SLIPPAGE,
-  "timestamp": $TIMESTAMP,
   "referred_by": null
 }
 EOF
@@ -153,7 +146,7 @@ print_debug "Signature: $SIGNATURE"
 
 # Step 5: Execute the swap
 print_header "STEP 5: EXECUTE SWAP"
-print_info "Executing swap from SOL to ksUSDT..."
+print_info "Executing swap from SOL to USDC..."
 
 SWAP_CALL="(record {
     pay_token = \"${PAY_TOKEN}\";
@@ -162,9 +155,8 @@ SWAP_CALL="(record {
     receive_token = \"${RECEIVE_TOKEN}\";
     receive_amount = opt ${RECEIVE_AMOUNT};
     max_slippage = opt ${MAX_SLIPPAGE};
-    receive_address = opt \"${USER_IC_PRINCIPAL}\";
-    signature = opt \"${SIGNATURE}\";
-    timestamp = opt ${TIMESTAMP};
+    receive_address = opt \"${USER_SOLANA_ADDRESS}\";
+    pay_signature = opt \"${SIGNATURE}\";
 })"
 
 print_debug "Swap call:"
@@ -188,7 +180,5 @@ print_header "VERIFICATION"
 print_info "Checking SOL balance..."
 solana balance
 
-print_info "Checking ksUSDT balance..."
-dfx canister call ${NETWORK_FLAG} ${IDENTITY} ${RECEIVE_TOKEN_LEDGER} icrc1_balance_of "(record {
-    owner = principal \"${USER_IC_PRINCIPAL}\";
-})"
+print_info "Checking USDC balance..."
+spl-token balance ${RECEIVE_TOKEN_ADDRESS} || print_info "No USDC balance found (might need to create ATA)"

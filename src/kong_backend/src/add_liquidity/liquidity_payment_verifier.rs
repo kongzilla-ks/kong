@@ -10,7 +10,6 @@ use crate::swap::verify_canonical_message::verify_canonical_message;
 use crate::solana::payment_verification::{
     extract_solana_sender_from_transaction,
     verify_solana_transaction,
-    verify_solana_timestamp_freshness,
 };
 
 use super::message_builder::CanonicalAddLiquidityMessage;
@@ -84,9 +83,6 @@ async fn verify_solana_liquidity_payment(
     
     verify_canonical_message(&message_to_verify, &sender_pubkey, signature)
         .map_err(|e| format!("Liquidity signature verification failed: {}", e))?;
-    
-    // Check timestamp freshness (5 minutes)
-    verify_solana_timestamp_freshness(args.timestamp)?;
 
     // Verify the actual Solana transaction
     verify_solana_transaction(&tx_signature_str, &sender_pubkey, amount, is_spl_token).await?;

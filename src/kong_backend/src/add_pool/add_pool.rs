@@ -247,11 +247,6 @@ async fn process_add_pool(
     // Check if this is a cross-chain transfer based on signature presence
     let transfer_0 = if args.signature_0.is_some() {
         // Cross-chain payment path - use payment verifier
-        ic_cdk::println!(
-            "DEBUG: Entering cross-chain path for token_0 with signature: {:?}",
-            args.signature_0
-        );
-        ic_cdk::println!("DEBUG: tx_id_0 from args: {:?}", args.tx_id_0);
         verify_cross_chain_transfer(
             request_id,
             &TokenIndex::Token0,
@@ -259,7 +254,7 @@ async fn process_add_pool(
             amount_0,
             args.signature_0.as_ref().unwrap(),
             &args.tx_id_0,
-            args.timestamp,
+            None,
             &mut transfer_ids,
             ts,
             args,
@@ -296,7 +291,7 @@ async fn process_add_pool(
             amount_1,
             args.signature_1.as_ref().unwrap(),
             &args.tx_id_1,
-            args.timestamp,
+            None,
             &mut transfer_ids,
             ts,
             args,
@@ -825,12 +820,6 @@ async fn verify_cross_chain_transfer(
     ts: u64,
     args: &AddPoolArgs,
 ) -> Result<(), String> {
-    ic_cdk::println!("DEBUG verify_cross_chain_transfer: Received tx_id: {:?}", tx_id);
-    ic_cdk::println!(
-        "DEBUG verify_cross_chain_transfer: Token: {:?}, Amount: {:?}",
-        token.symbol(),
-        amount
-    );
     match token_index {
         TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0, None),
         TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1, None),

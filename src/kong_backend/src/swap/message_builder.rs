@@ -18,7 +18,6 @@ pub struct CanonicalSwapMessage {
     pub receive_amount: Nat,
     pub receive_address: String,
     pub max_slippage: f64,
-    pub timestamp: u64,
     pub referred_by: Option<String>,
 }
 
@@ -36,14 +35,6 @@ impl CanonicalSwapMessage {
     /// Create a canonical message from SwapArgs
     /// NOTE: This must create a message that serializes identically to the frontend
     pub fn from_swap_args(args: &SwapArgs) -> Self {
-        let timestamp = args
-            .timestamp
-            .unwrap_or_else(|| ICNetwork::get_time() / 1_000_000); // Use current IC time in milliseconds if not provided
-        
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args timestamp from args: {:?}", args.timestamp));
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args final timestamp: {}", timestamp));
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args receive_amount: {:?}", args.receive_amount));
-        ICNetwork::info_log(&format!("DEBUG: from_swap_args receive_address: {:?}", args.receive_address));
         
         // For cross-chain swaps, we need to use the same values that the frontend used when signing
         // The frontend includes receive_amount and receive_address in the signed message
@@ -63,7 +54,6 @@ impl CanonicalSwapMessage {
             receive_amount,
             receive_address,
             max_slippage: args.max_slippage.unwrap_or(1.0),
-            timestamp,
             referred_by: args.referred_by.clone(),
         }
     }
@@ -77,7 +67,6 @@ impl CanonicalSwapMessage {
     /// Serialize to JSON string for signing
     pub fn to_signing_message(&self) -> String {
         let json_message = serde_json::to_string(self).expect("Failed to serialize message");
-        ICNetwork::info_log(&format!("DEBUG: to_signing_message JSON: {}", json_message));
         json_message
     }
 }

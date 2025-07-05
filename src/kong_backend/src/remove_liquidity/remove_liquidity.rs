@@ -284,8 +284,6 @@ async fn check_arguments_with_user(args: &RemoveLiquidityArgs, user_id: u32) -> 
 /// returns (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1)
 #[allow(clippy::type_complexity)]
 async fn check_arguments_with_signature(args: &RemoveLiquidityArgs) -> Result<(u32, StablePool, Nat, Nat, Nat, Nat, Nat), String> {
-    // Validate signature presence and timestamp
-    let timestamp = args.timestamp.ok_or("Cross-chain operations require timestamp")?;
     
     // For remove liquidity, we need to determine which signature to use and which address to verify against
     // Logic: 
@@ -309,13 +307,6 @@ async fn check_arguments_with_signature(args: &RemoveLiquidityArgs) -> Result<(u
     
     verify_canonical_message(&message_str, payout_address, signature)
         .map_err(|e| format!("Signature verification failed: {}", e))?;
-
-    // Check timestamp freshness (5 minutes)
-    let current_time_ms = ICNetwork::get_time() / 1_000_000;
-    let age_ms = current_time_ms.saturating_sub(timestamp);
-    if age_ms > 300_000 {
-        return Err(format!("Signature timestamp too old: {} ms", age_ms));
-    }
 
     // For cross-chain operations, we allow anonymous users (signature is the authentication)
     let user_id = user_map::insert(None)?;

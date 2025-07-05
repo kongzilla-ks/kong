@@ -18,8 +18,6 @@ pub struct AddLiquidityArgs {
     pub signature_0: Option<String>,     // Ed25519 signature for token_0 transfer
     #[serde(default)]
     pub signature_1: Option<String>,     // Ed25519 signature for token_1 transfer
-    #[serde(default)] 
-    pub timestamp: Option<u64>,          // Required when signatures are present (milliseconds)
 }
 
 impl Default for AddLiquidityArgs {
@@ -33,7 +31,6 @@ impl Default for AddLiquidityArgs {
             tx_id_1: None,
             signature_0: None,
             signature_1: None,
-            timestamp: None,
         }
     }
 }

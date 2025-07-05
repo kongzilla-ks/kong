@@ -196,7 +196,6 @@ fn test_add_pool_icrc2_transfer_from() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
 
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -422,7 +421,6 @@ fn test_add_pool_with_icrc1_icrc2_mix() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
 
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -658,7 +656,6 @@ fn test_add_pool_with_icrc1_transfer() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
 
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -873,7 +870,6 @@ fn test_add_pool_insufficient_token0_balance() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
 
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -1103,7 +1099,6 @@ fn test_add_pool_insufficient_token1_balance() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
 
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -1347,7 +1342,6 @@ fn test_add_pool_insufficient_allowance() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
 
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -1566,7 +1560,6 @@ fn test_add_pool_setup() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
 
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");

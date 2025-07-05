@@ -23,8 +23,6 @@ pub struct AddPoolArgs {
     pub signature_0: Option<String>,     // Ed25519 signature for token_0 transfer
     #[serde(default)]
     pub signature_1: Option<String>,     // Ed25519 signature for token_1 transfer
-    #[serde(default)]
-    pub timestamp: Option<u64>,          // Required when signatures are present (milliseconds)
 }
 
 impl Default for AddPoolArgs {
@@ -39,7 +37,6 @@ impl Default for AddPoolArgs {
             lp_fee_bps: None,
             signature_0: None,
             signature_1: None,
-            timestamp: None,
         }
     }
 }

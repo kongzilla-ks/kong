@@ -52,14 +52,13 @@ APR=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGER} icrc2_ap
 check_ok "$APR" "USDT approve failed"
 
 # --- 3. Sign message ---
-TS=$(($(date +%s)*1000))
-MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s],"timestamp":%s}' \
+MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s]}' \
   "$SOL_CHAIN" "$SOL_ADDRESS" "$SOL_AMOUNT" \
-  "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT" "$TS")
+  "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT")
 SIG=$(solana sign-offchain-message "$MSG")
 
 # --- 4. Add liquidity ---
-CALL="(record { token_0 = \"${SOL_CHAIN}.${SOL_ADDRESS}\"; amount_0=${SOL_AMOUNT}; tx_id_0 = opt variant { TransactionId = \"${SOL_TX_SIG}\" }; token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\"; amount_1=${USDT_AMOUNT}; tx_id_1 = null; signature_0 = opt \"${SIG}\"; signature_1 = null; timestamp = opt ${TS}; })"
+CALL="(record { token_0 = \"${SOL_CHAIN}.${SOL_ADDRESS}\"; amount_0=${SOL_AMOUNT}; tx_id_0 = opt variant { TransactionId = \"${SOL_TX_SIG}\" }; token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\"; amount_1=${USDT_AMOUNT}; tx_id_1 = null; signature_0 = opt \"${SIG}\"; signature_1 = null; })"
 RES=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_liquidity --output json "$CALL")
 check_ok "$RES" "add_liquidity failed"
 REQ_ID=$(echo "$RES" | jq -r '.Ok.request_id // .request_id // empty')

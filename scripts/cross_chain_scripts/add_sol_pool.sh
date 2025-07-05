@@ -59,11 +59,9 @@ APPROVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGE
 check_ok "${APPROVE_RESULT}" "${USDT_SYMBOL} approval failed"
 
 # --- 3. Sign message ---
-TIMESTAMP=$(($(date +%s) * 1000))
-MESSAGE_JSON=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s],"lp_fee_bps":30,"timestamp":%s}' \
+MESSAGE_JSON=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s],"lp_fee_bps":30}' \
     "${SOL_CHAIN}" "${SOL_ADDRESS}" "${SOL_AMOUNT}" \
-    "${USDT_CHAIN}" "${USDT_LEDGER}" "${USDT_AMOUNT}" \
-    "${TIMESTAMP}")
+    "${USDT_CHAIN}" "${USDT_LEDGER}" "${USDT_AMOUNT}")
 SIGNATURE=$(solana sign-offchain-message "${MESSAGE_JSON}")
 
 # --- 4. Create pool ---
@@ -74,7 +72,6 @@ POOL_RESULT_RAW=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACK
     token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\";
     amount_1 = ${USDT_AMOUNT};
     signature_0 = opt \"${SIGNATURE}\";
-    timestamp = opt ${TIMESTAMP};
 })")
 check_ok "${POOL_RESULT_RAW}" "Pool creation failed"
 POOL_ID=$(echo "${POOL_RESULT_RAW}" | jq -r '.Ok.pool_id // .pool_id // empty')

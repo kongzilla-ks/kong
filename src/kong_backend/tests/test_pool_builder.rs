@@ -469,7 +469,6 @@ impl TestSetup {
             lp_fee_bps: config.lp_fee_bps,
             signature_0: None,
             signature_1: None,
-            timestamp: None,
         };
         
         let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -659,7 +658,6 @@ pub fn run_pool_test(config: PoolTestConfig) -> Result<()> {
             lp_fee_bps: None,
             signature_0: None,
             signature_1: None,
-            timestamp: None,
         };
         
         let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
@@ -897,7 +895,6 @@ fn test_add_pool_with_other_user_tx_id() {
         lp_fee_bps: None,
         signature_0: None,
         signature_1: None,
-        timestamp: None,
     };
     
     let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
