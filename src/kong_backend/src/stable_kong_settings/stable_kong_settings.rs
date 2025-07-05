@@ -86,7 +86,7 @@ impl Default for StableKongSettings {
             icp_address_with_chain: ICP_ADDRESS_WITH_CHAIN.to_string(),
             default_max_slippage: 2.0_f64,
             default_lp_fee_bps: 30,
-            default_kong_fee_bps: 0,
+            default_kong_fee_bps: 10,
             user_map_idx,
             token_map_idx,
             pool_map_idx,
