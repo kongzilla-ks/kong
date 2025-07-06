@@ -1,7 +1,5 @@
 use candid::Nat;
 
-use super::claim_reply::ClaimReply;
-
 use crate::helpers::nat_helpers::{nat_subtract, nat_zero};
 use crate::ic::{
     address::Address::{self, AccountId, PrincipalId, SolanaAddress},
@@ -13,6 +11,8 @@ use crate::stable_request::{reply::Reply, request_map, status::StatusCode};
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+
+use super::claim_reply::ClaimReply;
 
 pub async fn process_claim(
     request_id: u64,
@@ -144,12 +144,14 @@ async fn send_claim(
         SolanaAddress(solana_address) => {
             // Create Solana swap job for failed claim
             match crate::swap::create_solana_swap_job::create_solana_swap_job(
-                request_id,  // Use the claim request_id
-                claim.user_id,  // Use user_id from claim
+                request_id,    // Use the claim request_id
+                claim.user_id, // Use user_id from claim
                 token,
-                amount,  // Use full amount for Solana
-                &Address::SolanaAddress(solana_address.clone())
-            ).await {
+                amount, // Use full amount for Solana
+                &Address::SolanaAddress(solana_address.clone()),
+            )
+            .await
+            {
                 Ok(job_id) => {
                     let transfer_id = transfer_map::insert(&StableTransfer {
                         transfer_id: 0,
@@ -162,8 +164,11 @@ async fn send_claim(
                     });
                     transfer_ids.push(transfer_id);
                     claim_map::update_claimed_status(claim.claim_id, request_id, transfer_id);
-                    request_map::update_status(request_id, StatusCode::ClaimTokenSuccess, 
-                        Some(&format!("Solana swap job #{} created", job_id)));
+                    request_map::update_status(
+                        request_id,
+                        StatusCode::ClaimTokenSuccess,
+                        Some(&format!("Solana swap job #{} created", job_id)),
+                    );
                     Ok(())
                 }
                 Err(e) => {

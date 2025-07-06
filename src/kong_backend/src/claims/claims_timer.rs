@@ -1,6 +1,3 @@
-use super::archive_to_kong_data::archive_to_kong_data;
-use super::process_claim::process_claim;
-
 use crate::ic::{guards::not_in_maintenance_mode, network::ICNetwork};
 use crate::stable_claim::claim_map;
 use crate::stable_claim::stable_claim::ClaimStatus;
@@ -8,6 +5,9 @@ use crate::stable_memory::CLAIM_MAP;
 use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
 use crate::stable_token::token_map;
 use crate::stable_user::stable_user::CLAIMS_TIMER_USER_ID;
+
+use super::archive_to_kong_data::archive_to_kong_data;
+use super::process_claim::process_claim;
 
 /// Send out claims where status is Unclaimed or UnclaimedOverride
 pub async fn process_claims_timer() {

@@ -1,10 +1,10 @@
-use super::claims_reply::ClaimsReply;
-
 use crate::helpers::nat_helpers::nat_zero;
 use crate::stable_claim::stable_claim::StableClaim;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
 use crate::stable_user::user_map;
+
+use super::claims_reply::ClaimsReply;
 
 pub fn to_claims_reply(claim: &StableClaim) -> ClaimsReply {
     let (chain, symbol, canister_id, fee) = match token_map::get_by_token_id(claim.token_id) {

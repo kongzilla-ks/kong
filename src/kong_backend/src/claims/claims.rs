@@ -1,12 +1,12 @@
 use ic_cdk::query;
 
-use super::claims_reply::ClaimsReply;
-use super::claims_reply_helpers::to_claims_reply;
-
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_claim::stable_claim::ClaimStatus;
 use crate::stable_memory::CLAIM_MAP;
 use crate::stable_user::user_map;
+
+use super::claims_reply::ClaimsReply;
+use super::claims_reply_helpers::to_claims_reply;
 
 /// Return all claimable claims for a user
 #[query(guard = "not_in_maintenance_mode")]
@@ -17,8 +17,7 @@ fn claims(principal_id: String) -> Result<Vec<ClaimsReply>, String> {
         .ok_or("User not found")?
         .user_id;
 
-    // get all claimable claims for user
-    let claims = CLAIM_MAP.with(|m| {
+    Ok(CLAIM_MAP.with(|m| {
         m.borrow()
             .iter()
             .filter_map(|(_, claim)| {
@@ -29,7 +28,5 @@ fn claims(principal_id: String) -> Result<Vec<ClaimsReply>, String> {
                 }
             })
             .collect()
-    });
-
-    Ok(claims)
+    }))
 }
