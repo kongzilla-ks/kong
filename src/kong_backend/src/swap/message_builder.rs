@@ -1,8 +1,6 @@
 use candid::Nat;
 use serde::{Deserialize, Serialize};
 
-use crate::ic::network::ICNetwork;
-
 use super::swap_args::SwapArgs;
 
 /// A structure representing the canonical message format for signing

@@ -198,7 +198,7 @@ pub async fn remove_liquidity_async(args: RemoveLiquidityArgs) -> Result<u64, St
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::RemoveLiquidity(args), ts));
     let caller_id = ICNetwork::caller_id();
 
-    ic_cdk::spawn(async move {
+    ic_cdk::futures::spawn(async move {
         match process_remove_liquidity(
             request_id,
             user_id,

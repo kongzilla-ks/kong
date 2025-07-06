@@ -72,7 +72,7 @@ pub async fn add_liquidity_transfer_async(args: AddLiquidityArgs) -> Result<u64,
             _ = archive_to_kong_data(request_id);
         })?;
 
-    ic_cdk::spawn(async move {
+    ic_cdk::futures::spawn(async move {
         match process_add_liquidity(
             request_id,
             user_id,

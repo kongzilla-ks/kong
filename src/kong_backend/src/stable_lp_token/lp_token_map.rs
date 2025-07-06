@@ -77,11 +77,14 @@ pub fn archive_to_kong_data(lp_token: &StableLPToken) -> Result<(), String> {
         Err(e) => Err(format!("Failed to serialize lp_token_id #{}. {}", lp_token_id, e))?,
     };
 
-    ic_cdk::spawn(async move {
+            ic_cdk::futures::spawn(async move {
         let kong_data = kong_settings_map::get().kong_data;
-        match ic_cdk::call::<(String,), (Result<String, String>,)>(kong_data, "update_lp_token", (lp_token_json,))
+        match ic_cdk::call::Call::unbounded_wait(kong_data, "update_lp_token")
+            .with_arg((lp_token_json,))
             .await
-            .map_err(|e| e.1)
+            .map_err(|e| format!("{:?}", e))
+            .and_then(|response| response.candid::<(Result<String, String>,)>()
+                .map_err(|e| format!("{:?}", e)))
             .unwrap_or_else(|e| (Err(e),))
             .0
         {

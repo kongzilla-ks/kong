@@ -90,14 +90,14 @@ async fn post_upgrade() {
 async fn set_timer_processes() {
     // start the background timer to process claims
     let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().claims_interval_secs), || {
-        ic_cdk::spawn(async {
+        ic_cdk::futures::spawn(async {
             process_claims_timer().await;
         });
     });
 
     // start the background timer to archive request map
     let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().requests_archive_interval_secs), || {
-        ic_cdk::spawn(async {
+        ic_cdk::futures::spawn(async {
             archive_request_map();
         });
     });
@@ -106,7 +106,7 @@ async fn set_timer_processes() {
     let _ = set_timer_interval(
         Duration::from_secs(kong_settings_map::get().transfers_archive_interval_secs),
         || {
-            ic_cdk::spawn(async {
+            ic_cdk::futures::spawn(async {
                 archive_transfer_map();
             });
         },
@@ -114,14 +114,14 @@ async fn set_timer_processes() {
 
     // start the background timer to archive tx map
     let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().txs_archive_interval_secs), || {
-        ic_cdk::spawn(async {
+        ic_cdk::futures::spawn(async {
             archive_tx_map();
         });
     });
 
     // start the background timer to cleanup old Solana notifications
     let _ = set_timer_interval(Duration::from_secs(3600), || {  // Clean up every hour
-        ic_cdk::spawn(async {
+        ic_cdk::futures::spawn(async {
             let removed_count = crate::stable_memory::cleanup_old_notifications();
             if removed_count > 0 {
                 crate::ic::network::ICNetwork::info_log(&format!("Cleaned up {} old Solana notifications", removed_count));
@@ -134,7 +134,7 @@ async fn set_timer_processes() {
 /// calling accept_message() will allow the message to be processed
 #[inspect_message]
 fn inspect_message() {
-    let method_name = ic_cdk::api::call::method_name();
+    let method_name = ic_cdk::api::msg_method_name();
     if QUERY_METHODS.contains(&method_name.as_str()) {
         ICNetwork::info_log(&format!("{} called as update from {}", method_name, ICNetwork::caller().to_text()));
         ic_cdk::trap(&format!("{} must be called as query", method_name));
@@ -154,13 +154,13 @@ fn inspect_message() {
         }
     }
 
-    ic_cdk::api::call::accept_message();
+    ic_cdk::api::accept_message();
 }
 
 /// Basic validation for swap requests to prevent spam before heavy processing
 fn validate_swap_request() -> Result<(), String> {
     // Get the raw argument bytes for basic validation
-    let args_bytes = ic_cdk::api::call::arg_data_raw();
+    let args_bytes = ic_cdk::api::msg_arg_data();
     
     // Basic size check - prevent extremely large payloads
     if args_bytes.len() > 10_000 {
@@ -198,7 +198,7 @@ fn validate_swap_request() -> Result<(), String> {
 
 /// Validation for remove liquidity requests to prevent invalid cross-chain operations
 fn validate_remove_liquidity_request() -> Result<(), String> {
-    let args_bytes = ic_cdk::api::call::arg_data_raw();
+    let args_bytes = ic_cdk::api::msg_arg_data();
     
     // Basic size check
     if args_bytes.len() > 10_000 {

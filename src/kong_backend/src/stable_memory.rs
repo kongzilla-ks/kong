@@ -215,6 +215,8 @@ pub fn with_solana_tx_notifications_mut<R>(f: impl FnOnce(&mut StableBTreeMap<Tr
 
 /// Store a transaction notification
 pub fn store_transaction_notification(notification: TransactionNotification) {
+    ic_cdk::println!("DEBUG store_transaction_notification: Storing tx {} with metadata: {:?}", 
+        notification.signature, notification.metadata);
     with_solana_tx_notifications_mut(|notifications| {
         let key = TransactionNotificationId(notification.signature.clone());
         notifications.insert(key, notification);
@@ -223,9 +225,14 @@ pub fn store_transaction_notification(notification: TransactionNotification) {
 
 /// Get a transaction by signature
 pub fn get_solana_transaction(signature: String) -> Option<TransactionNotification> {
+    ic_cdk::println!("DEBUG get_solana_transaction: Looking for tx {}", signature);
     with_solana_tx_notifications(|notifications| {
-        let key = TransactionNotificationId(signature);
-        notifications.get(&key)
+        let key = TransactionNotificationId(signature.clone());
+        let result = notifications.get(&key);
+        ic_cdk::println!("DEBUG get_solana_transaction: Found tx? {}, metadata: {:?}", 
+            result.is_some(), 
+            result.as_ref().and_then(|t| t.metadata.as_ref()));
+        result
     })
 }
 

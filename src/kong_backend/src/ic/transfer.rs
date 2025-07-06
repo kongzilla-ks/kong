@@ -74,9 +74,12 @@ pub async fn icrc1_transfer(
         created_at_time,
     };
 
-    match ic_cdk::call::<(TransferArg,), (Result<Nat, TransferError>,)>(id, "icrc1_transfer", (transfer_args,))
+    match ic_cdk::call::Call::unbounded_wait(id, "icrc1_transfer")
+        .with_arg((transfer_args,))
         .await
-        .map_err(|e| e.1)?
+        .map_err(|e| format!("{:?}", e))?
+        .candid::<(Result<Nat, TransferError>,)>()
+        .map_err(|e| format!("{:?}", e))?
         // Access the first element of the tuple, which is the `Result<BlockIndex, TransferError>`, for further processing.
         .0
     {
@@ -111,9 +114,12 @@ pub async fn icrc2_transfer_from(
     };
 
     let block_id =
-        match ic_cdk::call::<(TransferFromArgs,), (Result<Nat, TransferFromError>,)>(id, "icrc2_transfer_from", (transfer_from_args,))
+        match ic_cdk::call::Call::unbounded_wait(id, "icrc2_transfer_from")
+            .with_arg((transfer_from_args,))
             .await
-            .map_err(|e| e.1)?
+            .map_err(|e| format!("{:?}", e))?
+            .candid::<(Result<Nat, TransferFromError>,)>()
+            .map_err(|e| format!("{:?}", e))?
             .0
         {
             Ok(block_id) => block_id,

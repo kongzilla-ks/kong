@@ -81,6 +81,10 @@ async fn verify_solana_liquidity_payment(
     let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args);
     let message_to_verify = canonical_message.to_signing_message();
     
+    ic_cdk::println!("DEBUG verify_solana_liquidity_payment: Expected message: {}", message_to_verify);
+    ic_cdk::println!("DEBUG verify_solana_liquidity_payment: Sender pubkey: {}", sender_pubkey);
+    ic_cdk::println!("DEBUG verify_solana_liquidity_payment: Signature: {}", signature);
+    
     verify_canonical_message(&message_to_verify, &sender_pubkey, signature)
         .map_err(|e| format!("Liquidity signature verification failed: {}", e))?;
 

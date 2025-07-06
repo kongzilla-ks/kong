@@ -7,7 +7,7 @@ use super::network::ICNetwork;
 impl ICNetwork {
     /// Principal ID of the caller.
     pub fn caller() -> Principal {
-        ic_cdk::api::caller()
+        ic_cdk::api::msg_caller()
     }
 
     /// Account of the caller.
