@@ -40,13 +40,8 @@ pub async fn verify_solana_transaction(
     expected_amount: &Nat,
     is_spl_token: bool,
 ) -> Result<(), String> {
-    ic_cdk::println!("DEBUG verify_solana_transaction: Starting verification for tx {}", tx_signature);
-    
     let transaction = get_solana_transaction(tx_signature.to_string())
         .ok_or_else(|| format!("Solana transaction {} not found. Make sure kong_rpc has processed this transaction.", tx_signature))?;
-    
-    ic_cdk::println!("DEBUG verify_solana_transaction: Transaction found, status: {}", transaction.status);
-    ic_cdk::println!("DEBUG verify_solana_transaction: Has metadata: {}", transaction.metadata.is_some());
     
     // Check transaction status
     match transaction.status.as_str() {
@@ -60,13 +55,8 @@ pub async fn verify_solana_transaction(
     const MAX_TRANSACTION_AGE_MS: u64 = 300_000; // 5 minutes in milliseconds
     
     if let Some(metadata_json) = &transaction.metadata {
-        ic_cdk::println!("DEBUG verify_solana_transaction: Raw metadata: {}", metadata_json);
-        
         let metadata: serde_json::Value = serde_json::from_str(metadata_json)
             .map_err(|e| format!("Failed to parse transaction metadata: {}", e))?;
-        
-        ic_cdk::println!("DEBUG verify_solana_transaction: Parsed metadata keys: {:?}", 
-            metadata.as_object().map(|m| m.keys().collect::<Vec<_>>()));
         
         // Extract blockTime from metadata (unix timestamp in seconds from Solana RPC)
         let block_time = metadata.get("blockTime")
