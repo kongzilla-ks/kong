@@ -12,18 +12,19 @@ IDENTITY_FLAG="--identity kong_user1"
 PAY_TOKEN="SOL"
 SOL_CHAIN="SOL"
 SOL_ADDRESS="11111111111111111111111111111111"  # Native SOL
-PAY_AMOUNT=10000000          # 0.01 SOL (9 decimals)
+PAY_AMOUNT=100000          # 0.005 SOL (9 decimals)
 
 # Receive Token (USDC on Solana)
-RECEIVE_TOKEN="USDC"
-USDC_CHAIN="SOL"
+# Use the actual token symbol from the Kong backend
 if [ "${NETWORK}" == "ic" ]; then
+    RECEIVE_TOKEN="USDC"  # For mainnet, use proper USDC symbol
     USDC_ADDRESS="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # Mainnet USDC
 else
+    RECEIVE_TOKEN="4zMM...ncDU"  # For devnet, use the actual symbol from Kong
     USDC_ADDRESS="4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"  # Devnet USDC
 fi
 RECEIVE_AMOUNT=0             # Let system calculate optimal amount
-MAX_SLIPPAGE=95.0            # 95% - high slippage for testing
+MAX_SLIPPAGE=99.0            # 95% - high slippage for testing
 # ===============================================================
 
 NETWORK_FLAG=$([ "${NETWORK}" == "local" ] && echo "" || echo "--network ${NETWORK}")
@@ -60,6 +61,15 @@ echo
 echo "--- 1. Getting swap quote ---"
 SWAP_QUOTE=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap_amounts "(\"${PAY_TOKEN}\", ${PAY_AMOUNT}, \"${RECEIVE_TOKEN}\")")
 echo "Swap quote: ${SWAP_QUOTE}"
+check_ok "${SWAP_QUOTE}" "Swap quote failed - not proceeding with transfer"
+
+# Extract receive_amount from the swap quote (get the last one for multi-hop swaps)
+RECEIVE_AMOUNT=$(echo "${SWAP_QUOTE}" | grep -o 'receive_amount = [0-9_]*' | tail -1 | sed 's/receive_amount = //' | tr -d '_')
+if [ -z "${RECEIVE_AMOUNT}" ]; then
+    echo "Error: Could not extract receive_amount from swap quote"
+    exit 1
+fi
+echo "Expected receive amount: ${RECEIVE_AMOUNT}"
 
 # --- 2. Transfer SOL to Kong ---
 echo
@@ -70,16 +80,23 @@ TRANSFER_OUTPUT=$(solana transfer --allow-unfunded-recipient "${KONG_SOLANA_ADDR
 SOL_TX_SIG=$(echo "${TRANSFER_OUTPUT}" | grep -o 'Signature: .*' | awk '{print $2}')
 echo "SOL transferred. Tx: ${SOL_TX_SIG}"
 echo "Waiting for kong_rpc processing..."
-sleep 10
+sleep 5
 
 # --- 3. Sign message ---
 echo
 echo "--- 3. Signing message ---"
-MESSAGE_JSON=$(printf '{"pay_token":"%s","pay_amount":%s,"pay_address":"%s","receive_token":"%s","receive_amount":%s,"receive_address":"%s","max_slippage":%s,"referred_by":null}' \
-    "${PAY_TOKEN}" "${PAY_AMOUNT}" "${USER_SOLANA_ADDRESS}" \
-    "${RECEIVE_TOKEN}" "${RECEIVE_AMOUNT}" "${USER_SOLANA_ADDRESS}" \
-    "${MAX_SLIPPAGE}")
-SIGNATURE=$(solana sign-offchain-message "${MESSAGE_JSON}")
+# Create the canonical message format that Kong expects (JSON format)
+
+# Build a minified JSON string matching the CanonicalSwapMessage serialization order
+# NOTE: All numeric Nat fields must be encoded as *strings* and the JSON must contain no
+# extra whitespace/newlines, otherwise the signature verification will fail.
+MESSAGE=$(printf '{"pay_token":"%s","pay_amount":"%s","pay_address":"%s","receive_token":"%s","receive_amount":"%s","receive_address":"%s","max_slippage":%.1f,"referred_by":null}' \
+  "${PAY_TOKEN}" "${PAY_AMOUNT}" "${USER_SOLANA_ADDRESS}" "${RECEIVE_TOKEN}" "${RECEIVE_AMOUNT}" "${USER_SOLANA_ADDRESS}" "${MAX_SLIPPAGE}")
+
+echo "Message to sign:"
+echo "${MESSAGE}"
+echo "---"
+SIGNATURE=$(solana sign-offchain-message "${MESSAGE}")
 echo "Message signed"
 
 # --- 4. Execute swap ---

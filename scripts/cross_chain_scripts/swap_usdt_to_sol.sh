@@ -80,8 +80,3 @@ check_ok "${SWAP_RESULT}" "Swap failed"
 
 echo "Swap completed successfully!"
 echo "${SWAP_RESULT}"
-
-# --- 5. Check balance ---
-echo
-echo "--- 5. Checking SOL balance ---"
-solana balance 
