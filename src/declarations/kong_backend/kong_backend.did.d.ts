@@ -25,7 +25,6 @@ export interface AddLiquidityArgs {
   'token_1' : string,
   'amount_0' : bigint,
   'amount_1' : bigint,
-  'timestamp' : [] | [bigint],
   'tx_id_0' : [] | [TxId],
   'tx_id_1' : [] | [TxId],
 }
@@ -58,7 +57,6 @@ export interface AddPoolArgs {
   'token_1' : string,
   'amount_0' : bigint,
   'amount_1' : bigint,
-  'timestamp' : [] | [bigint],
   'tx_id_0' : [] | [TxId],
   'tx_id_1' : [] | [TxId],
   'lp_fee_bps' : [] | [number],
@@ -244,6 +242,8 @@ export type RemoveLiquidityAmountsResult = {
   } |
   { 'Err' : string };
 export interface RemoveLiquidityArgs {
+  'signature_0' : [] | [string],
+  'signature_1' : [] | [string],
   'token_0' : string,
   'token_1' : string,
   'payout_address_0' : [] | [string],
@@ -358,7 +358,6 @@ export interface SwapArgs {
   'referred_by' : [] | [string],
   'receive_amount' : [] | [bigint],
   'receive_address' : [] | [string],
-  'timestamp' : [] | [bigint],
   'pay_token' : string,
   'pay_tx_id' : [] | [TxId],
   'pay_signature' : [] | [string],
@@ -542,7 +541,6 @@ export interface _SERVICE {
   'swap' : ActorMethod<[SwapArgs], SwapResult>,
   'swap_amounts' : ActorMethod<[string, bigint, string], SwapAmountsResult>,
   'swap_async' : ActorMethod<[SwapArgs], SwapAsyncResult>,
-  'token_exists' : ActorMethod<[string], boolean>,
   'tokens' : ActorMethod<[[] | [string]], TokensResult>,
   'update_solana_latest_blockhash' : ActorMethod<
     [string],

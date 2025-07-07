@@ -80,11 +80,9 @@ pub async fn icrc1_transfer(
         .map_err(|e| format!("{:?}", e))?
         .candid::<(Result<Nat, TransferError>,)>()
         .map_err(|e| format!("{:?}", e))?
-        // Access the first element of the tuple, which is the `Result<BlockIndex, TransferError>`, for further processing.
-        .0
     {
-        Ok(block_id) => Ok(block_id),
-        Err(e) => Err(e.to_string())?,
+        (Ok(block_id),) => Ok(block_id),
+        (Err(e),) => Err(e.to_string())?,
     }
 }
 
@@ -103,7 +101,8 @@ pub async fn icrc2_transfer_from(
     }
     let id = *token.canister_id().ok_or("Invalid principal id")?;
 
-    let transfer_from_args = TransferFromArgs {
+    // Using the standard TransferFromArgs from icrc-ledger-types
+    let transfer_from_args = icrc_ledger_types::icrc2::transfer_from::TransferFromArgs {
         spender_subaccount: None,
         from: *from_principal_id,
         to: *to_principal_id,
@@ -115,12 +114,11 @@ pub async fn icrc2_transfer_from(
 
     let block_id =
         match ic_cdk::call::Call::unbounded_wait(id, "icrc2_transfer_from")
-            .with_arg((transfer_from_args,))
+            .with_arg(transfer_from_args)
             .await
             .map_err(|e| format!("{:?}", e))?
-            .candid::<(Result<Nat, TransferFromError>,)>()
+            .candid::<Result<Nat, TransferFromError>>()
             .map_err(|e| format!("{:?}", e))?
-            .0
         {
             Ok(block_id) => block_id,
             Err(e) => Err(e.to_string())?,

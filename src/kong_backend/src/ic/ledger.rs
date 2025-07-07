@@ -10,48 +10,43 @@ pub struct StandardRecord {
 
 pub async fn get_balance(principal_id: Account, ledger: &Principal) -> Result<Nat, String> {
     ic_cdk::call::Call::unbounded_wait(*ledger, "icrc1_balance_of")
-        .with_arg((principal_id,))
+        .with_arg(principal_id)
         .await
         .map_err(|e| format!("{:?}", e))?
-        .candid::<(Nat,)>()
+        .candid::<Nat>()
         .map_err(|e| format!("{:?}", e))
-        .map(|(balance,)| balance)
 }
 
 pub async fn get_name(ledger: &Principal) -> Result<String, String> {
     ic_cdk::call::Call::unbounded_wait(*ledger, "icrc1_name")
         .await
         .map_err(|e| format!("{:?}", e))?
-        .candid::<(String,)>()
+        .candid::<String>()
         .map_err(|e| format!("{:?}", e))
-        .map(|(name,)| name)
 }
 
 pub async fn get_symbol(ledger: &Principal) -> Result<String, String> {
     ic_cdk::call::Call::unbounded_wait(*ledger, "icrc1_symbol")
         .await
         .map_err(|e| format!("{:?}", e))?
-        .candid::<(String,)>()
+        .candid::<String>()
         .map_err(|e| format!("{:?}", e))
-        .map(|(symbol,)| symbol)
 }
 
 pub async fn get_decimals(ledger: &Principal) -> Result<u8, String> {
     ic_cdk::call::Call::unbounded_wait(*ledger, "icrc1_decimals")
         .await
         .map_err(|e| format!("{:?}", e))?
-        .candid::<(u8,)>()
+        .candid::<u8>()
         .map_err(|e| format!("{:?}", e))
-        .map(|(decimals,)| decimals)
 }
 
 pub async fn get_fee(ledger: &Principal) -> Result<Nat, String> {
     ic_cdk::call::Call::unbounded_wait(*ledger, "icrc1_fee")
         .await
         .map_err(|e| format!("{:?}", e))?
-        .candid::<(Nat,)>()
+        .candid::<Nat>()
         .map_err(|e| format!("{:?}", e))
-        .map(|(fee,)| fee)
 }
 
 /// try icrc10_supported_standards first, if it fails, try icrc1_supported_standards
@@ -59,14 +54,12 @@ pub async fn get_supported_standards(ledger: &Principal) -> Result<Vec<StandardR
     match ic_cdk::call::Call::unbounded_wait(*ledger, "icrc10_supported_standards")
         .await
     {
-        Ok(response) => response.candid::<(Vec<StandardRecord>,)>()
-            .map_err(|e| format!("{:?}", e))
-            .map(|(standards,)| standards),
+        Ok(response) => response.candid::<Vec<StandardRecord>>()
+            .map_err(|e| format!("{:?}", e)),
         Err(_) => ic_cdk::call::Call::unbounded_wait(*ledger, "icrc1_supported_standards")
             .await
             .map_err(|e| format!("{:?}", e))?
-            .candid::<(Vec<StandardRecord>,)>()
-            .map_err(|e| format!("{:?}", e))
-            .map(|(standards,)| standards),
+            .candid::<Vec<StandardRecord>>()
+            .map_err(|e| format!("{:?}", e)),
     }
 }

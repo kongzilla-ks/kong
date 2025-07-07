@@ -9,43 +9,60 @@ jobs:
   test-rust-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
+    
     env:
       CARGO_TERM_COLOR: always
       GREP_OPTIONS: ""
-
+      CARGO_TARGET_DIR: /tmp/cargo-target
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lld clang
+      
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy,rustfmt
-
+          targets: wasm32-unknown-unknown
+      
       - name: Cache Cargo registry + build
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
+            /tmp/cargo-target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
-
+      
+      - name: Create cargo config directory
+        run: mkdir -p .cargo
+      
+      - name: Configure Rust linker
+        run: |
+          echo '[target.x86_64-unknown-linux-gnu]' > .cargo/config.toml
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> .cargo/config.toml
+      
       - name: Download PocketIC server
         uses: dfinity/pocketic@main
         env:
           POCKET_IC_VERSION: 9.0.1
-
+      
       - name: Install dfx
         uses: dfinity/setup-dfx@main
         with:
-          dfx-version: "0.26.0"
-
+          dfx-version: "0.27.0"
+      
       - name: Build kong_backend WASM for testing
         run: bash ./scripts/build_kong_backend.sh local
-
+      
       - name: Run kong_backend tests
-        run: cargo test -p kong_backend
+        run: |
+          export RUST_BACKTRACE=1
+          cargo test -p kong_backend --verbose

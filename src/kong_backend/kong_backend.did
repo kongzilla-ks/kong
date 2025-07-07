@@ -610,7 +610,6 @@ service : {
     
     // tokens(opt wildcard) - returns all tokens or wildcard search
     tokens : (opt text) -> (TokensResult) query;
-    token_exists : (text) -> (bool) query;
     // pools(opt wildcard) - returns all pools or wildcard search
     pools : (opt text) -> (PoolsResult) query;
 
