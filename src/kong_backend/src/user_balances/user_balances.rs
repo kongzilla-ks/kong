@@ -19,6 +19,6 @@ pub async fn user_balances(principal_id: String) -> Result<Vec<UserBalancesReply
 
     Ok(lp_token_map::get_by_user_id(user_id)
         .iter()
-        .filter_map(|lp_token| Option::<UserBalancesReply>::from((lp_token, ts)))
+        .filter_map(|lp_token| UserBalancesReply::try_from((lp_token, ts)).ok())
         .collect())
 }
