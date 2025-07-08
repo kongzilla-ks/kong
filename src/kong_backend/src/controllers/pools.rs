@@ -58,24 +58,24 @@ fn update_pools(tokens: String) -> Result<String, String> {
     Ok("Pools updated".to_string())
 }
 
-/// Update pool field values for stable memory
+/// Update partial pool field values for stable memory
 #[update(hidden = true, guard = "caller_is_kingkong")]
-fn partial_update_pools(tokens: String) -> Result<String, String> {
+fn update_partial_pools(tokens: String) -> Result<String, String> {
     let pools: BTreeMap<StablePoolId, Value> = match serde_json::from_str(&tokens) {
         Ok(pools) => pools,
         Err(e) => return Err(format!("Invalid pools: {}", e)),
     };
 
     for (id, v) in pools {
-        let mut original_pool_json = match POOL_MAP.with(|m| m.borrow().get(&id)) {
+        let mut original_pool_value = match POOL_MAP.with(|m| m.borrow().get(&id)) {
+            Some(p) => serde_json::to_value(p).map_err(|e| format!("Failed to serialize existing pool: {}", e))?,
             None => return Err(format!("Pool with id={} does not exist", id.0)),
-            Some(p) => serde_json::to_value(p).map_err(|e| format!("Failed to serialize existing pool: {}", e.to_string()))?,
         };
 
-        json_helpers::merge(&mut original_pool_json, &v);
+        json_helpers::merge(&mut original_pool_value, &v);
 
         let updated_pool: StablePool =
-            serde_json::from_value(original_pool_json).map_err(|e| format!("Failed to parse updated pool: {}", e))?;
+            serde_json::from_value(original_pool_value).map_err(|e| format!("Failed to parse updated pool: {}", e))?;
 
         pool_map::update(&updated_pool);
     }
