@@ -12,7 +12,6 @@ pub struct SolanaToken {
     pub fee: Nat,
     pub mint_address: String,      // Solana mint address
     pub program_id: String,        // SPL Token program ID
-    pub total_supply: Option<Nat>, // Total supply on Solana
     #[serde(default = "default_is_spl_token")]
     pub is_spl_token: bool, // True for SPL tokens, false for native SOL
 }

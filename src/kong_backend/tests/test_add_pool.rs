@@ -1608,3 +1608,54 @@ fn test_add_pool_setup() {
         "User balance for Token B after add_pool is incorrect"
     );
 }
+
+#[test]
+fn test_add_pool_identical_tokens() {
+    // This test verifies that creating pools with identical token pairs (e.g., icp/icp) is properly rejected
+    let (ic, kong_backend) = setup_ic_environment().expect("Failed to setup IC environment");
+
+    // Use ICP token for both token_0 and token_1
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
+    let (_, token_b_ledger_id, _, _) =
+        setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
+
+    // Create user account
+    let user_identity = get_new_identity().expect("Failed to create new user identity");
+    let user_principal = user_identity.sender().expect("Failed to get user principal");
+
+    // Calculate liquidity amounts
+    let token_liquidity_amount = Nat::from(1_000_000u64);
+
+    // Use the same ICP token for both token_0 and token_1
+    let token_str = format!("IC.{}", token_b_ledger_id.to_text());
+    let add_pool_args = AddPoolArgs {
+        token_0: token_str.clone(),
+        amount_0: token_liquidity_amount.clone(),
+        tx_id_0: None,
+        token_1: token_str.clone(), // Same token as token_0
+        amount_1: token_liquidity_amount.clone(),
+        tx_id_1: None,
+        lp_fee_bps: None,
+        signature_0: None,
+        signature_1: None,
+    };
+
+    let add_pool_payload = encode_one(&add_pool_args).expect("Failed to encode add_pool_args");
+
+    let add_pool_response_bytes = ic
+        .update_call(kong_backend, user_principal, "add_pool", add_pool_payload)
+        .expect("Failed to call add_pool");
+
+    let add_pool_result = decode_one::<Result<AddPoolReply, String>>(&add_pool_response_bytes)
+        .expect("Failed to decode add_pool response");
+
+    // Verify that the call failed with the expected error message
+    assert!(add_pool_result.is_err(), "add_pool should have failed for identical tokens");
+    
+    let error_message = add_pool_result.unwrap_err();
+    assert!(
+        error_message.contains("Cannot create pool with identical tokens"),
+        "Error message should mention identical tokens, got: {}",
+        error_message
+    );
+}

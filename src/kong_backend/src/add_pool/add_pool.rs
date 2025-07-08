@@ -35,7 +35,6 @@ use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
 use super::add_pool_args::AddPoolArgs;
 use super::add_pool_reply::AddPoolReply;
-use super::add_pool_reply_helpers::{to_add_pool_reply, to_add_pool_reply_failed};
 use super::pool_payment_verifier::{PoolPaymentVerification, PoolPaymentVerifier};
 
 enum TokenIndex {
@@ -190,6 +189,11 @@ async fn check_arguments(
     // make sure pool does not already exist
     if pool_map::exists(&token_0, &token_1) {
         Err(format!("Pool {} already exists", pool_map::symbol(&token_0, &token_1)))?
+    }
+
+    // prevent creating pools with identical token pairs (e.g., icp/icp or ckusdt/ckusdt)
+    if token_0.token_id() == token_1.token_id() {
+        Err(format!("Cannot create pool with identical tokens: {} and {}", token_0.symbol(), token_1.symbol()))?
     }
 
     let (add_amount_0, add_amount_1, add_lp_token_amount) = calculate_amounts(&token_0, &args.amount_0, &token_1, &args.amount_1)?;
@@ -425,8 +429,8 @@ async fn process_add_pool(
     );
     let tx_id = tx_map::insert(&StableTx::AddPool(add_pool_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::AddPool(add_pool_tx)) => to_add_pool_reply(add_pool_tx),
-        _ => to_add_pool_reply_failed(
+        Some(StableTx::AddPool(add_pool_tx)) => AddPoolReply::from(add_pool_tx),
+        _ => AddPoolReply::failed(
             request_id,
             &token_0.chain(),
             &token_0.address(),
@@ -640,7 +644,7 @@ async fn return_tokens(
         .await;
     }
 
-    let reply = to_add_pool_reply_failed(
+    let reply = AddPoolReply::failed(
         request_id,
         &token_0.chain(),
         &token_0.address(),

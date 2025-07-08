@@ -11,6 +11,5 @@ pub struct SolanaReply {
     pub program_id: String,
     pub decimals: u8,
     pub fee: Nat,
-    pub total_supply: Option<Nat>,
     pub is_spl_token: bool,
 }
