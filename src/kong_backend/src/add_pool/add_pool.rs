@@ -192,6 +192,11 @@ async fn check_arguments(
         Err(format!("Pool {} already exists", pool_map::symbol(&token_0, &token_1)))?
     }
 
+    // prevent creating pools with identical token pairs (e.g., icp/icp or ckusdt/ckusdt)
+    if token_0.token_id() == token_1.token_id() {
+        Err(format!("Cannot create pool with identical tokens: {} and {}", token_0.symbol(), token_1.symbol()))?
+    }
+
     let (add_amount_0, add_amount_1, add_lp_token_amount) = calculate_amounts(&token_0, &args.amount_0, &token_1, &args.amount_1)?;
 
     // make sure user is registered, if not create a new user
