@@ -44,10 +44,12 @@ jobs:
       - name: Create cargo config directory
         run: mkdir -p .cargo
       
-      - name: Configure Rust linker
+      - name: Configure Rust for IC development
         run: |
-          echo '[target.x86_64-unknown-linux-gnu]' > .cargo/config.toml
-          echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld", "-C", "link-arg=--undefined-version"]' >> .cargo/config.toml
+          cat > .cargo/config.toml << 'EOF'
+          [target.wasm32-unknown-unknown]
+          rustflags = ["-C", "link-arg=-zstack-size=3000000"]
+          EOF
       
       - name: Download PocketIC server
         uses: dfinity/pocketic@main
