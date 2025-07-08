@@ -66,6 +66,7 @@ impl TryFrom<(&StableLPToken, u64)> for UserBalancesReply {
         Ok(UserBalancesReply::LP(LPReply {
             name: token.name(),
             symbol: token.symbol.clone(),
+            pool_id: pool.pool_id,
             lp_token_id,
             balance,
             usd_balance,
