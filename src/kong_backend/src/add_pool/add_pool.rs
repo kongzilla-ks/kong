@@ -35,7 +35,6 @@ use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
 use super::add_pool_args::AddPoolArgs;
 use super::add_pool_reply::AddPoolReply;
-use super::add_pool_reply_helpers::{to_add_pool_reply, to_add_pool_reply_failed};
 use super::pool_payment_verifier::{PoolPaymentVerification, PoolPaymentVerifier};
 
 enum TokenIndex {
@@ -430,8 +429,8 @@ async fn process_add_pool(
     );
     let tx_id = tx_map::insert(&StableTx::AddPool(add_pool_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::AddPool(add_pool_tx)) => to_add_pool_reply(add_pool_tx),
-        _ => to_add_pool_reply_failed(
+        Some(StableTx::AddPool(add_pool_tx)) => AddPoolReply::from(add_pool_tx),
+        _ => AddPoolReply::failed(
             request_id,
             &token_0.chain(),
             &token_0.address(),
@@ -645,7 +644,7 @@ async fn return_tokens(
         .await;
     }
 
-    let reply = to_add_pool_reply_failed(
+    let reply = AddPoolReply::failed(
         request_id,
         &token_0.chain(),
         &token_0.address(),
