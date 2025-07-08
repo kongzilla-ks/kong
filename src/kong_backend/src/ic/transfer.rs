@@ -101,8 +101,7 @@ pub async fn icrc2_transfer_from(
     }
     let id = *token.canister_id().ok_or("Invalid principal id")?;
 
-    // Using the standard TransferFromArgs from icrc-ledger-types
-    let transfer_from_args = icrc_ledger_types::icrc2::transfer_from::TransferFromArgs {
+    let transfer_from_args = TransferFromArgs {
         spender_subaccount: None,
         from: *from_principal_id,
         to: *to_principal_id,
