@@ -16,8 +16,7 @@ fn claims(principal_id: String) -> Result<Vec<ClaimsReply>, String> {
         .ok_or("User not found")?
         .user_id;
 
-    // get all claimable claims for user
-    let claims = CLAIM_MAP.with(|m| {
+    Ok(CLAIM_MAP.with(|m| {
         m.borrow()
             .iter()
             .filter_map(|(_, claim)| {
@@ -28,7 +27,5 @@ fn claims(principal_id: String) -> Result<Vec<ClaimsReply>, String> {
                 }
             })
             .collect()
-    });
-
-    Ok(claims)
+    }))
 }

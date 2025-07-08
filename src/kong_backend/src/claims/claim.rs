@@ -1,9 +1,5 @@
 use ic_cdk::update;
 
-use super::archive_to_kong_data::archive_to_kong_data;
-use super::claim_reply::ClaimReply;
-use super::process_claim::process_claim;
-
 use crate::ic::address::Address;
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::ic::network::ICNetwork;
@@ -15,6 +11,10 @@ use crate::stable_request::stable_request::StableRequest;
 use crate::stable_request::status::StatusCode;
 use crate::stable_token::token_map;
 use crate::stable_user::user_map;
+
+use super::archive_to_kong_data::archive_to_kong_data;
+use super::claim_reply::ClaimReply;
+use super::process_claim::process_claim;
 
 /// Claim a claimable claim
 /// used by user to claim a claimable claim which exists in CLAIM_MAP
