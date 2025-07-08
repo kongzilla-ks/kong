@@ -1,6 +1,7 @@
 # Solana Cross-Chain Integration Guide
 
 This document provides instructions for setting up Solana cross-chain functionality with Kong's backend services.
+usdc devnet faucet: faucet.circle.com
 
 ## Prerequisites
 1. Install DFX development environment

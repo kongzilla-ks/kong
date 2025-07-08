@@ -43,7 +43,7 @@ pub fn initialize_default_tokens(
         token_name: "ckUSDT Test Token".to_string(),
         metadata: vec![],
         initial_balances: vec![],
-        feature_flags: Some(ICRC1FeatureFlags { icrc2: true, icrc3: true }),
+        feature_flags: Some(ICRC1FeatureFlags { icrc2: true, icrc3: false }),
         archive_options: archive_options_icrc1.clone(),
     };
     let ckusdt_ledger_id = create_icrc1_ledger_with_id(
@@ -54,7 +54,7 @@ pub fn initialize_default_tokens(
     )?;
 
     // --- ICP (uses ICP ledger) ---
-    let icp_id = Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai")?;
+    let icp_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?;
     let controller_account_identifier = AccountIdentifier::new(&controller_principal, &Subaccount([0;32]));
     let icp_init = ICPInitArgs {
         minting_account: controller_account_identifier.to_string(),

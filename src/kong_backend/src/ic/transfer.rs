@@ -75,14 +75,14 @@ pub async fn icrc1_transfer(
     };
 
     match ic_cdk::call::Call::unbounded_wait(id, "icrc1_transfer")
-        .with_arg((transfer_args,))
+        .with_arg(transfer_args)
         .await
         .map_err(|e| format!("{:?}", e))?
-        .candid::<(Result<Nat, TransferError>,)>()
+        .candid::<Result<Nat, TransferError>>()
         .map_err(|e| format!("{:?}", e))?
     {
-        (Ok(block_id),) => Ok(block_id),
-        (Err(e),) => Err(e.to_string())?,
+        Ok(block_id) => Ok(block_id),
+        Err(e) => Err(e.to_string())?,
     }
 }
 

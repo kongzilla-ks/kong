@@ -82,7 +82,7 @@ pub fn setup_swap_test_environment() -> Result<SwapTestSetup> {
 
     // Use the pre-created tokens from initialize_default_tokens
     let token_a_ledger_id = Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai")?;
-    let token_b_ledger_id = Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai")?;
+    let token_b_ledger_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")?;
 
     let token_a_str = format!("IC.{}", token_a_ledger_id.to_text());
     let token_b_str = format!("IC.{}", token_b_ledger_id.to_text());

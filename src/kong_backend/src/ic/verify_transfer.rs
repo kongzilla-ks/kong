@@ -164,11 +164,10 @@ async fn verify_transfer_with_icrc3_get_blocks(
         // So we wrap the single request argument in a vector.
         let block_args_vec = vec![single_request_arg];
         ic_cdk::call::Call::unbounded_wait(canister_id, "icrc3_get_blocks")
-            .with_arg((block_args_vec,))
+            .with_arg(block_args_vec)
             .await
             .map_err(|e| format!("{:?}", e))?
-            .candid::<(ICRC3GetBlocksResult,)>()
-            .map(|(result,)| result)
+            .candid::<ICRC3GetBlocksResult>()
             .map_err(|e| format!("{:?}", e))
     };
     match blocks_result {
