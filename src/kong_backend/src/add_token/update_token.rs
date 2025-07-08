@@ -22,8 +22,6 @@ async fn update_token(args: UpdateTokenArgs) -> Result<UpdateTokenReply, String>
     match stable_token {
         StableToken::IC(ic_token) => to_update_token_reply(&update_ic_token(ic_token).await?),
         StableToken::Solana(solana_token) => {
-            // Solana token updates are only allowed from King Kong
-            caller_is_kingkong()?;
             to_update_token_reply(&update_solana_token(solana_token, &args).await?)
         }
         StableToken::LP(_) => Err("Cannot update LP tokens directly".to_string()),
@@ -62,6 +60,9 @@ pub async fn update_ic_token(existing_ic_token: ICToken) -> Result<StableToken, 
 /// Updates a Solana token's metadata
 /// Only callable by King Kong to ensure metadata changes are authorized
 pub async fn update_solana_token(mut solana_token: SolanaToken, args: &UpdateTokenArgs) -> Result<StableToken, String> {
+    // Solana token updates are only allowed from King Kong
+    caller_is_kingkong()?;
+    
     // Update metadata fields if provided
     if let Some(name) = &args.name {
         solana_token.name = name.clone();

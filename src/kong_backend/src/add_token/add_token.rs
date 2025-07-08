@@ -111,10 +111,8 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
 /// # Security
 ///
 /// Only callable by the kong_rpc proxy via caller_is_proxy guard.
-#[update(guard = "not_in_maintenance_mode")]
+#[update(hidden = true, guard = "caller_is_proxy")]
 async fn add_spl_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
-    // Only proxy can call this endpoint
-    caller_is_proxy()?;
     
     // Use get_by_address to check if token exists and get chain info
     match token_map::get_by_address(&args.token) {
