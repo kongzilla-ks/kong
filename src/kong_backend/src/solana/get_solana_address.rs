@@ -1,6 +1,6 @@
 use ic_cdk::query;
 
-use crate::stable_memory::get_cached_solana_address;
+use crate::stable_memory::{get_cached_solana_address, get_solana_transaction};
 
 /// Get the cached Solana address for this canister
 /// This is a fast query method that returns the cached address
@@ -12,5 +12,17 @@ pub fn get_solana_address() -> Result<String, String> {
         Err("Solana address not available".to_string())
     } else {
         Ok(address)
+    }
+}
+
+/// DEBUG: Get transaction data for debugging
+#[query]
+pub fn debug_get_transaction(signature: String) -> Result<String, String> {
+    match get_solana_transaction(signature) {
+        Some(tx) => {
+            Ok(format!("Transaction found: status={}, metadata={:?}, timestamp={}", 
+                tx.status, tx.metadata, tx.timestamp))
+        },
+        None => Err("Transaction not found".to_string())
     }
 }

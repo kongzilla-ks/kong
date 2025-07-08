@@ -224,7 +224,7 @@ pub fn store_transaction_notification(notification: TransactionNotification) {
 /// Get a transaction by signature
 pub fn get_solana_transaction(signature: String) -> Option<TransactionNotification> {
     with_solana_tx_notifications(|notifications| {
-        let key = TransactionNotificationId(signature);
+        let key = TransactionNotificationId(signature.clone());
         notifications.get(&key)
     })
 }

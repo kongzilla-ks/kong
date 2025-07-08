@@ -195,7 +195,136 @@ fn test_add_token_idempotency() {
         .expect("Failed to decode add_token response");
     
     assert!(result.is_err(), "Second add_token should fail, but got {:?}", result);
-    let error = result.unwrap_err();
-    assert!(error.contains("already exists"), 
-        "Error should mention that token already exists, but got: {}", error);
+    assert!(result.unwrap_err().contains("already exists"), "Error should mention token already exists");
+}
+
+#[test]
+fn test_add_token_backward_compatibility_raw_canister_id() {
+    // Test that raw canister IDs (without IC. prefix) work for backward compatibility
+    // This addresses issue #58
+    let (ic, kong_backend) = setup_ic_environment().expect("Failed to setup IC environment");
+    
+    // Get the controller identity
+    let controller_identity = get_identity_from_pem_file(CONTROLLER_PEM_FILE)
+        .expect("Failed to get controller identity");
+    let controller_principal_id = controller_identity
+        .sender()
+        .expect("Failed to get controller principal id");
+    
+    // Create a test token canister
+    let test_token_canister = setup_test_token(&ic, controller_principal_id)
+        .expect("Failed to setup test token");
+    
+    // Use raw canister ID (without IC. prefix) for backward compatibility
+    let raw_canister_id = test_token_canister.to_text();
+    
+    // Call add_token with raw canister ID (no IC. prefix)
+    let add_token_args = AddTokenArgs {
+        token: raw_canister_id.clone(),
+        ..Default::default()
+    };
+    
+    let args = encode_one(&add_token_args).expect("Failed to encode add_token arguments");
+    let Ok(response) = ic.update_call(
+        kong_backend,
+        controller_principal_id,
+        "add_token",
+        args,
+    ) else {
+        panic!("Failed to call add_token");
+    };
+    
+    let result = decode_one::<Result<AddTokenReply, String>>(&response)
+        .expect("Failed to decode add_token response");
+    
+    assert!(result.is_ok(), "add_token with raw canister ID should succeed, but got {:?}", result);
+    
+    // Verify the token is now in the tokens list
+    let tokens_args = encode_one(()).expect("Failed to encode tokens arguments");
+    let Ok(tokens_response) = ic.query_call(
+        kong_backend,
+        Principal::anonymous(),
+        "tokens",
+        tokens_args,
+    ) else {
+        panic!("Failed to query tokens");
+    };
+    
+    let tokens_result = decode_one::<Result<Vec<TokensReply>, String>>(&tokens_response)
+        .expect("Failed to decode tokens response");
+    
+    assert!(tokens_result.is_ok(), "tokens should be Ok, but got {:?}", tokens_result);
+    
+    let tokens = tokens_result.unwrap();
+    assert!(!tokens.is_empty(), "tokens should not be empty");
+    
+    // Find the token we just added
+    let found_token = tokens.iter().find(|token_reply| {
+        if let TokensReply::IC(ic_token) = *token_reply {
+            ic_token.canister_id == test_token_canister.to_text()
+        } else {
+            false
+        }
+    });
+    assert!(found_token.is_some(), "Added token should be in the tokens list");
+    
+    let token_reply_ref_ref = found_token.unwrap(); 
+    let ic_token_data = if let TokensReply::IC(data) = token_reply_ref_ref {
+        data
+    } else {
+        panic!("Expected TokensReply::IC variant after finding token");
+    }; 
+
+    // Verify the token properties
+    assert_eq!(ic_token_data.symbol, TOKEN_SYMBOL);
+    assert_eq!(ic_token_data.name, TOKEN_NAME);
+    assert_eq!(ic_token_data.decimals, TOKEN_DECIMALS);
+    assert_eq!(ic_token_data.fee, Nat::from(TOKEN_FEE));
+    assert!(ic_token_data.icrc1);
+    assert!(ic_token_data.icrc2);
+    
+    // Verify the canister_id matches what we provided
+    assert_eq!(ic_token_data.canister_id, raw_canister_id);
+    
+    // Verify the chain is correctly set to IC
+    assert_eq!(ic_token_data.chain, "IC");
+}
+
+#[test]
+fn test_add_token_invalid_canister_id_format() {
+    // Test that invalid canister ID formats are rejected
+    let (ic, kong_backend) = setup_ic_environment().expect("Failed to setup IC environment");
+    
+    // Get the controller identity
+    let controller_identity = get_identity_from_pem_file(CONTROLLER_PEM_FILE)
+        .expect("Failed to get controller identity");
+    let controller_principal_id = controller_identity
+        .sender()
+        .expect("Failed to get controller principal id");
+    
+    // Use an invalid canister ID format
+    let invalid_canister_id = "invalid-canister-id";
+    
+    // Call add_token with invalid canister ID
+    let add_token_args = AddTokenArgs {
+        token: invalid_canister_id.to_string(),
+        ..Default::default()
+    };
+    
+    let args = encode_one(&add_token_args).expect("Failed to encode add_token arguments");
+    let Ok(response) = ic.update_call(
+        kong_backend,
+        controller_principal_id,
+        "add_token",
+        args,
+    ) else {
+        panic!("Failed to call add_token");
+    };
+    
+    let result = decode_one::<Result<AddTokenReply, String>>(&response)
+        .expect("Failed to decode add_token response");
+    
+    assert!(result.is_err(), "add_token with invalid canister ID should fail, but got {:?}", result);
+    let error_msg = result.unwrap_err();
+    assert!(error_msg.contains("Invalid canister id") || error_msg.contains("Base32 encoding"), "Error should mention invalid canister ID or encoding issue, but got: '{}'", error_msg);
 }

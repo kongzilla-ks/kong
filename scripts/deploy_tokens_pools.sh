@@ -16,10 +16,7 @@ KSUSDT_DECIMALS=$(echo "10^${KSUSDT_DECIMALS}" | bc)
 KSUSDT_FEE=$(dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc1_fee "()" | awk -F'[:]+' '{print $1}' | awk '{gsub(/\(/, ""); print}')
 KSUSDT_FEE=${KSUSDT_FEE//_/}
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_token --output json "(record {
-    token = \"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\";
-    on_kong = opt true;
-})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_token --output json "(record {token=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"})" | jq
 
 # 2. Add ICP/ksUSDT pool
 IDENTITY="--identity kong_user1"
@@ -43,25 +40,19 @@ dfx canister call ${NETWORK} ${IDENTITY} ${ICP_LEDGER} icrc2_approve "(record {
     amount = $(echo "${ICP_AMOUNT} + ${ICP_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
 dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record {
     amount = $(echo "${KSUSDT_AMOUNT} + ${KSUSDT_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {
-    token_0 = \"${ICP_CHAIN}.${ICP_LEDGER}\";
-    amount_0 = ${ICP_AMOUNT};
-    token_1 = \"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\";
-    amount_1 = ${KSUSDT_AMOUNT};
-    on_kong = opt true;
-})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${ICP_CHAIN}.${ICP_LEDGER}\"; amount_0=${ICP_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 3. Add ksBTC/ksUSDT pool
 KSBTC_SYMBOL="ksBTC"
@@ -83,25 +74,19 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSBTC_LEDGER} icrc2_approve "(record 
     amount = $(echo "${KSBTC_AMOUNT} + ${KSBTC_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
 dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record {
     amount = $(echo "${KSUSDT_AMOUNT} + ${KSUSDT_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {
-    token_0 = \"${KSBTC_CHAIN}.${KSBTC_LEDGER}\";
-    amount_0 = ${KSBTC_AMOUNT};
-    token_1 = \"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\";
-    amount_1 = ${KSUSDT_AMOUNT};
-    on_kong = opt true;
-})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSBTC_CHAIN}.${KSBTC_LEDGER}\"; amount_0=${KSBTC_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 4. Add ksETH/ksUSDT pool
 KSETH_SYMBOL="ksETH"
@@ -123,25 +108,19 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSETH_LEDGER} icrc2_approve "(record 
     amount = $(echo "${KSETH_AMOUNT} + ${KSETH_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
 dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record {
     amount = $(echo "${KSUSDT_AMOUNT} + ${KSUSDT_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {
-    token_0 = \"${KSETH_CHAIN}.${KSETH_LEDGER}\";
-    amount_0 = ${KSETH_AMOUNT};
-    token_1 = \"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\";
-    amount_1 = ${KSUSDT_AMOUNT};
-    on_kong = opt true;
-})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSETH_CHAIN}.${KSETH_LEDGER}\"; amount_0=${KSETH_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 5. Add ksKONG/ksUSDT pool
 KSKONG_SYMBOL="ksKONG"
@@ -163,25 +142,19 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSKONG_LEDGER} icrc2_approve "(record
     amount = $(echo "${KSKONG_AMOUNT} + ${KSKONG_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
 dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record {
     amount = $(echo "${KSUSDT_AMOUNT} + ${KSUSDT_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {
-    token_0 = \"${KSKONG_CHAIN}.${KSKONG_LEDGER}\";
-    amount_0 = ${KSKONG_AMOUNT};
-    token_1 = \"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\";
-    amount_1 = ${KSUSDT_AMOUNT};
-    on_kong = opt true;
-})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSKONG_CHAIN}.${KSKONG_LEDGER}\"; amount_0=${KSKONG_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 6. Add ksKONG/ksICP pool
 KSKONG_SYMBOL="ksKONG"
@@ -203,22 +176,16 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSKONG_LEDGER} icrc2_approve "(record
     amount = $(echo "${KSKONG_AMOUNT} + ${KSKONG_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
 dfx canister call ${NETWORK} ${IDENTITY} ${ICP_LEDGER} icrc2_approve "(record {
     amount = $(echo "${ICP_AMOUNT_FOR_KSKONG} + ${ICP_FEE}" | bc);
     expires_at = opt ${EXPIRES_AT};
     spender = record {
-        owner = principal \"${KONG_CANISTER}\";
-    };
+        owner = principal \"${KONG_CANISTER}\"
+    }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {
-    token_0 = \"${KSKONG_CHAIN}.${KSKONG_LEDGER}\";
-    amount_0 = ${KSKONG_AMOUNT};
-    token_1 = \"${ICP_CHAIN}.${ICP_LEDGER}\";
-    amount_1 = ${ICP_AMOUNT_FOR_KSKONG};
-    on_kong = opt true;
-})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSKONG_CHAIN}.${KSKONG_LEDGER}\"; amount_0=${KSKONG_AMOUNT}; token_1=\"${ICP_CHAIN}.${ICP_LEDGER}\"; amount_1=${ICP_AMOUNT_FOR_KSKONG}})" | jq

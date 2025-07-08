@@ -4,4 +4,3 @@ pub mod solana_reply;
 #[allow(clippy::module_inception)]
 pub mod tokens;
 pub mod tokens_reply;
-pub mod token_exists;

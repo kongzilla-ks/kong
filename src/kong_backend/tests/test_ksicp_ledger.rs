@@ -4,7 +4,7 @@ use anyhow::Result;
 use candid::{decode_one, encode_one, Principal};
 use ic_ledger_types::{AccountIdentifier, Subaccount};
 use icrc_ledger_types::icrc1::account::Account;
-use pocket_ic::PocketIc;
+use pocket_ic::{PocketIc, PocketIcBuilder};
 
 use common::icp_ledger::{InitArgs, LedgerArg};
 use common::identity;
@@ -26,7 +26,7 @@ fn deploy_ksicp_ledger(ic: &PocketIc) -> Result<Principal> {
     let controller_account_id = AccountIdentifier::new(&controller_account.owner, &controller_subaccount);
     
     // Always create with the ICP principal ID to match Kong's expectations
-    let ksicp_principal_id = Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai")
+    let ksicp_principal_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")
         .expect("Invalid ICP Principal ID");
     
     let init_args = InitArgs {
@@ -56,7 +56,12 @@ fn deploy_ksicp_ledger(ic: &PocketIc) -> Result<Principal> {
 
 #[test]
 fn test_ksicp_ledger_icrc1_name() {
-    let ic = PocketIc::new();
+    let ic = PocketIcBuilder::new()
+        .with_nns_subnet()
+        .with_system_subnet()
+        .with_fiduciary_subnet()
+        .with_application_subnet()
+        .build();
     let ksicp_ledger = deploy_ksicp_ledger(&ic).expect("Failed to deploy ksicp ledger");
 
     let args = encode_one((ksicp_ledger,)).expect("Failed to encode arguments");
@@ -75,7 +80,12 @@ fn test_ksicp_ledger_icrc1_name() {
 
 #[test]
 fn test_ksicp_ledger_icrc1_decimals() {
-    let ic = PocketIc::new();
+    let ic = PocketIcBuilder::new()
+        .with_nns_subnet()
+        .with_system_subnet()
+        .with_fiduciary_subnet()
+        .with_application_subnet()
+        .build();
     let ksicp_ledger = deploy_ksicp_ledger(&ic).expect("Failed to deploy ksicp ledger");
 
     let args = encode_one((ksicp_ledger,)).expect("Failed to encode arguments");

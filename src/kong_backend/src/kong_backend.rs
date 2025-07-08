@@ -10,7 +10,7 @@ pub struct KongBackend {}
 impl KongBackend {
     /// Principal ID of the canister.
     pub fn canister() -> Principal {
-        ic_cdk::api::id()
+        ic_cdk::api::canister_self()
     }
 
     /// Account of the canister.

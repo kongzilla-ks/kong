@@ -12,6 +12,7 @@ pub const CONTROLLER_PEM_FILE: &str = "tests/common/identity.pem";
 pub fn setup_ic_environment() -> Result<(PocketIc, Principal)> {
     // setup pocket-ic
     let ic = PocketIcBuilder::new()
+        .with_nns_subnet()
         .with_system_subnet()
         .with_fiduciary_subnet()
         .with_application_subnet()

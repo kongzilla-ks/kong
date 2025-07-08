@@ -354,7 +354,6 @@ type AddPoolArgs = record {
     lp_fee_bps : opt nat8;
     signature_0 : opt text;
     signature_1 : opt text;
-    timestamp : opt nat64;
 };
 type AddPoolReply = record {
     tx_id : nat64;
@@ -406,7 +405,6 @@ type AddLiquidityArgs = record {
     tx_id_1 : opt TxId;
     signature_0 : opt text;
     signature_1 : opt text;
-    timestamp : opt nat64;
 };
 type AddLiquidityReply = record {
     tx_id : nat64;
@@ -452,6 +450,8 @@ type RemoveLiquidityArgs = record {
     remove_lp_token_amount : nat;
     payout_address_0 : opt text;
     payout_address_1 : opt text;
+    signature_0 : opt text;
+    signature_1 : opt text;
 };
 type RemoveLiquidityReply = record {
     tx_id : nat64;
@@ -517,7 +517,6 @@ type SwapArgs = record {
     max_slippage : opt float64;
     referred_by : opt text;
     pay_signature : opt text;
-    timestamp : opt nat64;
 };
 type SwapTxReply = record {
     pool_symbol : text;
@@ -611,7 +610,6 @@ service : {
     
     // tokens(opt wildcard) - returns all tokens or wildcard search
     tokens : (opt text) -> (TokensResult) query;
-    token_exists : (text) -> (bool) query;
     // pools(opt wildcard) - returns all pools or wildcard search
     pools : (opt text) -> (PoolsResult) query;
 

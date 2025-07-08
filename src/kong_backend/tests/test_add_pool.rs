@@ -32,7 +32,7 @@ fn setup_test_tokens(
 
     let token_a_ledger_id = Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai")
         .expect("Invalid ksUSDT Principal ID");
-    let token_b_ledger_id = Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai")
+    let token_b_ledger_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")
         .expect("Invalid Testnet ICP Principal ID");
 
     Ok((token_a_ledger_id, token_b_ledger_id, controller_principal, controller_account))
@@ -46,7 +46,7 @@ fn test_add_pool_icrc2_transfer_from() {
     // For token_a, use ksUSDT canister ID
     let _token_a_principal_id_opt = Some(Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai").expect("Invalid ksUSDT Principal ID"));
     // For token_b, use ICP canister ID
-    let token_b_principal_id_opt = Some(Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai").expect("Invalid ICP Principal ID"));
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
 
     let (token_a_ledger_id, token_b_ledger_id, controller_principal, _controller_account) =
         setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
@@ -248,7 +248,7 @@ fn test_add_pool_with_icrc1_icrc2_mix() {
     // For token_a, use ksUSDT canister ID
     let _token_a_principal_id_opt = Some(Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai").expect("Invalid ksUSDT Principal ID"));
     // For token_b, use ICP canister ID
-    let token_b_principal_id_opt = Some(Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai").expect("Invalid ICP Principal ID"));
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
 
     let (token_a_ledger_id, token_b_ledger_id, controller_principal, _controller_account) =
         setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
@@ -483,7 +483,7 @@ fn test_add_pool_with_icrc1_transfer() {
     // For token_a, use ksUSDT canister ID
     let _token_a_principal_id_opt = Some(Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai").expect("Invalid ksUSDT Principal ID"));
     // For token_b, use ICP canister ID
-    let token_b_principal_id_opt = Some(Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai").expect("Invalid ICP Principal ID"));
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
 
     let (token_a_ledger_id, token_b_ledger_id, controller_principal, _controller_account) =
         setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
@@ -713,7 +713,7 @@ fn test_add_pool_insufficient_token0_balance() {
     // For token_a, use ksUSDT canister ID
     let _token_a_principal_id_opt = Some(Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai").expect("Invalid ksUSDT Principal ID"));
     // For token_b, use ICP canister ID
-    let token_b_principal_id_opt = Some(Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai").expect("Invalid ICP Principal ID"));
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
 
     let (token_a_ledger_id, token_b_ledger_id, controller_principal, _controller_account) =
         setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
@@ -887,11 +887,11 @@ fn test_add_pool_insufficient_token0_balance() {
     );
 
     // Verify error message (might need adjustment based on actual implementation)
-    match add_pool_result {
+    match &add_pool_result {
         Err(error_msg) => {
             assert!(
-                error_msg.contains("insufficient") || error_msg.contains("balance") || error_msg.contains("rejected"),
-                "Error message should indicate a rejection: {}",
+                error_msg.contains("insufficient") || error_msg.contains("balance") || error_msg.contains("rejected") || error_msg.contains("claim"),
+                "Error message should indicate a rejection or claim: {}",
                 error_msg
             );
         }
@@ -901,11 +901,11 @@ fn test_add_pool_insufficient_token0_balance() {
     // Verify user balances after failed pool creation
     let user_balance_a_after_failed_pool = common::icrc1_ledger::get_icrc1_balance(&ic, token_a_ledger_id, user_account);
 
-    // Normally user's token A balance should be unchanged except for the approve fee
-    // Since the transfer wasn't completed due to insufficient balance
+    // In this test, Token A transfer should fail immediately due to insufficient balance
+    // So user should keep most of their Token A (minus just the approval fee)
     assert!(
         user_balance_a_after_failed_pool >= total_mint_amount_a.clone() - (token_a_fee.clone() * Nat::from(2u64)),
-        "User balance for Token A is unexpectedly low: {}",
+        "User balance for Token A should remain mostly intact after failed transfer: {}",
         user_balance_a_after_failed_pool
     );
 
@@ -948,7 +948,7 @@ fn test_add_pool_insufficient_token1_balance() {
     // For token_a, use ksUSDT canister ID
     let _token_a_principal_id_opt = Some(Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai").expect("Invalid ksUSDT Principal ID"));
     // For token_b, use ICP canister ID
-    let token_b_principal_id_opt = Some(Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai").expect("Invalid ICP Principal ID"));
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
 
     let (token_a_ledger_id, token_b_ledger_id, controller_principal, _controller_account) =
         setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
@@ -1137,11 +1137,14 @@ fn test_add_pool_insufficient_token1_balance() {
         user_balance_a_after_failed_pool
     );
 
-    // Also verify the token A balance is reasonable (lost at most 3 fees' worth)
-    assert!(
-        user_balance_a_after_failed_pool >= total_mint_amount_a.clone() - (token_a_fee.clone() * Nat::from(3u64)),
-        "User balance for Token A is unexpectedly low: {}",
-        user_balance_a_after_failed_pool
+    // Token A was transferred but return failed, so it should be in claims, not user balance
+    // The user should have lost: approval fee + transfer_from fee + return transfer fee
+    // Expected: total_mint_amount_a - approval_fee - transfer_from_fee - return_transfer_fee
+    let expected_user_balance_a = total_mint_amount_a.clone() - token_a_fee.clone() - token_a_fee.clone() - token_a_fee.clone();
+    assert_eq!(
+        user_balance_a_after_failed_pool, expected_user_balance_a,
+        "User balance for Token A after failed add_pool with return going to claims. Expected {}, got {}",
+        expected_user_balance_a, user_balance_a_after_failed_pool
     );
 
     // Verify user balance for Token B is reasonable (lost at most approval fee)
@@ -1155,12 +1158,13 @@ fn test_add_pool_insufficient_token1_balance() {
         "User balance for Token B should only be reduced by approval fee"
     );
 
-    // Verify Kong balances are still zero or very low after failed pool creation
+    // Verify Kong balances after failed pool creation
     let kong_balance_a = common::icrc1_ledger::get_icrc1_balance(&ic, token_a_ledger_id, kong_account);
 
-    assert!(
-        kong_balance_a <= token_a_fee.clone() * Nat::from(2u64),
-        "Kong backend balance for Token A should be at most a few fees after failed add_pool, got: {}",
+    // Kong should have 0 balance for Token A since tokens went to claims when return failed
+    assert_eq!(
+        kong_balance_a, Nat::from(0u32),
+        "Kong backend should have 0 balance for Token A since tokens went to claims when return failed, got: {}",
         kong_balance_a
     );
 
@@ -1183,7 +1187,7 @@ fn test_add_pool_insufficient_allowance() {
     // For token_a, use ksUSDT canister ID
     let _token_a_principal_id_opt = Some(Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai").expect("Invalid ksUSDT Principal ID"));
     // For token_b, use ICP canister ID
-    let token_b_principal_id_opt = Some(Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai").expect("Invalid ICP Principal ID"));
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
 
     let (token_a_ledger_id, token_b_ledger_id, controller_principal, _controller_account) =
         setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
@@ -1414,7 +1418,7 @@ fn test_add_pool_setup() {
     let (ic, kong_backend) = setup_ic_environment().expect("Failed to setup IC environment");
 
     // Use the pre-created tokens
-    let token_b_principal_id_opt = Some(Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai").expect("Invalid ICP Principal ID"));
+    let token_b_principal_id_opt = Some(Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai").expect("Invalid ICP Principal ID"));
     let (token_a_ledger_id, token_b_ledger_id, controller_principal, _controller_account) =
         setup_test_tokens(&ic, false, token_b_principal_id_opt).expect("Failed to setup test tokens");
 

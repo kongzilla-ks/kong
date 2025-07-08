@@ -52,7 +52,7 @@ pub async fn add_liquidity_transfer_from_async(args: AddLiquidityArgs) -> Result
     let ts = ICNetwork::get_time();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::AddLiquidity(args.clone()), ts));
 
-    ic_cdk::spawn(async move {
+    ic_cdk::futures::spawn(async move {
         match process_add_liquidity(request_id, user_id, &pool, &add_amount_0, &add_amount_1, &args, ts).await {
             Ok(_) => request_map::update_status(request_id, StatusCode::Success, None),
             Err(_) => request_map::update_status(request_id, StatusCode::Failed, None),

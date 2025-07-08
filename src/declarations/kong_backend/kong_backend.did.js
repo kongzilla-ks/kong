@@ -10,7 +10,6 @@ export const idlFactory = ({ IDL }) => {
     'token_1' : IDL.Text,
     'amount_0' : IDL.Nat,
     'amount_1' : IDL.Nat,
-    'timestamp' : IDL.Opt(IDL.Nat64),
     'tx_id_0' : IDL.Opt(TxId),
     'tx_id_1' : IDL.Opt(TxId),
   });
@@ -78,7 +77,6 @@ export const idlFactory = ({ IDL }) => {
     'token_1' : IDL.Text,
     'amount_0' : IDL.Nat,
     'amount_1' : IDL.Nat,
-    'timestamp' : IDL.Opt(IDL.Nat64),
     'tx_id_0' : IDL.Opt(TxId),
     'tx_id_1' : IDL.Opt(TxId),
     'lp_fee_bps' : IDL.Opt(IDL.Nat8),
@@ -279,6 +277,8 @@ export const idlFactory = ({ IDL }) => {
     'Err' : IDL.Text,
   });
   const RemoveLiquidityArgs = IDL.Record({
+    'signature_0' : IDL.Opt(IDL.Text),
+    'signature_1' : IDL.Opt(IDL.Text),
     'token_0' : IDL.Text,
     'token_1' : IDL.Text,
     'payout_address_0' : IDL.Opt(IDL.Text),
@@ -338,7 +338,6 @@ export const idlFactory = ({ IDL }) => {
     'referred_by' : IDL.Opt(IDL.Text),
     'receive_amount' : IDL.Opt(IDL.Nat),
     'receive_address' : IDL.Opt(IDL.Text),
-    'timestamp' : IDL.Opt(IDL.Nat64),
     'pay_token' : IDL.Text,
     'pay_tx_id' : IDL.Opt(TxId),
     'pay_signature' : IDL.Opt(IDL.Text),
@@ -580,7 +579,6 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'swap_async' : IDL.Func([SwapArgs], [SwapAsyncResult], []),
-    'token_exists' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
     'tokens' : IDL.Func([IDL.Opt(IDL.Text)], [TokensResult], ['query']),
     'update_solana_latest_blockhash' : IDL.Func(
         [IDL.Text],

@@ -519,12 +519,31 @@ impl TestSetup {
                 "User balance for Token B is unreasonably high after successful add_pool"
             );
         } else {
-            // If failed, Kong balances should be at most a few fees worth
-            assert!(
-                kong_balance_a <= self.token_a_fee.clone() * Nat::from(2u64),
-                "Kong balance for Token A is unexpectedly high after failed add_pool: {}",
-                kong_balance_a
-            );
+            // If failed, Kong balances depend on which token failed and whether return transfers succeeded
+            // For insufficient balance tests, Token A may have been transferred but return failed (goes to claims)
+            // For insufficient allowance tests, Token A transfer would fail early
+            
+            // For insufficient balance tests where token_a_amount_factor >= 1.0 (Token A has sufficient balance)
+            // but token_b_amount_factor < 1.0 (Token B has insufficient balance):
+            // - Token A transfer succeeds but return fails -> Kong keeps the full amount in claims
+             let (_token_a_amount, _token_b_amount) = self.calculate_amounts(config);
+            
+            if config.token_a_amount_factor >= 1.0 && config.token_b_amount_factor < 1.0 {
+                // Token A transfer succeeded but return failed due to insufficient balance for fees
+                // When return transfer fails, tokens go to claims and Kong balance becomes 0
+                assert_eq!(
+                    kong_balance_a, Nat::from(0u32),
+                    "Kong balance for Token A should be 0 when return transfer fails and tokens go to claims: {}",
+                    kong_balance_a
+                );
+            } else {
+                // For other failure scenarios, Kong should have at most a few fees worth
+                assert!(
+                    kong_balance_a <= self.token_a_fee.clone() * Nat::from(2u64),
+                    "Kong balance for Token A is unexpectedly high after failed add_pool: {}",
+                    kong_balance_a
+                );
+            }
             
             assert!(
                 kong_balance_b <= self.token_b_fee.clone() * Nat::from(2u64),
@@ -536,8 +555,10 @@ impl TestSetup {
             let (_total_mint_a, _total_mint_b) = self.calculate_total_mint_amounts(config);
             
             // For insufficient balance tests, we may have a zero balance after the approval fee is paid
-            // So we'll relax this check for those specific tests
-            if !(config.token_a_amount_factor < 1.0 && config.use_token_a_approval) {
+            // Also, when Token A transfer succeeds but Token B fails and return transfer fails,
+            // Token A goes to claims and user balance becomes 0
+            if !(config.token_a_amount_factor < 1.0 && config.use_token_a_approval) && 
+               !(config.token_a_amount_factor >= 1.0 && config.token_b_amount_factor < 1.0) {
                 assert!(
                     user_balance_a > 0u64,
                     "User balance for Token A should not be zero after failed add_pool"
@@ -583,7 +604,7 @@ fn setup_test_tokens(
 
     let token_a_ledger_id = Principal::from_text("zdzgz-siaaa-aaaar-qaiba-cai")
         .expect("Invalid ksUSDT Principal ID");
-    let token_b_ledger_id = Principal::from_text("nppha-riaaa-aaaal-ajf2q-cai")
+    let token_b_ledger_id = Principal::from_text("ryjl3-tyaaa-aaaaa-aaaba-cai")
         .expect("Invalid ICP Principal ID");
 
     Ok((token_a_ledger_id, token_b_ledger_id, controller_principal, controller_account))

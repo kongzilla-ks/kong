@@ -44,7 +44,9 @@ SOL_DEC=$(bc <<< "scale=9; ${SOL_AMOUNT}/1000000000")
 TX_OUT=$(solana transfer --allow-unfunded-recipient "$KONG_SOL_ADDR" "$SOL_DEC")
 SOL_TX_SIG=$(echo "$TX_OUT" | grep -o 'Signature: .*' | awk '{print $2}')
 
-echo "Transferred $SOL_DEC SOL (tx $SOL_TX_SIG)"; sleep 5
+echo "Transferred $SOL_DEC SOL (tx $SOL_TX_SIG)"
+echo "Waiting for transaction to be processed by kong_rpc..."
+sleep 10
 
 # --- 2. Approve USDT ---
 APPROVE_AMOUNT=$((USDT_AMOUNT+USDT_FEE))
@@ -55,6 +57,7 @@ check_ok "$APR" "USDT approve failed"
 MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s]}' \
   "$SOL_CHAIN" "$SOL_ADDRESS" "$SOL_AMOUNT" \
   "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT")
+echo "DEBUG: Message to sign: $MSG"
 SIG=$(solana sign-offchain-message "$MSG")
 
 # --- 4. Add liquidity ---

@@ -36,7 +36,7 @@ USDC_DEC=$(bc <<< "scale=6; ${USDC_AMOUNT}/1000000")
 TX_OUT=$(spl-token transfer --allow-unfunded-recipient "${USDC_ADDRESS}" "${USDC_DEC}" "${KONG_SOL_ADDR}" --fund-recipient)
 USDC_TX_SIG=$(echo "$TX_OUT" | grep -o 'Signature: .*' | awk '{print $2}')
 
-echo "Transferred $USDC_DEC USDC (tx $USDC_TX_SIG)"; sleep 10
+echo "Transferred $USDC_DEC USDC (tx $USDC_TX_SIG)"; sleep 5
 echo "hi"
 
 # 2. Approve USDT
@@ -50,13 +50,9 @@ MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%
  "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT")
 SIG=$(solana sign-offchain-message "$MSG")
 
-# 4. Add liquidity (with 4 second timeout)
+# 4. Add liquidity
 CALL="(record { token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\"; amount_0=${USDC_AMOUNT}; tx_id_0=opt variant { TransactionId = \"${USDC_TX_SIG}\" }; token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\"; amount_1=${USDT_AMOUNT}; tx_id_1 = null; signature_0 = opt \"${SIG}\"; signature_1 = null; })"
-RES=$(timeout 4 dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_liquidity --output json "$CALL")
-if [ $? -eq 124 ]; then
-    echo "Error: add_liquidity call timed out after 4 seconds"
-    exit 1
-fi
+RES=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_liquidity --output json "$CALL")
 check_ok "$RES" "add_liquidity failed"
 RID=$(echo "$RES" | jq -r '.Ok.request_id // .request_id // empty')
 [[ -n "$RID" ]] && echo "Liquidity add request submitted: $RID" || echo "$RES"

@@ -78,7 +78,7 @@ pub async fn swap_transfer_from_async(args: SwapArgs) -> Result<u64, String> {
     let receive_amount = args.receive_amount.clone();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args), ts));
 
-    ic_cdk::spawn(async move {
+    ic_cdk::futures::spawn(async move {
         let mut transfer_ids = Vec::new();
 
         let Ok((receive_amount_with_fees_and_gas, mid_price, price, slippage, swaps)) = process_swap(
@@ -100,7 +100,7 @@ pub async fn swap_transfer_from_async(args: SwapArgs) -> Result<u64, String> {
             return;
         };
 
-        ic_cdk::spawn(async move {
+        ic_cdk::futures::spawn(async move {
             send_receive_token(
                 request_id,
                 user_id,

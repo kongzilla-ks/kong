@@ -1,6 +1,7 @@
 # Solana Cross-Chain Integration Guide
 
 This document provides instructions for setting up Solana cross-chain functionality with Kong's backend services.
+usdc devnet faucet: faucet.circle.com
 
 ## Prerequisites
 1. Install DFX development environment
@@ -67,8 +68,8 @@ sh scripts/cross_chain_scripts/remove_usdc_lp.sh local
 # SOL to USDC
 sh scripts/cross_chain_scripts/swap_sol_to_usdc.sh local
 
-# KSUSDT to SOL
-sh scripts/cross_chain_scripts/swap_ksusdt_to_sol.sh local
+# USDT to SOL
+sh scripts/cross_chain_scripts/swap_usdt_to_sol.sh local
 ```
 
 ## Notes

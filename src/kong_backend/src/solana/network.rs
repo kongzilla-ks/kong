@@ -37,36 +37,36 @@ impl SolanaNetwork {
     }
 
     pub fn bs58_decode_public_key(public_key: &str) -> Result<[u8; 32]> {
-        base58::decode_public_key(public_key)
-            .map_err(|e| e.into())
+        base58::decode_public_key(public_key).map_err(Into::into)
     }
 
     pub async fn get_public_key(canister: &Principal) -> Result<String> {
         let derivation_path = ManagementCanister::get_canister_derivation_path(canister);
+        
+        // Get the Schnorr public key - fail properly if not available
         let public_key_bytes = ManagementCanister::get_schnorr_public_key(canister, derivation_path)
             .await
             .map_err(|e| SolanaError::PublicKeyRetrievalError(e.to_string()))?;
+        
         let validated_public_key = SolanaNetwork::validate_public_key(&public_key_bytes)?;
         Ok(SolanaNetwork::bs58_encode_public_key(&validated_public_key))
     }
 
-    pub fn validate_public_key(public_key: &[u8]) -> Result<Vec<u8>> {
-        // Ed25519 public keys are 32 bytes long
-        if public_key.len() != 32 {
-            Err(SolanaError::InvalidPublicKeyFormat("Public key must be 32 bytes long.".to_string()))?;
-        }
 
-        Ok(public_key.to_vec())
+
+    pub fn validate_public_key(public_key: &[u8]) -> Result<Vec<u8>> {
+        if public_key.len() == 32 {
+            Ok(public_key.to_vec())
+        } else {
+            Err(SolanaError::InvalidPublicKeyFormat("Public key must be 32 bytes long.".to_string()).into())
+        }
     }
 
     pub fn validate_tx_signature(tx_signature: &[u8]) -> Result<Vec<u8>> {
-        // Ed25519 signatures are 64 bytes long
-        if tx_signature.len() != 64 {
-            Err(SolanaError::InvalidSignature(
-                "Transaction signature must be 64 bytes long.".to_string(),
-            ))?;
+        if tx_signature.len() == 64 {
+            Ok(tx_signature.to_vec())
+        } else {
+            Err(SolanaError::InvalidSignature("Transaction signature must be 64 bytes long.".to_string()).into())
         }
-
-        Ok(tx_signature.to_vec())
     }
 }
