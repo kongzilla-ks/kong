@@ -526,7 +526,7 @@ impl TestSetup {
             // For insufficient balance tests where token_a_amount_factor >= 1.0 (Token A has sufficient balance)
             // but token_b_amount_factor < 1.0 (Token B has insufficient balance):
             // - Token A transfer succeeds but return fails -> Kong keeps the full amount in claims
-             let (token_a_amount, _token_b_amount) = self.calculate_amounts(config);
+             let (_token_a_amount, _token_b_amount) = self.calculate_amounts(config);
             
             if config.token_a_amount_factor >= 1.0 && config.token_b_amount_factor < 1.0 {
                 // Token A transfer succeeded but return failed due to insufficient balance for fees

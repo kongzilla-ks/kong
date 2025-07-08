@@ -16,7 +16,7 @@ prod = []
 [dependencies]
 candid = "0.10.10"
 futures = "0.3.30"
-ic-cdk = { version = "0.18.5", features = ["transform-closure"] }
+ic-cdk = "0.18.5"
 ic-cdk-timers = "0.12.2"
 ic-ledger-types = "0.15.0"
 ic-cdk-macros = "0.18.5"

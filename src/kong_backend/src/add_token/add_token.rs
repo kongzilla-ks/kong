@@ -11,7 +11,6 @@ use crate::stable_token::token_map;
 
 use super::add_token_args::{AddTokenArgs, AddSplTokenArgs};
 use super::add_token_reply::AddTokenReply;
-use super::add_token_reply_helpers::to_add_token_reply;
 
 /// Adds a token to Kong
 ///
@@ -47,7 +46,7 @@ async fn add_token(args: AddTokenArgs) -> Result<AddTokenReply, String> {
             match chain.as_str() {
                 IC_CHAIN => {
                     // IC tokens can be added by anyone (controllers)
-                    to_add_token_reply(&add_ic_token(&args.token).await?)
+                    Ok(AddTokenReply::try_from(&add_ic_token(&args.token).await?)?)
                 }
                 SOL_CHAIN => {
                     // Solana tokens are added automatically via ATA discovery
@@ -128,7 +127,7 @@ async fn add_spl_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
             // Ensure it's a Solana token
             match chain.as_str() {
                 SOL_CHAIN => {
-                    to_add_token_reply(&add_solana_token_internal(&args).await?)
+                    Ok(AddTokenReply::try_from(&add_solana_token_internal(&args).await?)?)
                 }
                 _ => Err("This endpoint is only for Solana tokens".to_string())?
             }

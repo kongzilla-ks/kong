@@ -1,7 +1,6 @@
 use ic_cdk::query;
 
 use super::claims_reply::ClaimsReply;
-use super::claims_reply_helpers::to_claims_reply;
 
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_claim::stable_claim::ClaimStatus;
@@ -23,7 +22,7 @@ fn claims(principal_id: String) -> Result<Vec<ClaimsReply>, String> {
             .iter()
             .filter_map(|(_, claim)| {
                 if claim.user_id == user_id && claim.status == ClaimStatus::Claimable {
-                    Some(to_claims_reply(&claim))
+                    Some(ClaimsReply::from(&claim))
                 } else {
                     None
                 }

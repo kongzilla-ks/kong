@@ -11,7 +11,6 @@ use crate::stable_token::token_map;
 
 use super::update_token_args::UpdateTokenArgs;
 use super::update_token_reply::UpdateTokenReply;
-use super::update_token_reply_helpers::to_update_token_reply;
 
 /// updates the token
 /// also updates
@@ -20,9 +19,9 @@ async fn update_token(args: UpdateTokenArgs) -> Result<UpdateTokenReply, String>
     let stable_token = token_map::get_by_token(&args.token)?;
     
     match stable_token {
-        StableToken::IC(ic_token) => to_update_token_reply(&update_ic_token(ic_token).await?),
+        StableToken::IC(ic_token) => UpdateTokenReply::try_from(&update_ic_token(ic_token).await?),
         StableToken::Solana(solana_token) => {
-            to_update_token_reply(&update_solana_token(solana_token, &args).await?)
+            UpdateTokenReply::try_from(&update_solana_token(solana_token, &args).await?)
         }
         StableToken::LP(_) => Err("Cannot update LP tokens directly".to_string()),
     }

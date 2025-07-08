@@ -13,7 +13,7 @@ use crate::add_liquidity::add_liquidity_reply::AddLiquidityReply;
 use crate::add_liquidity_amounts::add_liquidity_amounts_reply::AddLiquidityAmountsReply;
 use crate::add_pool::add_pool_args::AddPoolArgs;
 use crate::add_pool::add_pool_reply::AddPoolReply;
-use crate::add_token::add_token_args::{AddTokenArgs, AddSplTokenArgs};
+use crate::add_token::add_token_args::AddTokenArgs;
 use crate::add_token::add_token_reply::AddTokenReply;
 use crate::add_token::update_token_args::UpdateTokenArgs;
 use crate::add_token::update_token_reply::UpdateTokenReply;
