@@ -151,7 +151,6 @@ async fn add_solana_token_internal(args: &AddSplTokenArgs) -> Result<StableToken
         fee,
         mint_address: mint_address.to_string(),
         program_id: args.program_id.clone(),
-        total_supply: None,                                               // We don't track total supply for now
         is_spl_token: mint_address != "11111111111111111111111111111111", // False for native SOL
     });
 

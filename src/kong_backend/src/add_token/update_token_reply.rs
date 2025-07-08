@@ -40,7 +40,6 @@ impl TryFrom<&StableToken> for UpdateTokenReply {
                 program_id: solana_token.program_id.clone(),
                 decimals: token.decimals(),
                 fee: token.fee(),
-                total_supply: solana_token.total_supply.clone(),
                 is_spl_token: solana_token.is_spl_token,
             })),
             _ => Err("Unsupported token type".to_string()),

@@ -58,7 +58,6 @@ impl From<&StableToken> for TokensReply {
                 program_id: solana_token.program_id.clone(),
                 decimals: token.decimals(),
                 fee: token.fee(),
-                total_supply: solana_token.total_supply.clone(),
                 is_spl_token: solana_token.is_spl_token,
             }),
         }
