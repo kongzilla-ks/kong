@@ -8,7 +8,7 @@ use crate::stable_pool::pool_map;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
 use crate::stable_tx::swap_tx::SwapTx;
-use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+use crate::transfers::transfer_reply::TransferIdReplyHelpers;
 
 fn to_swap_tx_reply(swap: &SwapCalc, ts: u64) -> Option<SwapTxReply> {
     let pool = pool_map::get_by_pool_id(swap.pool_id)?;
@@ -88,7 +88,7 @@ pub fn to_swap_reply(swap_tx: &SwapTx) -> SwapReply {
         price: swap_tx.price,
         slippage: swap_tx.slippage,
         txs: to_txs(&swap_tx.txs, swap_tx.ts),
-        transfer_ids: to_transfer_ids(&swap_tx.transfer_ids),
+        transfer_ids: swap_tx.transfer_ids.to_transfer_id_replies(),
         claim_ids: swap_tx.claim_ids.clone(),
         ts: swap_tx.ts,
     }

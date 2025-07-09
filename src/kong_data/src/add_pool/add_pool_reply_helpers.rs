@@ -4,7 +4,7 @@ use crate::helpers::nat_helpers::nat_zero;
 use crate::stable_pool::pool_map;
 use crate::stable_token::token::Token;
 use crate::stable_tx::add_pool_tx::AddPoolTx;
-use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+use crate::transfers::transfer_reply::TransferIdReplyHelpers;
 
 fn get_pool_info(
     pool_id: u32,
@@ -81,7 +81,7 @@ pub fn to_add_pool_reply(add_pool_tx: &AddPoolTx) -> AddPoolReply {
         lp_fee_bps,
         lp_token_symbol,
         add_lp_token_amount: add_pool_tx.add_lp_token_amount.clone(),
-        transfer_ids: to_transfer_ids(&add_pool_tx.transfer_ids),
+        transfer_ids: add_pool_tx.transfer_ids.to_transfer_id_replies(),
         claim_ids: add_pool_tx.claim_ids.clone(),
         is_removed: add_pool_tx.is_removed,
         ts: add_pool_tx.ts,
