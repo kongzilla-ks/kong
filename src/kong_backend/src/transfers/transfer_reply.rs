@@ -27,7 +27,7 @@ pub struct ICTransferReply {
 pub struct SolanaTransferReply {
     pub chain: String,
     pub symbol: String,
-    pub is_send: bool,
+    pub is_send: bool, // from user's perspective. so if is_send is true, it means the user is sending the token
     pub amount: Nat,
     pub mint_address: String,
     pub signature: String,
