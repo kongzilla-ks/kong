@@ -10,7 +10,7 @@ use crate::stable_claim::stable_claim::{ClaimStatus, StableClaim};
 use crate::stable_request::{reply::Reply, request_map, status::StatusCode};
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
-use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+use crate::transfers::transfer_reply::TransferIdReply;
 
 use super::claim_reply::ClaimReply;
 
@@ -40,7 +40,11 @@ pub async fn process_claim(
             fee: token.fee(),
             to_address: to_address.to_string(),
             desc: claim.desc.as_ref().map_or_else(String::new, |desc| desc.to_string()),
-            transfer_ids: to_transfer_ids(&transfer_ids),
+            transfer_ids: transfer_ids.iter().filter_map(|&transfer_id| {
+                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                let token = crate::stable_token::token_map::get_by_token_id(transfer.token_id)?;
+                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+            }).collect(),
             ts,
         },
         Err(e) => {
@@ -54,7 +58,11 @@ pub async fn process_claim(
                 fee: token.fee(),
                 to_address: to_address.to_string(),
                 desc: claim.desc.as_ref().map_or_else(String::new, |desc| desc.to_string()),
-                transfer_ids: to_transfer_ids(&transfer_ids),
+                transfer_ids: transfer_ids.iter().filter_map(|&transfer_id| {
+                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                let token = crate::stable_token::token_map::get_by_token_id(transfer.token_id)?;
+                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+            }).collect(),
                 ts,
             };
             request_map::update_reply(request_id, Reply::Claim(reply.clone()));

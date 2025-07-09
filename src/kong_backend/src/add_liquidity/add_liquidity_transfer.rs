@@ -4,7 +4,6 @@ use icrc_ledger_types::icrc1::account::Account;
 use super::add_liquidity::TokenIndex;
 use super::add_liquidity_args::AddLiquidityArgs;
 use super::add_liquidity_reply::AddLiquidityReply;
-use super::add_liquidity_reply_helpers::{to_add_liquidity_reply, to_add_liquidity_reply_failed};
 use super::add_liquidity_transfer_from::archive_to_kong_data;
 use super::add_liquidity_transfer_from::{transfer_from_token, update_liquidity_pool};
 
@@ -367,8 +366,10 @@ async fn process_add_liquidity(
     );
     let tx_id = tx_map::insert(&StableTx::AddLiquidity(add_liquidity_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::AddLiquidity(add_liquidity_tx)) => to_add_liquidity_reply(add_liquidity_tx),
-        _ => to_add_liquidity_reply_failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts),
+        Some(StableTx::AddLiquidity(add_liquidity_tx)) => {
+            AddLiquidityReply::try_from(add_liquidity_tx).unwrap_or_else(|_| AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts))
+        },
+        _ => AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts),
     };
     request_map::update_reply(request_id, Reply::AddLiquidity(reply.clone()));
 
@@ -476,7 +477,7 @@ async fn return_tokens(
     }
 
     let pool_id = pool_id.unwrap_or(0);
-    let reply = to_add_liquidity_reply_failed(pool_id, request_id, transfer_ids, &claim_ids, ts);
+    let reply = AddLiquidityReply::failed(pool_id, request_id, transfer_ids, &claim_ids, ts);
     request_map::update_reply(request_id, Reply::AddLiquidity(reply));
 }
 

@@ -9,7 +9,8 @@ use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
 use crate::stable_tx::status_tx::StatusTx;
 use crate::stable_tx::swap_tx::SwapTx;
-use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+use crate::transfers::transfer_reply::TransferIdReply;
+use crate::stable_transfer::transfer_map;
 
 use super::swap_calc::SwapCalc;
 use super::swap_reply::{SwapReply, SwapTxReply};
@@ -92,7 +93,11 @@ pub fn to_swap_reply(swap_tx: &SwapTx) -> SwapReply {
         price: swap_tx.price,
         slippage: swap_tx.slippage,
         txs: to_txs(&swap_tx.txs, swap_tx.ts),
-        transfer_ids: to_transfer_ids(&swap_tx.transfer_ids),
+        transfer_ids: swap_tx.transfer_ids.iter().filter_map(|&transfer_id| {
+            let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+            let token = token_map::get_by_token_id(transfer.token_id)?;
+            TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+        }).collect(),
         claim_ids: swap_tx.claim_ids.clone(),
         ts: swap_tx.ts,
     }
@@ -131,7 +136,11 @@ pub fn to_swap_reply_failed(
         price: 0_f64,
         slippage: 0_f64,
         txs: Vec::new(),
-        transfer_ids: to_transfer_ids(transfer_ids),
+        transfer_ids: transfer_ids.iter().filter_map(|&transfer_id| {
+            let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+            let token = token_map::get_by_token_id(transfer.token_id)?;
+            TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+        }).collect(),
         claim_ids: claim_ids.to_vec(),
         ts,
     }

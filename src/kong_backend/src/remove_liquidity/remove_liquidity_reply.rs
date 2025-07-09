@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::stable_pool::pool_map;
 use crate::stable_tx::remove_liquidity_tx::RemoveLiquidityTx;
 use crate::transfers::transfer_reply::TransferIdReply;
-use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+use crate::stable_transfer::transfer_map;
+use crate::stable_token::token_map;
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct RemoveLiquidityReply {
@@ -57,7 +58,11 @@ impl TryFrom<&RemoveLiquidityTx> for RemoveLiquidityReply {
             amount_1: remove_liquidity_tx.amount_1.clone(),
             lp_fee_1: remove_liquidity_tx.lp_fee_1.clone(),
             remove_lp_token_amount: remove_liquidity_tx.remove_lp_token_amount.clone(),
-            transfer_ids: to_transfer_ids(&remove_liquidity_tx.transfer_ids),
+            transfer_ids: remove_liquidity_tx.transfer_ids.iter().filter_map(|&transfer_id| {
+                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                let token = token_map::get_by_token_id(transfer.token_id)?;
+                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+            }).collect(),
             claim_ids: remove_liquidity_tx.claim_ids.clone(),
             ts: remove_liquidity_tx.ts,
         })
