@@ -27,6 +27,7 @@ pub fn to_transfer_id(transfer_id: u64) -> Option<TransferIdReply> {
                 }),
                 _ => None,
             },
+            // Note: Solana support not implemented in kong_data yet
             _ => None,
         },
         _ => None,
