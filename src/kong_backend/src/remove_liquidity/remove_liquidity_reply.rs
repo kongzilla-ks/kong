@@ -6,6 +6,7 @@ use crate::stable_tx::remove_liquidity_tx::RemoveLiquidityTx;
 use crate::transfers::transfer_reply::TransferIdReply;
 use crate::stable_transfer::transfer_map;
 use crate::stable_token::token_map;
+use crate::helpers::nat_helpers::nat_zero;
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct RemoveLiquidityReply {
@@ -33,6 +34,31 @@ pub struct RemoveLiquidityReply {
 
 fn empty_string() -> String {
     String::new()
+}
+
+impl RemoveLiquidityReply {
+    pub fn failed(tx_id: u64, request_id: u64, _transfer_ids: &[u64], claim_ids: &[u64], ts: u64) -> Self {
+        RemoveLiquidityReply {
+            tx_id,
+            request_id,
+            status: "Failed".to_string(),
+            symbol: "Pool symbol not found".to_string(),
+            chain_0: "Pool chain_0 not found".to_string(),
+            address_0: "Pool address_0 not found".to_string(),
+            symbol_0: "Pool symbol_0 not found".to_string(),
+            amount_0: nat_zero(),
+            lp_fee_0: nat_zero(),
+            chain_1: "Pool chain_1 not found".to_string(),
+            address_1: "Pool address_1 not found".to_string(),
+            symbol_1: "Pool symbol_1 not found".to_string(),
+            amount_1: nat_zero(),
+            lp_fee_1: nat_zero(),
+            remove_lp_token_amount: nat_zero(),
+            transfer_ids: Vec::new(),
+            claim_ids: claim_ids.to_vec(),
+            ts,
+        }
+    }
 }
 
 impl TryFrom<&RemoveLiquidityTx> for RemoveLiquidityReply {

@@ -607,47 +607,9 @@ async fn send_payout_tokens(
     let tx_id = tx_map::insert(&StableTx::RemoveLiquidity(remove_liquidity_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
         Some(StableTx::RemoveLiquidity(remove_liquidity_tx)) => RemoveLiquidityReply::try_from(remove_liquidity_tx).unwrap_or_else(|_| {
-            RemoveLiquidityReply {
-                tx_id: 0,
-                request_id,
-                status: "Failed".to_string(),
-                symbol: "Pool symbol not found".to_string(),
-                chain_0: "Pool chain_0 not found".to_string(),
-                address_0: "Pool address_0 not found".to_string(),
-                symbol_0: "Pool symbol_0 not found".to_string(),
-                amount_0: nat_zero(),
-                lp_fee_0: nat_zero(),
-                chain_1: "Pool chain_1 not found".to_string(),
-                address_1: "Pool address_1 not found".to_string(),
-                symbol_1: "Pool symbol_1 not found".to_string(),
-                amount_1: nat_zero(),
-                lp_fee_1: nat_zero(),
-                remove_lp_token_amount: nat_zero(),
-                transfer_ids: Vec::new(),
-                claim_ids: Vec::new(),
-                ts,
-            }
+            RemoveLiquidityReply::failed(0, request_id, &[], &[], ts)
         }),
-        _ => RemoveLiquidityReply {
-            tx_id: 0,
-            request_id,
-            status: "Failed".to_string(),
-            symbol: "Pool symbol not found".to_string(),
-            chain_0: "Pool chain_0 not found".to_string(),
-            address_0: "Pool address_0 not found".to_string(),
-            symbol_0: "Pool symbol_0 not found".to_string(),
-            amount_0: nat_zero(),
-            lp_fee_0: nat_zero(),
-            chain_1: "Pool chain_1 not found".to_string(),
-            address_1: "Pool address_1 not found".to_string(),
-            symbol_1: "Pool symbol_1 not found".to_string(),
-            amount_1: nat_zero(),
-            lp_fee_1: nat_zero(),
-            remove_lp_token_amount: nat_zero(),
-            transfer_ids: Vec::new(),
-            claim_ids: Vec::new(),
-            ts,
-        },
+        _ => RemoveLiquidityReply::failed(0, request_id, &[], &[], ts),
     };
     request_map::update_reply(request_id, Reply::RemoveLiquidity(reply.clone()));
 
@@ -821,26 +783,7 @@ fn return_tokens(
         }
     }
 
-    let reply = RemoveLiquidityReply {
-        tx_id: 0,
-        request_id,
-        status: "Failed".to_string(),
-        symbol: "Pool symbol not found".to_string(),
-        chain_0: "Pool chain_0 not found".to_string(),
-        address_0: "Pool address_0 not found".to_string(),
-        symbol_0: "Pool symbol_0 not found".to_string(),
-        amount_0: nat_zero(),
-        lp_fee_0: nat_zero(),
-        chain_1: "Pool chain_1 not found".to_string(),
-        address_1: "Pool address_1 not found".to_string(),
-        symbol_1: "Pool symbol_1 not found".to_string(),
-        amount_1: nat_zero(),
-        lp_fee_1: nat_zero(),
-        remove_lp_token_amount: nat_zero(),
-        transfer_ids: Vec::new(),
-        claim_ids: Vec::new(),
-        ts,
-    };
+    let reply = RemoveLiquidityReply::failed(0, request_id, &[], &[], ts);
     request_map::update_reply(request_id, Reply::RemoveLiquidity(reply));
 }
 

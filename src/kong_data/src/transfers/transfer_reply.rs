@@ -57,18 +57,23 @@ impl TryFrom<(u64, &StableTransfer, &StableToken)> for TransferIdReply {
                         block_index: block_index.clone(),
                     }),
                 }),
-                TxId::TransactionHash(hash) => Ok(TransferIdReply {
-                    transfer_id,
-                    transfer: TransferReply::Solana(SolanaTransferReply {
-                        chain: "Bitcoin".to_string(), // Kong_data seems to use TransactionHash for non-IC chains
-                        symbol: token.symbol.clone(),
-                        is_send: transfer.is_send,
-                        amount: transfer.amount.clone(),
-                        mint_address: hash.clone(),
-                        signature: hash.clone(),
-                        slot: None,
-                    }),
-                }),
+                TxId::TransactionHash(hash) => {
+                    // For IC tokens with TransactionHash, this likely indicates a non-standard transfer
+                    // Since kong_data doesn't have Solana token type, we'll use the token's actual chain
+                    // which will be "IC" for IC tokens. This is a temporary fix until proper Solana support is added.
+                    Ok(TransferIdReply {
+                        transfer_id,
+                        transfer: TransferReply::Solana(SolanaTransferReply {
+                            chain: token.chain(), // Use the actual token chain instead of hardcoding "Bitcoin"
+                            symbol: token.symbol.clone(),
+                            is_send: transfer.is_send,
+                            amount: transfer.amount.clone(),
+                            mint_address: hash.clone(),
+                            signature: hash.clone(),
+                            slot: None,
+                        }),
+                    })
+                }
             },
             // Case 2: LP tokens  
             StableToken::LP(_token) => Err("LP tokens are not transferable".to_string()),
