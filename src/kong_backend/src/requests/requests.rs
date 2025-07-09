@@ -1,7 +1,6 @@
 use ic_cdk::query;
 
 use super::request_reply::RequestReply;
-use super::request_reply_helpers::to_request_reply;
 
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_request::request_map;
@@ -13,7 +12,7 @@ async fn requests(request_id: Option<u64>) -> Result<Vec<RequestReply>, String> 
         None => Err("request_id is required".to_string())?,
     };
 
-    let requests = request_map::get_by_request_id(request_id).iter().map(to_request_reply).collect();
+    let requests = request_map::get_by_request_id(request_id).iter().map(RequestReply::from).collect();
 
     Ok(requests)
 }
