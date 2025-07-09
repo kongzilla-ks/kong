@@ -158,8 +158,18 @@ type ICTransferReply = record {
     canister_id : text;
     block_index : nat;
 };
+type SolanaTransferReply = record {
+    chain : text;
+    symbol : text;
+    is_send : bool;
+    amount : nat;
+    mint_address : text;
+    signature : text;
+    slot : opt nat64;
+};
 type TransferReply = variant {
     IC : ICTransferReply;
+    Solana : SolanaTransferReply;
 };
 type TransferIdReply = record {
     transfer_id : nat64;

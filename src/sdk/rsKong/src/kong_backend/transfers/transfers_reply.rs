@@ -10,6 +10,7 @@ pub struct TransferIdReply {
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub enum TransferReply {
     IC(ICTransferReply),
+    Solana(SolanaTransferReply),
 }
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
@@ -20,4 +21,15 @@ pub struct ICTransferReply {
     pub amount: Nat,
     pub canister_id: String,
     pub block_index: Nat,
+}
+
+#[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
+pub struct SolanaTransferReply {
+    pub chain: String,
+    pub symbol: String,
+    pub is_send: bool,
+    pub amount: Nat,
+    pub mint_address: String,
+    pub signature: String,
+    pub slot: Option<u64>,
 }
