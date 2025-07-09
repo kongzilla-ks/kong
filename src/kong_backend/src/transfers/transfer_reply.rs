@@ -1,6 +1,11 @@
 use candid::{CandidType, Deserialize, Nat};
 use serde::Serialize;
 
+use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
+use crate::stable_token::stable_token::StableToken;
+use crate::stable_transfer::stable_transfer::StableTransfer;
+use crate::stable_transfer::tx_id::TxId;
+
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct TransferIdReply {
     pub transfer_id: u64,
@@ -32,4 +37,45 @@ pub struct SolanaTransferReply {
     pub mint_address: String,
     pub signature: String,
     pub slot: Option<u64>,
+}
+
+impl TryFrom<(u64, &StableTransfer, &StableToken)> for TransferIdReply {
+    type Error = String;
+    
+    fn try_from((transfer_id, transfer, token): (u64, &StableTransfer, &StableToken)) -> Result<Self, Self::Error> {
+        match token {
+            // Case 1: The token is an IC token
+            StableToken::IC(token) => match &transfer.tx_id {
+                TxId::BlockIndex(block_index) => Ok(TransferIdReply {
+                    transfer_id,
+                    transfer: TransferReply::IC(ICTransferReply {
+                        chain: IC_CHAIN.to_string(),
+                        symbol: token.symbol.clone(),
+                        is_send: transfer.is_send,
+                        amount: transfer.amount.clone(),
+                        canister_id: token.canister_id.to_string(),
+                        block_index: block_index.clone(),
+                    }),
+                }),
+                _ => Err("A BlockIndex is expected for IC tokens".to_string()),
+            },
+            // Case 2: The token is a Solana token
+            StableToken::Solana(token) => match &transfer.tx_id {
+                TxId::TransactionId(signature) => Ok(TransferIdReply {
+                    transfer_id,
+                    transfer: TransferReply::Solana(SolanaTransferReply {
+                        chain: SOL_CHAIN.to_string(),
+                        symbol: token.symbol.clone(),
+                        is_send: transfer.is_send,
+                        amount: transfer.amount.clone(),
+                        mint_address: token.mint_address.clone(),
+                        signature: signature.clone(),
+                        slot: None, // This can be populated later if the slot info is stored
+                    }),
+                }),
+                _ => Err("A TransactionId is expected for Solana tokens".to_string()),
+            },
+            _ => Err("Unsupported token type".to_string()),
+        }
+    }
 }
