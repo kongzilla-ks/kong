@@ -34,27 +34,29 @@ fn get_pool_info(pool_id: u32) -> (String, String, String, String, String, Strin
 }
 
 pub fn to_remove_liquidity_reply(remove_liquidity_tx: &RemoveLiquidityTx) -> RemoveLiquidityReply {
-    let (symbol, chain_0, address_0, symbol_0, chain_1, address_1, symbol_1) = get_pool_info(remove_liquidity_tx.pool_id);
-    RemoveLiquidityReply {
-        tx_id: remove_liquidity_tx.tx_id,
-        request_id: remove_liquidity_tx.request_id,
-        status: remove_liquidity_tx.status.to_string(),
-        symbol,
-        chain_0,
-        address_0,
-        symbol_0,
-        amount_0: remove_liquidity_tx.amount_0.clone(),
-        lp_fee_0: remove_liquidity_tx.lp_fee_0.clone(),
-        chain_1,
-        address_1,
-        symbol_1,
-        amount_1: remove_liquidity_tx.amount_1.clone(),
-        lp_fee_1: remove_liquidity_tx.lp_fee_1.clone(),
-        remove_lp_token_amount: remove_liquidity_tx.remove_lp_token_amount.clone(),
-        transfer_ids: to_transfer_ids(&remove_liquidity_tx.transfer_ids),
-        claim_ids: remove_liquidity_tx.claim_ids.clone(),
-        ts: remove_liquidity_tx.ts,
-    }
+    RemoveLiquidityReply::try_from(remove_liquidity_tx).unwrap_or_else(|_| {
+        let (symbol, chain_0, address_0, symbol_0, chain_1, address_1, symbol_1) = get_pool_info(remove_liquidity_tx.pool_id);
+        RemoveLiquidityReply {
+            tx_id: remove_liquidity_tx.tx_id,
+            request_id: remove_liquidity_tx.request_id,
+            status: remove_liquidity_tx.status.to_string(),
+            symbol,
+            chain_0,
+            address_0,
+            symbol_0,
+            amount_0: remove_liquidity_tx.amount_0.clone(),
+            lp_fee_0: remove_liquidity_tx.lp_fee_0.clone(),
+            chain_1,
+            address_1,
+            symbol_1,
+            amount_1: remove_liquidity_tx.amount_1.clone(),
+            lp_fee_1: remove_liquidity_tx.lp_fee_1.clone(),
+            remove_lp_token_amount: remove_liquidity_tx.remove_lp_token_amount.clone(),
+            transfer_ids: to_transfer_ids(&remove_liquidity_tx.transfer_ids),
+            claim_ids: remove_liquidity_tx.claim_ids.clone(),
+            ts: remove_liquidity_tx.ts,
+        }
+    })
 }
 
 pub fn to_remove_liquidity_reply_failed(pool_id: u32, request_id: u64, ts: u64) -> RemoveLiquidityReply {
