@@ -92,16 +92,7 @@ fn process_send(
         Err(e) => {
             request_map::update_status(request_id, StatusCode::SendLPTokenToUserFailed, Some(&e));
 
-            let reply = SendReply {
-                tx_id: 0,
-                request_id,
-                status: "Failed".to_string(),
-                chain: lp_token_chain.to_string(),
-                symbol: lp_token_symbol.to_string(),
-                amount: amount.clone(),
-                to_address: to_address.to_string(),
-                ts,
-            };
+            let reply = SendReply::failed(request_id, &lp_token_chain, &lp_token_symbol, &amount, &to_address, ts);
             request_map::update_reply(request_id, Reply::Send(reply.clone()));
             Err(format!("Req #{} failed. {}", request_id, e))?;
         }
@@ -111,26 +102,8 @@ fn process_send(
     let send_tx = SendTx::new_success(from_user_id, request_id, to_user_id, lp_token_id, amount, ts);
     let tx_id = tx_map::insert(&StableTx::Send(send_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::Send(send_tx)) => SendReply::try_from(send_tx).unwrap_or_else(|_| SendReply {
-            tx_id: 0,
-            request_id,
-            status: "Failed".to_string(),
-            chain: lp_token_chain.to_string(),
-            symbol: lp_token_symbol.to_string(),
-            amount: amount.clone(),
-            to_address: to_address.to_string(),
-            ts,
-        }),
-        _ => SendReply {
-            tx_id: 0,
-            request_id,
-            status: "Failed".to_string(),
-            chain: lp_token_chain.to_string(),
-            symbol: lp_token_symbol.to_string(),
-            amount: amount.clone(),
-            to_address: to_address.to_string(),
-            ts,
-        },
+        Some(StableTx::Send(send_tx)) => SendReply::try_from(send_tx).unwrap_or_else(|_| SendReply::failed(request_id, &lp_token_chain, &lp_token_symbol, &amount, &to_address, ts)),
+        _ => SendReply::failed(request_id, &lp_token_chain, &lp_token_symbol, &amount, &to_address, ts),
     };
     request_map::update_reply(request_id, Reply::Send(reply.clone()));
 

@@ -18,6 +18,28 @@ pub struct SendReply {
     pub ts: u64,
 }
 
+impl SendReply {
+    pub fn failed(
+        request_id: u64,
+        chain: &str,
+        symbol: &str,
+        amount: &Nat,
+        to_address: &str,
+        ts: u64,
+    ) -> Self {
+        SendReply {
+            tx_id: 0,
+            request_id,
+            status: "Failed".to_string(),
+            chain: chain.to_string(),
+            symbol: symbol.to_string(),
+            amount: amount.clone(),
+            to_address: to_address.to_string(),
+            ts,
+        }
+    }
+}
+
 impl TryFrom<&SendTx> for SendReply {
     type Error = String;
     
