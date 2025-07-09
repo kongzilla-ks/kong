@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::stable_request::reply::Reply;
 use crate::stable_request::request::Request;
-use crate::stable_request::stable_request::StableRequest;
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct RequestReply {
@@ -12,16 +11,4 @@ pub struct RequestReply {
     pub request: Request,
     pub reply: Reply,
     pub ts: u64,
-}
-
-impl From<&StableRequest> for RequestReply {
-    fn from(request: &StableRequest) -> Self {
-        RequestReply {
-            request_id: request.request_id,
-            statuses: request.statuses.iter().map(|status| status.to_string()).collect(),
-            request: request.request.clone(),
-            reply: request.reply.clone(),
-            ts: request.ts,
-        }
-    }
 }

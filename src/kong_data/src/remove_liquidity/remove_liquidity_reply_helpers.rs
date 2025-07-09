@@ -2,9 +2,7 @@ use super::remove_liquidity_reply::RemoveLiquidityReply;
 
 use crate::stable_pool::pool_map;
 use crate::stable_tx::remove_liquidity_tx::RemoveLiquidityTx;
-use crate::stable_transfer::transfer_map;
-use crate::stable_token::token_map;
-use crate::transfers::transfer_reply::TransferIdReply;
+use crate::transfers::transfer_reply_helpers::to_transfer_ids;
 
 fn get_pool_info(pool_id: u32) -> (String, String, String, String, String, String, String) {
     pool_map::get_by_pool_id(pool_id).map_or_else(
@@ -34,41 +32,25 @@ fn get_pool_info(pool_id: u32) -> (String, String, String, String, String, Strin
 }
 
 pub fn to_remove_liquidity_reply(remove_liquidity_tx: &RemoveLiquidityTx) -> RemoveLiquidityReply {
-    RemoveLiquidityReply::try_from(remove_liquidity_tx).unwrap_or_else(|e| {
-        // Log the conversion error for debugging
-        ic_cdk::println!("Failed to convert RemoveLiquidityTx to RemoveLiquidityReply: {}", e);
-        
-        let (symbol, chain_0, address_0, symbol_0, chain_1, address_1, symbol_1) = get_pool_info(remove_liquidity_tx.pool_id);
-        RemoveLiquidityReply {
-            tx_id: remove_liquidity_tx.tx_id,
-            request_id: remove_liquidity_tx.request_id,
-            status: remove_liquidity_tx.status.to_string(),
-            symbol,
-            chain_0,
-            address_0,
-            symbol_0,
-            amount_0: remove_liquidity_tx.amount_0.clone(),
-            lp_fee_0: remove_liquidity_tx.lp_fee_0.clone(),
-            chain_1,
-            address_1,
-            symbol_1,
-            amount_1: remove_liquidity_tx.amount_1.clone(),
-            lp_fee_1: remove_liquidity_tx.lp_fee_1.clone(),
-            remove_lp_token_amount: remove_liquidity_tx.remove_lp_token_amount.clone(),
-            transfer_ids: remove_liquidity_tx.transfer_ids.iter().filter_map(|&transfer_id| {
-                // Attempt basic conversion to preserve transfer data
-                if let Some(transfer) = transfer_map::get_by_transfer_id(transfer_id) {
-                    if let Some(token) = token_map::get_by_token_id(transfer.token_id) {
-                        TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            }).collect(),
-            claim_ids: remove_liquidity_tx.claim_ids.clone(),
-            ts: remove_liquidity_tx.ts,
-        }
-    })
+    let (symbol, chain_0, address_0, symbol_0, chain_1, address_1, symbol_1) = get_pool_info(remove_liquidity_tx.pool_id);
+    RemoveLiquidityReply {
+        tx_id: remove_liquidity_tx.tx_id,
+        request_id: remove_liquidity_tx.request_id,
+        status: remove_liquidity_tx.status.to_string(),
+        symbol,
+        chain_0,
+        address_0,
+        symbol_0,
+        amount_0: remove_liquidity_tx.amount_0.clone(),
+        lp_fee_0: remove_liquidity_tx.lp_fee_0.clone(),
+        chain_1,
+        address_1,
+        symbol_1,
+        amount_1: remove_liquidity_tx.amount_1.clone(),
+        lp_fee_1: remove_liquidity_tx.lp_fee_1.clone(),
+        remove_lp_token_amount: remove_liquidity_tx.remove_lp_token_amount.clone(),
+        transfer_ids: to_transfer_ids(&remove_liquidity_tx.transfer_ids),
+        claim_ids: remove_liquidity_tx.claim_ids.clone(),
+        ts: remove_liquidity_tx.ts,
+    }
 }
