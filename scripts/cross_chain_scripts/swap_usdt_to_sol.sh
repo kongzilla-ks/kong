@@ -8,6 +8,10 @@ set -euo pipefail
 NETWORK="${1:-local}"                   # "local" or "ic"
 IDENTITY_FLAG="--identity kong_user1"
 
+# CANISTER IDS
+MAINNET_KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"
+LOCAL_KONG_BACKEND="kong_backend"  # Will use dfx canister id locally
+
 # Pay Token (USDT on IC)
 PAY_TOKEN_CHAIN="IC"
 USDT_SYMBOL=$([ "${NETWORK}" == "local" ] && echo "ksUSDT" || echo "ckUSDT")
@@ -18,12 +22,21 @@ PAY_AMOUNT=10000000          # 10 USDT (6 decimals)
 RECEIVE_TOKEN="SOL"
 RECEIVE_AMOUNT=0             # Let system calculate optimal amount
 MAX_SLIPPAGE=90.0            # 90%
+# USDT LEDGER CANISTER IDS
+MAINNET_USDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT
+LOCAL_USDT_LEDGER="ksusdt_ledger"  # Will use dfx canister id locally
 # ===============================================================
 
 NETWORK_FLAG=$([ "${NETWORK}" == "local" ] && echo "" || echo "--network ${NETWORK}")
-KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
-USDT_LEDGER_NAME="$(echo ${USDT_SYMBOL} | tr '[:upper:]' '[:lower:]')_ledger"
-USDT_LEDGER=$(dfx canister id ${NETWORK_FLAG} ${USDT_LEDGER_NAME})
+
+# Set canister IDs based on network
+if [ "${NETWORK}" == "ic" ]; then
+    KONG_BACKEND="${MAINNET_KONG_BACKEND}"
+    USDT_LEDGER="${MAINNET_USDT_LEDGER}"
+else
+    KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
+    USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
+fi
 
 # --- Helper to check for command success ---
 check_ok() {

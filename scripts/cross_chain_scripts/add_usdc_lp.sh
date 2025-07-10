@@ -7,6 +7,10 @@ set -euo pipefail
 NETWORK="${1:-local}"
 IDENTITY_FLAG="--identity kong_user1"
 
+# CANISTER IDS
+MAINNET_KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"
+LOCAL_KONG_BACKEND="kong_backend"  # Will use dfx canister id locally
+
 # Token 0 (USDC on Solana)
 USDC_CHAIN="SOL"
 if [ "${NETWORK}" == "ic" ]; then
@@ -20,11 +24,20 @@ USDT_CHAIN="IC"
 USDT_SYMBOL=$([ "${NETWORK}" == "local" ] && echo "ksUSDT" || echo "ckUSDT")
 USDT_AMOUNT=1000000        # 1 USDT (6 decimals)
 USDT_FEE=10000
+# USDT LEDGER CANISTER IDS
+MAINNET_USDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT
+LOCAL_USDT_LEDGER="ksusdt_ledger"  # Will use dfx canister id locally
 # ===============================================================
 NETWORK_FLAG=$([ "${NETWORK}" == "local" ] && echo "" || echo "--network ${NETWORK}")
-KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
-USDT_LEDGER_NAME="$(echo ${USDT_SYMBOL} | tr '[:upper:]' '[:lower:]')_ledger"
-USDT_LEDGER=$(dfx canister id ${NETWORK_FLAG} ${USDT_LEDGER_NAME})
+
+# Set canister IDs based on network
+if [ "${NETWORK}" == "ic" ]; then
+    KONG_BACKEND="${MAINNET_KONG_BACKEND}"
+    USDT_LEDGER="${MAINNET_USDT_LEDGER}"
+else
+    KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
+    USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
+fi
 check_ok(){ local r="$1"; local c="$2"; echo "$r" | grep -q -e "Ok" -e "ok" || { echo "Error: $c" >&2; echo "$r" >&2; exit 1; }; }
 # 0. Fetch Kong Solana address
 KONG_SOL_RAW=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} get_solana_address --output json)
@@ -36,7 +49,7 @@ USDC_DEC=$(bc <<< "scale=6; ${USDC_AMOUNT}/1000000")
 TX_OUT=$(spl-token transfer --allow-unfunded-recipient "${USDC_ADDRESS}" "${USDC_DEC}" "${KONG_SOL_ADDR}" --fund-recipient)
 USDC_TX_SIG=$(echo "$TX_OUT" | grep -o 'Signature: .*' | awk '{print $2}')
 
-echo "Transferred $USDC_DEC USDC (tx $USDC_TX_SIG)"; sleep 5
+echo "Transferred $USDC_DEC USDC (tx $USDC_TX_SIG)"; sleep 30
 echo "hi"
 
 # 2. Approve USDT

@@ -258,7 +258,6 @@ type SolanaTokenReply = record {
     symbol : text;
     decimals : nat8;
     fee : nat;
-    total_supply : opt nat;
     is_spl_token : bool;
 };
 type TokensResult = variant { Ok : vec TokenReply; Err : text };

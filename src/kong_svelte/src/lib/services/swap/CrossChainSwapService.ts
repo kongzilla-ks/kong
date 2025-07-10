@@ -27,7 +27,6 @@ export interface CanonicalSwapMessage {
   receive_amount: string;
   receive_address: string;
   max_slippage: number;
-  timestamp: number;
   referred_by: null;
 }
 
@@ -93,11 +92,10 @@ export class CrossChainSwapService {
     receiveAmount: bigint;
     receiveAddress: string;
     maxSlippage: number;
-    timestamp: bigint;
   }): string {
     // Backend expects exact format from CanonicalSwapMessage struct:
     // - pay_amount and receive_amount as Nat (which serializes to string in JSON)
-    // - timestamp as u64 (which serializes to number in JSON)
+    // - NO timestamp field
     // - referred_by as Option<String> (which serializes to null in JSON)
     const message = {
       pay_token: params.payToken,
@@ -107,7 +105,6 @@ export class CrossChainSwapService {
       receive_amount: params.receiveAmount.toString(), // Nat serializes to string
       receive_address: params.receiveAddress,
       max_slippage: parseFloat(params.maxSlippage.toFixed(1)), // Force float format to avoid 2 vs 2.0 issues
-      timestamp: Number(params.timestamp), // u64 serializes to number
       referred_by: null // Option<String> serializes to null
     };
     

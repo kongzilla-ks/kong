@@ -8,6 +8,10 @@ set -euo pipefail
 NETWORK="${1:-local}"                   # "local" or "ic"
 IDENTITY_FLAG="--identity kong_user1"
 
+# CANISTER IDS
+MAINNET_KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"
+LOCAL_KONG_BACKEND="kong_backend"  # Will use dfx canister id locally
+
 # Pay Token (SOL)
 PAY_TOKEN="SOL"
 SOL_CHAIN="SOL"
@@ -17,18 +21,24 @@ PAY_AMOUNT=100000          # 0.005 SOL (9 decimals)
 # Receive Token (USDC on Solana)
 # Use the actual token symbol from the Kong backend
 if [ "${NETWORK}" == "ic" ]; then
-    RECEIVE_TOKEN="USDC"  # For mainnet, use proper USDC symbol
+    RECEIVE_TOKEN="SOL.USDC"  # For mainnet, use proper USDC symbol (mainnet metadata)
     USDC_ADDRESS="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # Mainnet USDC
 else
-    RECEIVE_TOKEN="4zMM...ncDU"  # For devnet, use the actual symbol from Kong
+    RECEIVE_TOKEN="4zMM...ncDU"  # For devnet, use the actual symbol from Kong for USDC (devnet metadata)
     USDC_ADDRESS="4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"  # Devnet USDC
 fi
 RECEIVE_AMOUNT=0             # Let system calculate optimal amount
-MAX_SLIPPAGE=99.0            # 95% - high slippage for testing
+MAX_SLIPPAGE=95.0            # 95% - high slippage for testing
 # ===============================================================
 
 NETWORK_FLAG=$([ "${NETWORK}" == "local" ] && echo "" || echo "--network ${NETWORK}")
-KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
+
+# Set canister IDs based on network
+if [ "${NETWORK}" == "ic" ]; then
+    KONG_BACKEND="${MAINNET_KONG_BACKEND}"
+else
+    KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
+fi
 
 # --- Helper to check for command success ---
 check_ok() {
@@ -79,8 +89,6 @@ echo "Transferring ${SOL_DEC} SOL..."
 TRANSFER_OUTPUT=$(solana transfer --allow-unfunded-recipient "${KONG_SOLANA_ADDRESS}" "${SOL_DEC}")
 SOL_TX_SIG=$(echo "${TRANSFER_OUTPUT}" | grep -o 'Signature: .*' | awk '{print $2}')
 echo "SOL transferred. Tx: ${SOL_TX_SIG}"
-echo "Waiting for kong_rpc processing..."
-sleep 5
 
 # --- 3. Sign message ---
 echo
@@ -100,27 +108,39 @@ SIGNATURE=$(solana sign-offchain-message "${MESSAGE}")
 echo "Message signed"
 
 # --- 4. Execute swap ---
+# since this is a pay token != icp, we rely on kong_rpc to notice the tx and send it to the backend (at confirmed level this will take 2-4s)
+# so at ingress level we reject swaps that try to use a tx_id that is not yet in kong_backend allowing for free easy to implement retry logic since 
+# swaps get rejected at ingress level instead of in the backend update swap function
 echo
 echo "--- 4. Executing swap ---"
-SWAP_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap --output json "(record {
-    pay_token = \"${PAY_TOKEN}\";
-    pay_amount = ${PAY_AMOUNT};
-    pay_tx_id = opt variant { TransactionId = \"${SOL_TX_SIG}\" };
-    receive_token = \"${RECEIVE_TOKEN}\";
-    receive_amount = opt ${RECEIVE_AMOUNT};
-    max_slippage = opt ${MAX_SLIPPAGE};
-    receive_address = opt \"${USER_SOLANA_ADDRESS}\";
-    pay_signature = opt \"${SIGNATURE}\";
-})")
-check_ok "${SWAP_RESULT}" "Swap failed"
+MAX_RETRIES=10
+RETRY_DELAY=1
+SWAP_RESULT=""
+
+for i in $(seq 1 $MAX_RETRIES); do
+    echo "Attempt $i/$MAX_RETRIES"
+    SWAP_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap --output json "(record {
+        pay_token = \"${PAY_TOKEN}\";
+        pay_amount = ${PAY_AMOUNT};
+        pay_tx_id = opt variant { TransactionId = \"${SOL_TX_SIG}\" };
+        receive_token = \"${RECEIVE_TOKEN}\";
+        receive_amount = opt ${RECEIVE_AMOUNT};
+        max_slippage = opt ${MAX_SLIPPAGE};
+        receive_address = opt \"${USER_SOLANA_ADDRESS}\";
+        pay_signature = opt \"${SIGNATURE}\";
+    })")
+    
+    if echo "$SWAP_RESULT" | grep -q -e "Ok" -e "ok"; then
+        break
+    fi
+    
+    if [ $i -lt $MAX_RETRIES ]; then
+        echo "Swap attempt failed, retrying in $RETRY_DELAY second..."
+        sleep $RETRY_DELAY
+    fi
+done
+
+check_ok "${SWAP_RESULT}" "Swap failed after $MAX_RETRIES attempts"
 
 echo "Swap completed successfully!"
 echo "${SWAP_RESULT}"
-
-# --- 5. Check balances ---
-echo
-echo "--- 5. Checking balances ---"
-echo "SOL balance:"
-solana balance
-echo "USDC balance:"
-spl-token balance ${USDC_ADDRESS} || echo "No USDC balance found"
