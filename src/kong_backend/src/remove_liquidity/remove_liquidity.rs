@@ -4,7 +4,6 @@ use icrc_ledger_types::icrc1::account::Account;
 
 use super::remove_liquidity_args::RemoveLiquidityArgs;
 use super::remove_liquidity_reply::RemoveLiquidityReply;
-use super::remove_liquidity_reply_helpers::{to_remove_liquidity_reply, to_remove_liquidity_reply_failed};
 
 use crate::helpers::nat_helpers::{nat_add, nat_divide, nat_is_zero, nat_multiply, nat_subtract, nat_zero};
 use crate::ic::network::ICNetwork;
@@ -607,8 +606,10 @@ async fn send_payout_tokens(
     );
     let tx_id = tx_map::insert(&StableTx::RemoveLiquidity(remove_liquidity_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::RemoveLiquidity(remove_liquidity_tx)) => to_remove_liquidity_reply(remove_liquidity_tx),
-        _ => to_remove_liquidity_reply_failed(pool.pool_id, request_id, ts),
+        Some(StableTx::RemoveLiquidity(remove_liquidity_tx)) => RemoveLiquidityReply::try_from(remove_liquidity_tx).unwrap_or_else(|_| {
+            RemoveLiquidityReply::failed(0, request_id, &[], &[], ts)
+        }),
+        _ => RemoveLiquidityReply::failed(0, request_id, &[], &[], ts),
     };
     request_map::update_reply(request_id, Reply::RemoveLiquidity(reply.clone()));
 
@@ -782,7 +783,7 @@ fn return_tokens(
         }
     }
 
-    let reply = to_remove_liquidity_reply_failed(pool.pool_id, request_id, ts);
+    let reply = RemoveLiquidityReply::failed(0, request_id, &[], &[], ts);
     request_map::update_reply(request_id, Reply::RemoveLiquidity(reply));
 }
 

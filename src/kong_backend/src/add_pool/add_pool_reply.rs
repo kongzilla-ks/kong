@@ -7,7 +7,8 @@ use crate::stable_token::token::Token;
 use crate::stable_tx::add_pool_tx::AddPoolTx;
 use crate::stable_tx::status_tx::StatusTx;
 use crate::transfers::transfer_reply::TransferIdReply;
-use crate::transfers::transfer_reply_helpers::to_transfer_ids;
+use crate::stable_transfer::transfer_map;
+use crate::stable_token::token_map;
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct AddPoolReply {
@@ -111,7 +112,11 @@ impl From<&AddPoolTx> for AddPoolReply {
             lp_fee_bps,
             lp_token_symbol,
             add_lp_token_amount: add_pool_tx.add_lp_token_amount.clone(),
-            transfer_ids: to_transfer_ids(&add_pool_tx.transfer_ids),
+            transfer_ids: add_pool_tx.transfer_ids.iter().filter_map(|&transfer_id| {
+                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                let token = token_map::get_by_token_id(transfer.token_id)?;
+                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+            }).collect(),
             claim_ids: add_pool_tx.claim_ids.clone(),
             is_removed: add_pool_tx.is_removed,
             ts: add_pool_tx.ts,
@@ -153,7 +158,11 @@ impl AddPoolReply {
             lp_fee_bps: 0,
             lp_token_symbol: "LP token not added".to_string(),
             add_lp_token_amount: nat_zero(),
-            transfer_ids: to_transfer_ids(transfer_ids),
+            transfer_ids: transfer_ids.iter().filter_map(|&transfer_id| {
+                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                let token = token_map::get_by_token_id(transfer.token_id)?;
+                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+            }).collect(),
             claim_ids: claim_ids.to_vec(),
             is_removed: false,
             ts,

@@ -3,7 +3,6 @@ use ic_cdk::update;
 
 use super::send_args::SendArgs;
 use super::send_reply::SendReply;
-use super::send_reply_helpers::{to_send_reply, to_send_reply_failed};
 
 use crate::chains::chains::LP_CHAIN;
 use crate::ic::{guards::not_in_maintenance_mode, network::ICNetwork};
@@ -93,7 +92,7 @@ fn process_send(
         Err(e) => {
             request_map::update_status(request_id, StatusCode::SendLPTokenToUserFailed, Some(&e));
 
-            let reply = to_send_reply_failed(request_id, lp_token_chain, lp_token_symbol, amount, to_address, ts);
+            let reply = SendReply::failed(request_id, &lp_token_chain, &lp_token_symbol, &amount, &to_address, ts);
             request_map::update_reply(request_id, Reply::Send(reply.clone()));
             Err(format!("Req #{} failed. {}", request_id, e))?;
         }
@@ -103,8 +102,8 @@ fn process_send(
     let send_tx = SendTx::new_success(from_user_id, request_id, to_user_id, lp_token_id, amount, ts);
     let tx_id = tx_map::insert(&StableTx::Send(send_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::Send(send_tx)) => to_send_reply(send_tx),
-        _ => to_send_reply_failed(request_id, lp_token_chain, lp_token_symbol, amount, to_address, ts),
+        Some(StableTx::Send(send_tx)) => SendReply::try_from(send_tx).unwrap_or_else(|_| SendReply::failed(request_id, &lp_token_chain, &lp_token_symbol, &amount, &to_address, ts)),
+        _ => SendReply::failed(request_id, &lp_token_chain, &lp_token_symbol, &amount, &to_address, ts),
     };
     request_map::update_reply(request_id, Reply::Send(reply.clone()));
 

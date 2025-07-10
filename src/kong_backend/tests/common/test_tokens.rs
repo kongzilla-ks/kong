@@ -43,7 +43,7 @@ pub fn initialize_default_tokens(
         token_name: "ckUSDT Test Token".to_string(),
         metadata: vec![],
         initial_balances: vec![],
-        feature_flags: Some(ICRC1FeatureFlags { icrc2: true, icrc3: false }),
+        feature_flags: Some(ICRC1FeatureFlags { icrc2: true, icrc3: true }),
         archive_options: archive_options_icrc1.clone(),
     };
     let ckusdt_ledger_id = create_icrc1_ledger_with_id(

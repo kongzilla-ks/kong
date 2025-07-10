@@ -6,7 +6,6 @@ use super::add_liquidity_args::AddLiquidityArgs;
 use super::liquidity_payment_verifier::{LiquidityPaymentVerifier, LiquidityPaymentVerification};
 use crate::chains::chains::SOL_CHAIN;
 use super::add_liquidity_reply::AddLiquidityReply;
-use super::add_liquidity_reply_helpers::{to_add_liquidity_reply, to_add_liquidity_reply_failed};
 
 use crate::helpers::nat_helpers::{
     nat_add, nat_divide, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero,
@@ -383,8 +382,10 @@ async fn process_add_liquidity(
     );
     let tx_id = tx_map::insert(&StableTx::AddLiquidity(add_liquidity_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::AddLiquidity(add_liquidity_tx)) => to_add_liquidity_reply(add_liquidity_tx),
-        _ => to_add_liquidity_reply_failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts),
+        Some(StableTx::AddLiquidity(add_liquidity_tx)) => {
+            AddLiquidityReply::try_from(add_liquidity_tx).unwrap_or_else(|_| AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts))
+        },
+        _ => AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts),
     };
     request_map::update_reply(request_id, Reply::AddLiquidity(reply.clone()));
 
@@ -552,7 +553,7 @@ async fn return_tokens(
         .await;
     }
 
-    let reply = to_add_liquidity_reply_failed(pool.pool_id, request_id, transfer_ids, &claim_ids, ts);
+    let reply = AddLiquidityReply::failed(pool.pool_id, request_id, transfer_ids, &claim_ids, ts);
     request_map::update_reply(request_id, Reply::AddLiquidity(reply));
 }
 
