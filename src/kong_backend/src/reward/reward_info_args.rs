@@ -13,7 +13,7 @@ pub struct RewardInfoArgs {
     pub reward_volume: Nat,
     pub reward_asset_id: Option<StableTokenId>,
 
-    pub is_acive: bool,
+    pub is_active: bool,
 
     pub reward_rules: RewardRules,
 }
@@ -28,7 +28,7 @@ pub fn reward_info_from_args(id: RewardInfoId, args: RewardInfoArgs) -> RewardIn
         created_ts: ts,
         updated_ts: ts,
         updated_user: caller_principal_id,
-        is_active: args.is_acive,
+        is_active: args.is_active,
         reward_rules: args.reward_rules,
     }
 }

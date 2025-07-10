@@ -16,7 +16,7 @@ IDENTITY="--identity kong"
 dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_new_reward_info --output json "(record {
     reward_volume = 1_00000000 : nat;
     reward_asset_id = null : opt nat32;
-    is_acive = true : bool;
+    is_active = true : bool;
     reward_rules = variant { UserSwapCount = record {
         swap_count = 1: nat32;
     }};

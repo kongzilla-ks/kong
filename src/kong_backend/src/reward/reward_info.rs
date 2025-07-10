@@ -37,11 +37,11 @@ pub struct RewardInfo {
 
 impl Storable for RewardInfo {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        serde_cbor::to_vec(self).expect("Failed to encode StableLPToken").into()
+        serde_cbor::to_vec(self).expect("Failed to encode RewardInfo").into()
     }
 
     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        serde_cbor::from_slice(&bytes).expect("Failed to decode StableLPToken")
+        serde_cbor::from_slice(&bytes).expect("Failed to decode RewardInfo")
     }
 
     const BOUND: Bound = Bound::Unbounded;

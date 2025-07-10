@@ -68,9 +68,9 @@ pub fn update_stats(user: &mut StableUser, volume_notional: &Nat) {
 
     if let Some(referred_by) = user.referred_by {
         match user_map::get_by_user_id(referred_by) {
-            Some(mut user) => {
-                user.user_reward_progress.total_referred_volume += volume_notional.clone();
-                user_map::update(user);
+            Some(mut referred_user) => {
+                referred_user.user_reward_progress.total_referred_volume += volume_notional.clone();
+                user_map::update(referred_user);
             },
             None => ic_cdk::eprintln!("Failed to find referred user in user map, user={}, referred_user={}", user.user_id, referred_by),
         }
