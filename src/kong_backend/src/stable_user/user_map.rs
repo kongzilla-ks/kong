@@ -109,6 +109,12 @@ pub fn insert(referred_by: Option<&str>) -> Result<u32, String> {
     insert_with_anonymous_option(referred_by, false)
 }
 
+pub fn update(user: StableUser) {
+    USER_MAP.with(|m| {
+        m.borrow_mut().insert(StableUserId(user.user_id), user);
+    });
+}
+
 pub fn insert_with_anonymous_option(referred_by: Option<&str>, allow_anonymous: bool) -> Result<u32, String> {
     let mut update = false;
     let user = match get_by_caller_with_anonymous_option(allow_anonymous) {

@@ -30,6 +30,7 @@ pub async fn send_receive_token(
     price: f64,
     slippage: f64,
     txs: &[SwapCalc],
+    reward_claim_ids: &mut Vec<u64>,
     ts: u64,
 ) -> SwapReply {
     let pay_token_id = pay_token.token_id();
@@ -124,6 +125,8 @@ pub async fn send_receive_token(
             }
         }
     }
+
+    claim_ids.append(reward_claim_ids);
 
     let swap_tx = SwapTx::new_success(
         user_id,

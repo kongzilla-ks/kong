@@ -3,6 +3,7 @@ use candid::Nat;
 use crate::helpers::nat_helpers::nat_is_zero;
 use crate::ic::address::Address;
 use crate::ic::address_helpers::get_address;
+use crate::ic::ckusdt::ckusdt_amount;
 use crate::ic::network::ICNetwork;
 use crate::ic::verify_transfer::verify_transfer;
 use crate::stable_kong_settings::kong_settings_map;
@@ -10,6 +11,7 @@ use crate::stable_request::{request::Request, request_map, stable_request::Stabl
 use crate::stable_token::token::Token;
 use crate::stable_token::{stable_token::StableToken, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
+use crate::stable_user::reward_distribution::on_made_swap;
 use crate::stable_user::user_map;
 
 use super::archive_to_kong_data::archive_to_kong_data;
@@ -24,16 +26,15 @@ use super::update_liquidity_pool::update_liquidity_pool;
 use crate::chains::chains::SOL_CHAIN;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
-    
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
     // make sure user is registered, if not create a new user with referred_by if specified
-    
+
     // Check if this is a Solana swap to allow anonymous users
     let allow_anonymous = match token_map::get_by_token(&args.pay_token) {
         Ok(token) => token.chain() == SOL_CHAIN,
         Err(_) => false,
     };
-    
+
     let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
     let ts = ICNetwork::get_time();
     // insert request into request_map so we have immediate record of this
@@ -63,6 +64,18 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
         let _ = archive_to_kong_data(request_id);
     })?;
 
+    let mut reward_claim_ids = if let Some(mut stable_user) = user_map::get_by_user_id(user_id) {
+        match ckusdt_amount(&receive_token, &receive_amount_with_fees_and_gas) {
+            Ok(volume_notional) => on_made_swap(&mut stable_user, &volume_notional, ts),
+            Err(e) => {
+                ic_cdk::eprintln!("check ckusdt amount, err={}", e);
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+
     let result = send_receive_token(
         request_id,
         user_id,
@@ -76,6 +89,7 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
         price,
         slippage,
         &swaps,
+        &mut reward_claim_ids,
         ts,
     )
     .await;
@@ -92,7 +106,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
         Ok(token) => token.chain() == SOL_CHAIN,
         Err(_) => false,
     };
-    
+
     let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
     let ts = ICNetwork::get_time();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
@@ -122,6 +136,18 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
         };
 
         ic_cdk::futures::spawn(async move {
+            let mut reward_claim_ids = if let Some(mut stable_user) = user_map::get_by_user_id(user_id) {
+                match ckusdt_amount(&receive_token, &receive_amount_with_fees_and_gas) {
+                    Ok(volume_notional) => on_made_swap(&mut stable_user, &volume_notional, ts),
+                    Err(e) => {
+                        ic_cdk::eprintln!("check ckusdt amount, err={}", e);
+                        Vec::new()
+                    }
+                }
+            } else {
+                Vec::new()
+            };
+
             send_receive_token(
                 request_id,
                 user_id,
@@ -135,6 +161,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                 price,
                 slippage,
                 &swaps,
+                &mut reward_claim_ids,
                 ts,
             )
             .await;
@@ -157,19 +184,15 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
         request_map::update_status(request_id, StatusCode::PayTokenNotFound, Some(e));
     })?;
 
-
     let pay_amount = args.pay_amount.clone();
 
-    
     // Check token type to determine payment verification path
     if pay_token.chain() == SOL_CHAIN {
         // Solana tokens require signature verification
         let verifier = PaymentVerifier::new(ICNetwork::caller());
-        let verification = verifier.verify_payment(args, &pay_token, &pay_amount)
-            .await
-            .inspect_err(|e| {
-                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(e));
-            })?;
+        let verification = verifier.verify_payment(args, &pay_token, &pay_amount).await.inspect_err(|e| {
+            request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(e));
+        })?;
 
         match verification {
             PaymentVerification::SolanaPayment { tx_signature, .. } => {

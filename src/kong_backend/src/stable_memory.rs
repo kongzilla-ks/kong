@@ -3,6 +3,7 @@ use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
+use crate::reward::reward_info::{RewardInfo, RewardInfoId};
 use crate::solana::latest_blockhash::LatestBlockhash;
 use crate::solana::proxy::types::{TransactionNotification, TransactionNotificationId};
 use crate::stable_claim::stable_claim::{StableClaim, StableClaimId};
@@ -29,6 +30,8 @@ pub const REQUEST_MEMORY_ID: MemoryId = MemoryId::new(26);
 pub const TRANSFER_MEMORY_ID: MemoryId = MemoryId::new(27);
 pub const CLAIM_MEMORY_ID: MemoryId = MemoryId::new(28);
 pub const LP_TOKEN_MEMORY_ID: MemoryId = MemoryId::new(29);
+pub const REWARD_INFO_ID: MemoryId = MemoryId::new(30);
+pub const REWARD_RECEIVED_ID: MemoryId = MemoryId::new(31);
 // Stable memory for Solana
 pub const CACHED_SOLANA_ADDRESS_ID: MemoryId = MemoryId::new(60);
 pub const SOLANA_LATEST_BLOCKHASH_ID: MemoryId = MemoryId::new(61);
@@ -93,6 +96,10 @@ thread_local! {
     // stable memory for storing all LP tokens for users
     pub static LP_TOKEN_MAP: RefCell<StableBTreeMap<StableLPTokenId, StableLPToken, Memory>> = with_memory_manager(|memory_manager| {
         RefCell::new(StableBTreeMap::init(memory_manager.get(LP_TOKEN_MEMORY_ID)))
+    });
+
+    pub static REWARD_INFO_MAP: RefCell<StableBTreeMap<RewardInfoId, RewardInfo, Memory>> = with_memory_manager(|memory_manager| {
+        RefCell::new(StableBTreeMap::init(memory_manager.get(REWARD_INFO_ID)))
     });
 
     // Cached Solana address (persisted)
