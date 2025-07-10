@@ -14,6 +14,9 @@
 
 set -e
 
+# GLAD Mainnet canister ID - hardcoded for safety
+GLAD_MAINNET_CANISTER="u6kfa-6aaaa-aaaam-qdxba-cai"
+
 # Colors for output
 if [ -t 1 ] && command -v tput >/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
     BOLD="$(tput bold)"
@@ -137,7 +140,7 @@ if [ "${NETWORK}" == "ic" ]; then
     
     # Get current module hash
     print_info "Checking current module hash..."
-    CURRENT_HASH=$(dfx canister info kong_backend ${NETWORK_FLAG} | grep "Module hash:" | awk '{print $3}' || echo "unknown")
+    CURRENT_HASH=$(dfx canister info ${GLAD_MAINNET_CANISTER} ${NETWORK_FLAG} | grep "Module hash:" | awk '{print $3}' || echo "unknown")
     print_info "Current module hash: $CURRENT_HASH"
     
     # Calculate new module hash
@@ -168,8 +171,8 @@ print_info "Deploying kong_backend to ${NETWORK}..."
 
 if [ "${NETWORK}" == "ic" ]; then
     # Production deployment - no stop/start, use upgrade-unchanged
-    print_info "Performing production upgrade..."
-    dfx deploy kong_backend ${NETWORK_FLAG} ${IDENTITY_FLAG} --upgrade-unchanged
+    print_info "Performing production upgrade to canister ${GLAD_MAINNET_CANISTER}..."
+    dfx deploy kong_backend ${NETWORK_FLAG} ${IDENTITY_FLAG} --upgrade-unchanged --specified-id ${GLAD_MAINNET_CANISTER}
 else
     # Development deployment - stop/start for clean upgrade
     print_info "Stopping canister..."
@@ -190,7 +193,11 @@ print_header "POST-DEPLOYMENT VERIFICATION"
 print_info "Verifying deployment..."
 
 # Call the canister to get version info
-KONG_INFO=$(dfx canister call ${NETWORK_FLAG} kong_backend icrc1_name 2>&1 || echo "")
+if [ "${NETWORK}" == "ic" ]; then
+    KONG_INFO=$(dfx canister call ${NETWORK_FLAG} ${GLAD_MAINNET_CANISTER} icrc1_name 2>&1 || echo "")
+else
+    KONG_INFO=$(dfx canister call ${NETWORK_FLAG} kong_backend icrc1_name 2>&1 || echo "")
+fi
 if [[ "$KONG_INFO" == *"Kong"* ]] || [[ "$KONG_INFO" == *"kong"* ]]; then
     print_success "Kong backend is responding"
     print_info "Response: $KONG_INFO"

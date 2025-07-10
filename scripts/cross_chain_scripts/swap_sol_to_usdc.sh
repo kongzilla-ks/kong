@@ -119,6 +119,7 @@ SWAP_RESULT=""
 
 for i in $(seq 1 $MAX_RETRIES); do
     echo "Attempt $i/$MAX_RETRIES"
+    # Use || true to prevent set -e from exiting on error
     SWAP_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap --output json "(record {
         pay_token = \"${PAY_TOKEN}\";
         pay_amount = ${PAY_AMOUNT};
@@ -128,14 +129,21 @@ for i in $(seq 1 $MAX_RETRIES); do
         max_slippage = opt ${MAX_SLIPPAGE};
         receive_address = opt \"${USER_SOLANA_ADDRESS}\";
         pay_signature = opt \"${SIGNATURE}\";
-    })")
+    })" 2>&1 || true)
     
     if echo "$SWAP_RESULT" | grep -q -e "Ok" -e "ok"; then
         break
     fi
     
+    # Check if it's TRANSACTION_NOT_READY error
+    if echo "$SWAP_RESULT" | grep -q "TRANSACTION_NOT_READY"; then
+        echo "Transaction not ready yet, waiting..."
+    else
+        echo "Swap attempt failed with error: $SWAP_RESULT"
+    fi
+    
     if [ $i -lt $MAX_RETRIES ]; then
-        echo "Swap attempt failed, retrying in $RETRY_DELAY second..."
+        echo "Retrying in $RETRY_DELAY second..."
         sleep $RETRY_DELAY
     fi
 done
