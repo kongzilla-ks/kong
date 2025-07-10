@@ -1,11 +1,12 @@
 mod canister_withdraw;
+mod chain_addresses;
 mod check_pools;
 mod claims;
 mod kong_settings;
 mod lp_tokens;
 mod pools;
 mod requests;
-mod chain_addresses;
+mod reward_info;
 mod status;
 mod tokens;
 mod transfers;

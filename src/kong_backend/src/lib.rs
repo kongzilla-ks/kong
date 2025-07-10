@@ -13,6 +13,7 @@ pub mod kong_data;
 pub mod pools;
 pub mod remove_liquidity;
 pub mod remove_liquidity_amounts;
+pub mod reward;
 pub mod requests;
 pub mod send;
 pub mod solana;

@@ -84,6 +84,10 @@ pub fn get_by_token_id(token_id: u32) -> Option<StableToken> {
     TOKEN_MAP.with(|m| m.borrow().get(&StableTokenId(token_id)))
 }
 
+pub fn is_token_id_valid(token_id: &StableTokenId) -> bool {
+    TOKEN_MAP.with(|m| m.borrow().contains_key(token_id))
+}
+
 pub fn get_by_token_wildcard(token: &str) -> Vec<StableToken> {
     let search_token = WildMatch::new(&format!("*{}*", token));
     TOKEN_MAP.with(|m| {
