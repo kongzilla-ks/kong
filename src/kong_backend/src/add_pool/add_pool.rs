@@ -12,7 +12,7 @@ use crate::ic::{
     icp::is_icp,
     network::ICNetwork,
     transfer::{icrc1_transfer, icrc2_transfer_from},
-    transfer_verification::{verify_and_record_transfer, TokenType, is_amount_mismatch_error},
+    transfer_verification::{verify_and_record_transfer, TokenType, TransferError},
 };
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
@@ -26,7 +26,6 @@ use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
-use crate::stable_memory::TRANSFER_MAP;
 use crate::stable_transfer::stable_transfer::StableTransfer;
 use crate::stable_transfer::transfer_map;
 use crate::stable_transfer::tx_id::TxId;
@@ -296,6 +295,7 @@ async fn process_add_pool(
                     ts,
                 )
                 .await
+                .map_err(|e| TransferError::TransferNotFound { error: e })
             }
         }
     };
@@ -324,7 +324,7 @@ async fn process_add_pool(
             None => {
                 //  if transfer_token_0 failed, no need to icrc2_transfer_from token_1
                 if transfer_0.is_err() {
-                    Err("Token_0 transfer failed".to_string())
+                    Err(TransferError::TransferNotFound { error: "Token_0 transfer failed".to_string() })
                 } else {
                     transfer_from_token(
                         request_id,
@@ -337,83 +337,66 @@ async fn process_add_pool(
                         ts,
                     )
                     .await
+                    .map_err(|e| TransferError::TransferNotFound { error: e })
                 }
             }
         }
     };
 
     // both transfers must be successful
-    if transfer_0.is_err() || transfer_1.is_err() {
-        // Amount Mismatch Recovery Logic:
-        // When a transfer fails due to amount mismatch, the transfer is still recorded
-        // in transfer_map with the actual amount to prevent reuse. We need to:
-        // 1. Detect if the failure was due to amount mismatch
-        // 2. Find the actual amounts from recorded transfers
-        // 3. Return tokens based on actual amounts, not expected amounts
-        
-        // Check if either transfer failed due to amount mismatch
-        let is_amount_mismatch = transfer_0.as_ref().err().map(|e| is_amount_mismatch_error(e)).unwrap_or(false)
-            || transfer_1.as_ref().err().map(|e| is_amount_mismatch_error(e)).unwrap_or(false);
-        
-        // Get the actual amounts from the transfers that were recorded (for amount mismatches)
-        let mut actual_amount_0 = amount_0.clone();
-        let mut actual_amount_1 = amount_1.clone();
-        let mut found_token_0 = false;
-        let mut found_token_1 = false;
-        
-        if is_amount_mismatch {
-            // Find the actual amounts from the recorded transfers
-            TRANSFER_MAP.with(|m| {
-                for (_transfer_id, transfer) in m.borrow().iter() {
-                    if transfer.request_id == request_id {
-                        if transfer.token_id == token_0.token_id() {
-                            actual_amount_0 = transfer.amount.clone();
-                            found_token_0 = true;
-                        } else if transfer.token_id == token_1.token_id() {
-                            actual_amount_1 = transfer.amount.clone();
-                            found_token_1 = true;
-                        }
-                    }
-                }
-            });
+    match (&transfer_0, &transfer_1) {
+        (Err(TransferError::AmountMismatch { actual: actual_0, transfer_id: tid_0, .. }), 
+         Err(TransferError::AmountMismatch { actual: actual_1, transfer_id: tid_1, .. })) => {
+            // Both mismatch - return both with actual amounts
+            transfer_ids.push(*tid_0);
+            transfer_ids.push(*tid_1);
+            return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, &actual_0,
+                         &Ok(()), token_1, &actual_1, &mut transfer_ids, ts).await;
+            return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
         }
-        
-        // Determine which transfers succeeded based on whether they have recorded transfers
-        let transfer_0_success = if transfer_0.is_ok() {
-            Ok(())
-        } else if is_amount_mismatch && found_token_0 {
-            Ok(()) // Transfer was recorded, so we need to return it
-        } else {
-            Err("Transfer failed".to_string())
-        };
-        
-        let transfer_1_success = if transfer_1.is_ok() {
-            Ok(())
-        } else if is_amount_mismatch && found_token_1 {
-            Ok(()) // Transfer was recorded, so we need to return it
-        } else {
-            Err("Transfer failed".to_string())
-        };
-        
-        return_tokens(
-            request_id,
-            user_id,
-            &caller_id,
-            &transfer_0_success,
-            token_0,
-            &actual_amount_0,
-            &transfer_1_success,
-            token_1,
-            &actual_amount_1,
-            &mut transfer_ids,
-            ts,
-        )
-        .await;
-        if transfer_0.is_err() {
-            return Err(format!("Req #{} failed. {}", request_id, transfer_0.unwrap_err()));
-        } else {
-            return Err(format!("Req #{} failed. {}", request_id, transfer_1.unwrap_err()));
-        };
+        (Err(TransferError::AmountMismatch { actual, transfer_id, .. }), Ok(tid_1)) => {
+            // Token0 mismatch - return it with actual amount
+            transfer_ids.push(*transfer_id);
+            transfer_ids.push(*tid_1);
+            return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, actual,
+                         &Err("Not transferred".to_string()), token_1, amount_1, 
+                         &mut transfer_ids, ts).await;
+            return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
+        }
+        (Ok(tid_0), Err(TransferError::AmountMismatch { actual, transfer_id, .. })) => {
+            // Token1 mismatch - return it with actual amount
+            transfer_ids.push(*tid_0);
+            transfer_ids.push(*transfer_id);
+            return_tokens(request_id, user_id, &caller_id, &Err("Not transferred".to_string()), 
+                         token_0, amount_0, &Ok(()), token_1, actual,
+                         &mut transfer_ids, ts).await;
+            return Err(format!("Req #{} failed. {}", request_id, transfer_1.as_ref().unwrap_err().to_string()));
+        }
+        (Err(e), _) => {
+            // Token0 failed with other error
+            if let Ok(tid_1) = transfer_1 {
+                transfer_ids.push(tid_1);
+            }
+            return_tokens(request_id, user_id, &caller_id, &Err("Transfer failed".to_string()), 
+                         token_0, amount_0, &Err("Not transferred".to_string()), token_1, amount_1,
+                         &mut transfer_ids, ts).await;
+            return Err(format!("Req #{} failed. {}", request_id, e.to_string()));
+        }
+        (_, Err(e)) => {
+            // Token1 failed with other error
+            if let Ok(tid_0) = transfer_0 {
+                transfer_ids.push(tid_0);
+            }
+            return_tokens(request_id, user_id, &caller_id, &Ok(()), 
+                         token_0, amount_0, &Err("Transfer failed".to_string()), token_1, amount_1,
+                         &mut transfer_ids, ts).await;
+            return Err(format!("Req #{} failed. {}", request_id, e.to_string()));
+        }
+        (Ok(tid_0), Ok(tid_1)) => {
+            // Both successful - continue
+            transfer_ids.push(*tid_0);
+            transfer_ids.push(*tid_1);
+        }
     }
 
     // add LP token
@@ -430,10 +413,10 @@ async fn process_add_pool(
                 request_id,
                 user_id,
                 &caller_id,
-                &transfer_0,
+                &transfer_0.as_ref().map(|_| ()).map_err(|e| e.to_string()),
                 token_0,
                 amount_0,
-                &transfer_1,
+                &transfer_1.as_ref().map(|_| ()).map_err(|e| e.to_string()),
                 token_1,
                 amount_1,
                 &mut transfer_ids,
@@ -463,10 +446,10 @@ async fn process_add_pool(
                 request_id,
                 user_id,
                 &caller_id,
-                &transfer_0,
+                &transfer_0.as_ref().map(|_| ()).map_err(|e| e.to_string()),
                 token_0,
                 amount_0,
-                &transfer_1,
+                &transfer_1.as_ref().map(|_| ()).map_err(|e| e.to_string()),
                 token_1,
                 amount_1,
                 &mut transfer_ids,
@@ -521,7 +504,7 @@ async fn verify_transfer_token(
     amount: &Nat,
     transfer_ids: &mut Vec<u64>,
     ts: u64,
-) -> Result<(), String> {
+) -> Result<u64, TransferError> {
     // Convert our TokenIndex to the shared TokenType
     let token_type = match token_index {
         TokenIndex::Token0 => TokenType::Token0,
@@ -529,13 +512,9 @@ async fn verify_transfer_token(
     };
     
     // Use the shared utility for consistent transfer verification
-    match verify_and_record_transfer(request_id, token_type, token, tx_id, amount, ts).await {
-        Ok(transfer_id) => {
-            transfer_ids.push(transfer_id);
-            Ok(())
-        }
-        Err(e) => Err(e)
-    }
+    let transfer_id = verify_and_record_transfer(request_id, token_type, token, tx_id, amount, ts).await?;
+    transfer_ids.push(transfer_id);
+    Ok(transfer_id)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -548,7 +527,7 @@ async fn transfer_from_token(
     to_principal_id: &Account,
     transfer_ids: &mut Vec<u64>,
     ts: u64,
-) -> Result<(), String> {
+) -> Result<u64, String> {
     let token_id = token.token_id();
 
     match token_index {
@@ -574,7 +553,7 @@ async fn transfer_from_token(
                 TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::SendToken0Success, None),
                 TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::SendToken1Success, None),
             };
-            Ok(())
+            Ok(transfer_id)
         }
         Err(e) => {
             match token_index {
@@ -860,7 +839,7 @@ async fn verify_cross_chain_transfer(
     transfer_ids: &mut Vec<u64>,
     ts: u64,
     args: &AddPoolArgs,
-) -> Result<(), String> {
+) -> Result<u64, TransferError> {
     match token_index {
         TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0, None),
         TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1, None),
@@ -871,7 +850,7 @@ async fn verify_cross_chain_transfer(
         .as_ref()
         .ok_or_else(|| {
             // Debug: check what we received
-            match token_index {
+            let error_msg = match token_index {
                 TokenIndex::Token0 => format!(
                     "Transaction ID (tx_id_0) is required for cross-chain transfers. Received: {:?}, args.tx_id_0: {:?}",
                     tx_id, args.tx_id_0
@@ -880,7 +859,8 @@ async fn verify_cross_chain_transfer(
                     "Transaction ID (tx_id_1) is required for cross-chain transfers. Received: {:?}, args.tx_id_1: {:?}",
                     tx_id, args.tx_id_1
                 ),
-            }
+            };
+            TransferError::TransferNotFound { error: error_msg }
         })?
         .clone();
 
@@ -895,7 +875,7 @@ async fn verify_cross_chain_transfer(
                 TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Failed, Some(&error_msg)),
                 TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Failed, Some(&error_msg)),
             };
-            error_msg
+            TransferError::TransferNotFound { error: error_msg }
         })?;
 
     // Create transfer record based on verification result
@@ -903,7 +883,9 @@ async fn verify_cross_chain_transfer(
         PoolPaymentVerification::SolanaPayment { tx_signature, .. } => {
             // Check if this Solana transaction has already been used
             if transfer_map::contains_tx_signature(token.token_id(), &tx_signature) {
-                return Err(format!("Solana transaction signature already used for {}", token.symbol()));
+                return Err(TransferError::TransferNotFound { 
+                    error: format!("Solana transaction signature already used for {}", token.symbol()) 
+                });
             }
             TxId::TransactionId(tx_signature)
         }
@@ -925,5 +907,5 @@ async fn verify_cross_chain_transfer(
         TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Success, None),
     };
 
-    Ok(())
+    Ok(transfer_id)
 }

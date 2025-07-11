@@ -24,6 +24,29 @@ use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_i
 use crate::stable_request::{request_map, status::StatusCode};
 use super::verify_transfer::get_transfer_amount;
 
+#[derive(Debug, Clone)]
+pub enum TransferError {
+    DuplicateTransfer { tx_id: Nat },
+    TransferNotFound { error: String },
+    AmountMismatch { 
+        expected: Nat, 
+        actual: Nat,
+        transfer_id: u64,
+    },
+}
+
+impl TransferError {
+    pub fn to_string(&self) -> String {
+        match self {
+            Self::DuplicateTransfer { tx_id } => 
+                format!("Duplicate block id #{}", tx_id),
+            Self::TransferNotFound { error } => error.clone(),
+            Self::AmountMismatch { expected, actual, .. } => 
+                format!("Transfer amount mismatch: expected {} but got {}", expected, actual),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum TokenType {
     PayToken,
@@ -77,7 +100,7 @@ impl TokenType {
 /// # Returns
 /// 
 /// * `Ok(transfer_id)` - The ID of the recorded transfer
-/// * `Err(message)` - Error message if verification fails or amount mismatches
+/// * `Err(TransferError)` - Error if verification fails or amount mismatches
 /// 
 /// # Amount Mismatch Behavior
 /// 
@@ -92,16 +115,16 @@ pub async fn verify_and_record_transfer(
     tx_id: &Nat,
     expected_amount: &Nat,
     ts: u64,
-) -> Result<u64, String> {
+) -> Result<u64, TransferError> {
     let token_id = token.token_id();
     
     request_map::update_status(request_id, token_type.verify_status(), None);
     
     // Check for duplicate transfers first
     if transfer_map::contain(token_id, tx_id) {
-        let e = format!("Duplicate block id #{}", tx_id);
-        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
-        return Err(e);
+        let error = TransferError::DuplicateTransfer { tx_id: tx_id.clone() };
+        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
+        return Err(error);
     }
     
     // Get the actual amount from the ledger
@@ -109,14 +132,14 @@ pub async fn verify_and_record_transfer(
         Ok(amount) => amount,
         Err(e) => {
             request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
-            return Err(e);
+            return Err(TransferError::TransferNotFound { error: e });
         }
     };
     
     // Check if amounts match
     if actual_amount != *expected_amount {
         // IMPORTANT: Record the transfer with the actual amount to prevent reuse
-        let _transfer_id = transfer_map::insert(&StableTransfer {
+        let transfer_id = transfer_map::insert(&StableTransfer {
             transfer_id: 0,
             request_id,
             is_send: true,
@@ -126,9 +149,13 @@ pub async fn verify_and_record_transfer(
             ts,
         });
         
-        let e = format!("Transfer amount mismatch: expected {} but got {}", expected_amount, actual_amount);
-        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
-        return Err(e);
+        let error = TransferError::AmountMismatch {
+            expected: expected_amount.clone(),
+            actual: actual_amount,
+            transfer_id,
+        };
+        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
+        return Err(error);
     }
     
     // Amounts match - record the transfer and return success
@@ -146,15 +173,3 @@ pub async fn verify_and_record_transfer(
     Ok(transfer_id)
 }
 
-/// Checks if an error message indicates an amount mismatch
-/// 
-/// # Arguments
-/// 
-/// * `error` - The error message to check
-/// 
-/// # Returns
-/// 
-/// `true` if the error indicates an amount mismatch, `false` otherwise
-pub fn is_amount_mismatch_error(error: &str) -> bool {
-    error.contains("Transfer amount mismatch:")
-}
