@@ -22,7 +22,7 @@ use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token::Token;
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_request::{request_map, status::StatusCode};
-use super::verify_transfer::verify_transfer;
+use super::verify_transfer::get_transfer_amount;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TokenType {
@@ -97,52 +97,53 @@ pub async fn verify_and_record_transfer(
     
     request_map::update_status(request_id, token_type.verify_status(), None);
     
-    match verify_transfer(token, tx_id, expected_amount).await {
-        Ok(actual_amount) => {
-            // Debug: Print what we got
-            eprintln!("DEBUG verify_and_record_transfer: expected_amount={}, actual_amount={}", expected_amount, actual_amount);
-            
-            if transfer_map::contain(token_id, tx_id) {
-                let e = format!("Duplicate block id #{}", tx_id);
-                request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
-                return Err(e);
-            }
-            
-            if actual_amount != *expected_amount {
-                // IMPORTANT: Record the transfer with the actual amount to prevent reuse
-                let _transfer_id = transfer_map::insert(&StableTransfer {
-                    transfer_id: 0,
-                    request_id,
-                    is_send: true,
-                    amount: actual_amount.clone(),
-                    token_id,
-                    tx_id: TxId::BlockIndex(tx_id.clone()),
-                    ts,
-                });
-                
-                let e = format!("Transfer amount mismatch: expected {} but got {}", expected_amount, actual_amount);
-                request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
-                return Err(e);
-            }
-            
-            let transfer_id = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: true,
-                amount: expected_amount.clone(),
-                token_id,
-                tx_id: TxId::BlockIndex(tx_id.clone()),
-                ts,
-            });
-            
-            request_map::update_status(request_id, token_type.verify_success_status(), None);
-            Ok(transfer_id)
-        }
+    // Check for duplicate transfers first
+    if transfer_map::contain(token_id, tx_id) {
+        let e = format!("Duplicate block id #{}", tx_id);
+        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
+        return Err(e);
+    }
+    
+    // Get the actual amount from the ledger
+    let actual_amount = match get_transfer_amount(token, tx_id).await {
+        Ok(amount) => amount,
         Err(e) => {
             request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
-            Err(e)
+            return Err(e);
         }
+    };
+    
+    // Check if amounts match
+    if actual_amount != *expected_amount {
+        // IMPORTANT: Record the transfer with the actual amount to prevent reuse
+        let _transfer_id = transfer_map::insert(&StableTransfer {
+            transfer_id: 0,
+            request_id,
+            is_send: true,
+            amount: actual_amount.clone(),
+            token_id,
+            tx_id: TxId::BlockIndex(tx_id.clone()),
+            ts,
+        });
+        
+        let e = format!("Transfer amount mismatch: expected {} but got {}", expected_amount, actual_amount);
+        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
+        return Err(e);
     }
+    
+    // Amounts match - record the transfer and return success
+    let transfer_id = transfer_map::insert(&StableTransfer {
+        transfer_id: 0,
+        request_id,
+        is_send: true,
+        amount: expected_amount.clone(),
+        token_id,
+        tx_id: TxId::BlockIndex(tx_id.clone()),
+        ts,
+    });
+    
+    request_map::update_status(request_id, token_type.verify_success_status(), None);
+    Ok(transfer_id)
 }
 
 /// Checks if an error message indicates an amount mismatch

@@ -62,7 +62,6 @@ pub async fn archive_transfer_map() {
     for (transfer, signature) in unclaimed_solana_transfers {
         // Check if we should return this transfer
         if should_return_transfer(&transfer, &signature).await {
-            ic_cdk::println!("Returning unclaimed Solana transfer: {} amount: {}", signature, transfer.amount);
             
             // Get token information
             if let Some(token) = token_map::get_by_token_id(transfer.token_id) {
@@ -104,13 +103,10 @@ pub async fn archive_transfer_map() {
                             if let Some(latest_status) = request.statuses.last() {
                                 match latest_status.status_code {
                                     StatusCode::ReturnPayTokenSuccess => {
-                                        ic_cdk::println!("Successfully returned unclaimed transfer: {}", signature);
                                     }
                                     StatusCode::ReturnPayTokenFailed => {
-                                        ic_cdk::println!("Failed to return unclaimed transfer: {}", signature);
                                     }
                                     _ => {
-                                        ic_cdk::println!("Unexpected status for return: {:?}", latest_status.status_code);
                                     }
                                 }
                             }

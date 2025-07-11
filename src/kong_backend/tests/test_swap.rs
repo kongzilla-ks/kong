@@ -11,8 +11,6 @@ use icrc_ledger_types::icrc2::approve::{ApproveArgs, ApproveError};
 // Use the common setup function that includes pool creation
 use common::setup_with_pool::{
     setup_swap_test_environment,
-    TOKEN_A_SYMBOL,
-    TOKEN_B_SYMBOL_ICP,
     TOKEN_A_FEE,
     TOKEN_B_FEE_ICP,
 };
@@ -63,10 +61,8 @@ fn test_swap_approve_transfer_from_a_to_b() {
     let amount_out_min_b_approve_swap = Nat::from(1u64); // Expect at least 1 tiny unit of B out
 
     // --- Act ---
-    println!("\n--- Test: Swap A -> B (Approve/TransferFrom) ---");
 
     // 1. Approve Token A for Swap
-    println!("--- Approving Token A for Approve/TransferFrom Swap ---");
     let approve_total_amount_a = approve_swap_amount_a.clone() + Nat::from(TOKEN_A_FEE); // Amount + fee for subsequent transfer_from
     let approve_args_swap_a = ApproveArgs {
         from_subaccount: None,
@@ -89,25 +85,14 @@ fn test_swap_approve_transfer_from_a_to_b() {
         "Approve Token A swap failed: {:?}",
         approve_result_swap_a
     );
-    println!("  Token A approved for swap successfully.");
 
     // Get balances *before* the swap call (after approve)
     let user_balance_a_before_swap = get_icrc1_balance(&ic, token_a_ledger_id, user_account);
     let user_balance_b_before_swap = get_icrc1_balance(&ic, token_b_ledger_id, user_account);
     let kong_balance_a_before_swap = get_icrc1_balance(&ic, token_a_ledger_id, kong_account);
     let kong_balance_b_before_swap = get_icrc1_balance(&ic, token_b_ledger_id, kong_account);
-    println!("--- Balances BEFORE Swap Call (After Approve) ---");
-    println!(
-        "  User Balance A: {}, User Balance B: {}",
-         user_balance_a_before_swap, user_balance_b_before_swap
-    );
-     println!(
-        "  Kong Balance A: {}, Kong Balance B: {}",
-         kong_balance_a_before_swap, kong_balance_b_before_swap
-    );
 
     // 2. Perform the Swap (Token A -> Token B using transfer_from)
-    println!("\n--- Calling swap (Approve/TransferFrom Flow) ---");
     let swap_args_approve = SwapArgs {
         pay_token: token_a_str.clone(),
         pay_amount: Nat::from(approve_swap_amount_a), // The actual amount to swap
@@ -129,7 +114,6 @@ fn test_swap_approve_transfer_from_a_to_b() {
     let swap_result_approve =
         decode_one::<Result<SwapReply, String>>(&swap_response_bytes_approve).expect("Failed to decode swap_transfer response (approve flow)");
 
-    println!("Swap result (approve flow): {:?}", swap_result_approve); // Debug print
 
     assert!(
         swap_result_approve.is_ok(),
@@ -148,7 +132,6 @@ fn test_swap_approve_transfer_from_a_to_b() {
     );
 
     // Verify Balances After Swap
-    println!("\n--- Balances AFTER Approve/TransferFrom Swap ---");
     let user_balance_a_after_approve_swap = get_icrc1_balance(&ic, token_a_ledger_id, user_account);
     let user_balance_b_after_approve_swap = get_icrc1_balance(&ic, token_b_ledger_id, user_account);
     let kong_balance_a_after_approve_swap = get_icrc1_balance(&ic, token_a_ledger_id, kong_account); // Check Kong
@@ -187,23 +170,6 @@ fn test_swap_approve_transfer_from_a_to_b() {
         expected_kong_b_after_approve_swap, kong_balance_b_after_approve_swap
     );
 
-    println!(
-        "  User Balance A ({}): {}",
-        TOKEN_A_SYMBOL, user_balance_a_after_approve_swap
-    );
-    println!(
-        "  User Balance B ({}): {}",
-        TOKEN_B_SYMBOL_ICP, user_balance_b_after_approve_swap
-    );
-    println!(
-        "  Kong Balance A ({}): {}",
-        TOKEN_A_SYMBOL, kong_balance_a_after_approve_swap
-    );
-    println!(
-        "  Kong Balance B ({}): {}",
-        TOKEN_B_SYMBOL_ICP, kong_balance_b_after_approve_swap
-    );
-    println!("\n--- Test: test_swap_approve_transfer_from_a_to_b finished successfully! ---");
 }
 
 
@@ -231,20 +197,9 @@ fn test_swap_direct_transfer_a_to_b() {
     let kong_balance_a_before_direct_swap = get_icrc1_balance(&ic, token_a_ledger_id, kong_account);
     let kong_balance_b_before_direct_swap = get_icrc1_balance(&ic, token_b_ledger_id, kong_account);
 
-    println!("\n--- Test: Swap A -> B (Direct Transfer) ---");
-    println!("--- Balances BEFORE Direct Transfer Swap (A -> B) ---");
-    println!(
-        "  User Balance A: {}, User Balance B: {}",
-        user_balance_a_before_direct_swap, user_balance_b_before_direct_swap
-    );
-    println!(
-        "  Kong Balance A: {}, Kong Balance B: {}",
-        kong_balance_a_before_direct_swap, kong_balance_b_before_direct_swap
-    );
 
     // --- Act ---
     // 1. User transfers Token A directly to Kong for the swap
-    println!("\n--- User transferring Token A directly to Kong for swap ---");
     let transfer_direct_swap_a_args = TransferArg {
         from_subaccount: None,
         to: kong_account, // Send TO Kong
@@ -271,10 +226,6 @@ fn test_swap_direct_transfer_a_to_b() {
         transfer_direct_swap_a_result
     );
     let tx_id_direct_swap_a = transfer_direct_swap_a_result.unwrap(); // Capture the block index (tx_id)
-    println!(
-        "  Token A direct transfer for swap successful, Tx ID: {}",
-        tx_id_direct_swap_a
-    );
 
     // Check user balance A immediately after transfer (before swap call)
     let user_balance_a_after_direct_transfer = get_icrc1_balance(&ic, token_a_ledger_id, user_account);
@@ -287,7 +238,6 @@ fn test_swap_direct_transfer_a_to_b() {
     );
 
      // 2. Perform the Swap (Token A -> Token B using direct transfer tx_id)
-    println!("\n--- Calling swap (Direct Transfer Flow A -> B) ---");
     let swap_args_direct_a = SwapArgs {
         pay_token: token_a_str.clone(),
         pay_amount: Nat::from(direct_swap_amount_a),
@@ -309,7 +259,6 @@ fn test_swap_direct_transfer_a_to_b() {
     let swap_result_direct_a = decode_one::<Result<SwapReply, String>>(&swap_response_bytes_direct_a)
         .expect("Failed to decode swap_transfer response (direct flow A->B)");
 
-    println!("Swap result (direct flow A->B): {:?}\nArgs: {:?}", swap_result_direct_a, swap_args_direct_a);
     assert!(
         swap_result_direct_a.is_ok(),
         "swap_transfer call failed (direct flow A->B): {:?}\nArgs: {:?}",
@@ -327,7 +276,6 @@ fn test_swap_direct_transfer_a_to_b() {
     );
 
     // Verify Balances After Direct Transfer Swap (A -> B)
-    println!("\n--- Balances AFTER Direct Transfer Swap (A -> B) ---");
     let user_balance_a_after_direct_swap_a = get_icrc1_balance(&ic, token_a_ledger_id, user_account);
     let user_balance_b_after_direct_swap_a = get_icrc1_balance(&ic, token_b_ledger_id, user_account);
     let kong_balance_a_after_direct_swap_a = get_icrc1_balance(&ic, token_a_ledger_id, kong_account);
@@ -363,15 +311,6 @@ fn test_swap_direct_transfer_a_to_b() {
         "Kong balance B after direct swap A->B. Expected {}, got {}",
         expected_kong_b_after_direct_swap_a, kong_balance_b_after_direct_swap_a
     );
-    println!(
-        "  User Balance A: {}, User Balance B: {}",
-        user_balance_a_after_direct_swap_a, user_balance_b_after_direct_swap_a
-    );
-    println!(
-        "  Kong Balance A: {}, Kong Balance B: {}",
-        kong_balance_a_after_direct_swap_a, kong_balance_b_after_direct_swap_a
-    );
-    println!("\n--- Test: test_swap_direct_transfer_a_to_b finished successfully! ---");
 }
 
 
@@ -441,7 +380,6 @@ fn test_swap_with_transfer_fee_token() {
     assert!(mint_b_result.is_ok(), "Failed to mint Token B: {:?}", mint_b_result);
     
     // --- Act ---
-    println!("\n--- Test: Swap with Transfer Fee Token ---");
     
     // 1. Transfer tokens to Kong for liquidity
     let liquidity_fee_amount = Nat::from(5_000_000_000_000u64); // 50,000 FEE tokens
@@ -504,8 +442,6 @@ fn test_swap_with_transfer_fee_token() {
     let user_fee_balance_before = get_icrc1_balance(&ic, fee_token_ledger, user_account);
     let kong_fee_balance_before = get_icrc1_balance(&ic, fee_token_ledger, kong_account);
     
-    println!("User FEE balance before transfer: {}", user_fee_balance_before);
-    println!("Kong FEE balance before transfer: {}", kong_fee_balance_before);
     
     // Transfer fee tokens to Kong (user will pay the transfer fee)
     let transfer_swap_args = TransferArg {
@@ -527,16 +463,11 @@ fn test_swap_with_transfer_fee_token() {
     let user_fee_balance_after_transfer = get_icrc1_balance(&ic, fee_token_ledger, user_account);
     let kong_fee_balance_after_transfer = get_icrc1_balance(&ic, fee_token_ledger, kong_account);
     
-    println!("User FEE balance after transfer: {}", user_fee_balance_after_transfer);
-    println!("Kong FEE balance after transfer: {}", kong_fee_balance_after_transfer);
     
     // Verify the transfer amounts
     let user_paid = user_fee_balance_before.clone() - user_fee_balance_after_transfer.clone();
     let kong_received = kong_fee_balance_after_transfer.clone() - kong_fee_balance_before.clone();
     
-    println!("User paid: {}", user_paid);
-    println!("Kong received: {}", kong_received);
-    println!("Transfer fee: {}", fee_token_fee);
     
     // User should pay swap_amount + fee
     assert_eq!(user_paid, swap_amount.clone() + fee_token_fee.clone(), "User should pay exact amount + fee");
@@ -563,7 +494,6 @@ fn test_swap_with_transfer_fee_token() {
         .expect("Failed to call swap");
     let swap_result = decode_one::<Result<SwapReply, String>>(&swap_response).expect("Failed to decode");
     
-    println!("\nSwap result: {:?}", swap_result);
     
     // --- Assert ---
     assert!(swap_result.is_ok(), "Swap should succeed with fee token");
@@ -576,9 +506,6 @@ fn test_swap_with_transfer_fee_token() {
     assert_eq!(b_received, swap_reply.receive_amount, "User should receive the amount specified in reply");
     assert!(b_received > Nat::from(0u64), "User should receive some Token B");
     
-    println!("\n--- Test completed successfully ---");
-    println!("Swapped {} FEE tokens for {} Token B", swap_amount, b_received);
-    println!("Fee token worked correctly - Kong received exact swap amount after fee deduction");
 }
 
 #[test]
@@ -699,17 +626,15 @@ fn test_swap_fee_token_amount_mismatch_refund() {
     assert!(add_pool_result.is_ok(), "Failed to add pool: {:?}", add_pool_result);
     
     // --- Act ---
-    println!("\n--- Test: Swap with Fee Token Amount Mismatch (Automatic Refund) ---");
     
     // Transfer tokens for swap
     let intended_swap_amount = Nat::from(1_000_000_000_000u64); // 10,000 FEE2 tokens
     let fee_token_fee = Nat::from(100_000u64); // 0.001 FEE2
     
     // Get balances before transfer
-    let user_fee_balance_before = get_icrc1_balance(&ic, fee_token_ledger, user_account);
+    let _user_fee_balance_before = get_icrc1_balance(&ic, fee_token_ledger, user_account);
     let kong_fee_balance_before = get_icrc1_balance(&ic, fee_token_ledger, kong_account);
     
-    println!("User FEE2 balance before transfer: {}", user_fee_balance_before);
     
     // Transfer fee tokens to Kong
     let transfer_swap_args = TransferArg {
@@ -731,8 +656,6 @@ fn test_swap_fee_token_amount_mismatch_refund() {
     let kong_fee_balance_after_transfer = get_icrc1_balance(&ic, fee_token_ledger, kong_account);
     let actual_amount_received = kong_fee_balance_after_transfer.clone() - kong_fee_balance_before.clone();
     
-    println!("Kong actually received: {}", actual_amount_received);
-    println!("User intended to swap: {}", intended_swap_amount);
     
     // IMPORTANT: Call swap with a DIFFERENT amount than what Kong actually received
     // This simulates a user error or misunderstanding about fees
@@ -750,9 +673,6 @@ fn test_swap_fee_token_amount_mismatch_refund() {
         ..Default::default()
     };
     
-    println!("\nCalling swap with mismatched amount:");
-    println!("  Actual amount Kong received: {}", actual_amount_received);
-    println!("  Amount specified in swap args: {}", incorrect_swap_amount);
     
     let user_fee_balance_before_swap = get_icrc1_balance(&ic, fee_token_ledger, user_account);
     
@@ -761,34 +681,24 @@ fn test_swap_fee_token_amount_mismatch_refund() {
         .expect("Failed to call swap");
     let swap_result = decode_one::<Result<SwapReply, String>>(&swap_response).expect("Failed to decode");
     
-    println!("\nSwap result: {:?}", swap_result);
     
     // --- Assert ---
     // The swap should succeed with a refund
     assert!(swap_result.is_ok(), "Swap should succeed with automatic refund");
-    let swap_reply = swap_result.unwrap();
+    let _swap_reply = swap_result.unwrap();
     
     // Check that the status indicates a refund occurred
-    println!("\nSwap reply status: {}", swap_reply.status);
-    println!("Pay amount in reply: {}", swap_reply.pay_amount);
-    println!("Receive amount in reply: {}", swap_reply.receive_amount);
     
     // Verify user got refunded (minus gas fee)
     let user_fee_balance_after_swap = get_icrc1_balance(&ic, fee_token_ledger, user_account);
     let kong_fee_balance_after_swap = get_icrc1_balance(&ic, fee_token_ledger, kong_account);
     
-    println!("\nFinal balances:");
-    println!("  User FEE2 balance: {}", user_fee_balance_after_swap);
-    println!("  Kong FEE2 balance: {}", kong_fee_balance_after_swap);
     
     // User should have received the refund minus the transfer fee for the refund transfer
     let refund_transfer_fee = Nat::from(100_000u64); // Transfer fee for the refund
     let expected_refund = actual_amount_received.clone() - refund_transfer_fee.clone();
     let actual_refund = user_fee_balance_after_swap.clone() - user_fee_balance_before_swap.clone();
     
-    println!("\nRefund verification:");
-    println!("  Expected refund (minus transfer fee): {}", expected_refund);
-    println!("  Actual refund received: {}", actual_refund);
     
     assert_eq!(actual_refund, expected_refund, "User should receive the full amount minus refund transfer fee");
     
@@ -796,8 +706,6 @@ fn test_swap_fee_token_amount_mismatch_refund() {
     let kong_balance_change = kong_fee_balance_after_swap.clone() - kong_fee_balance_before.clone();
     assert_eq!(kong_balance_change, Nat::from(0u64), "Kong should have returned all tokens");
     
-    println!("\n--- Test completed successfully ---");
-    println!("Amount mismatch was detected and tokens were automatically refunded");
 }
 
 #[test]
@@ -811,7 +719,7 @@ fn test_swap_amount_mismatch_over_claim_refund() {
     let user_account = setup.user_account;
     let kong_account = setup.kong_account;
     let token_a_ledger_id = setup.token_a_ledger_id; // ckUSDT with 10,000 e8s fee
-    let token_b_ledger_id = setup.token_b_ledger_id;
+    let _token_b_ledger_id = setup.token_b_ledger_id;
     let token_a_str = setup.token_a_str;
     let token_b_str = setup.token_b_str;
     
@@ -848,7 +756,7 @@ fn test_swap_amount_mismatch_over_claim_refund() {
         .expect("Transfer failed");
     
     // Kong receives exactly what user sent (fee is paid on top)
-    let kong_received = swap_amount.clone();
+    let _kong_received = swap_amount.clone();
     
     // Step 2: Call swap claiming MORE than what was transferred (causing mismatch)
     let incorrect_amount = swap_amount.clone() + Nat::from(1_000_000u64); // Add 0.01 tokens
@@ -882,10 +790,6 @@ fn test_swap_amount_mismatch_over_claim_refund() {
     let swap_reply = swap_result.unwrap();
     
     // Debug: print the full reply
-    println!("Swap Reply: {:?}", swap_reply);
-    println!("Status: {}", swap_reply.status);
-    println!("Transfer IDs: {:?}", swap_reply.transfer_ids);
-    println!("Claim IDs: {:?}", swap_reply.claim_ids);
     
     // Verify swap failed with refund
     assert_eq!(swap_reply.status, "Failed", "Swap should fail due to amount mismatch");
@@ -996,7 +900,6 @@ fn test_swap_amount_mismatch_under_claim() {
     let swap_reply = swap_result.unwrap();
     
     // Debug output
-    println!("Under-claim swap reply: {:?}", swap_reply);
     
     // This actually FAILS too! The amount must match exactly
     assert_eq!(swap_reply.status, "Failed", "Swap fails when amount doesn't match exactly");
@@ -1020,7 +923,7 @@ fn test_swap_amount_exact_match() {
     let ic = setup.ic;
     let kong_backend = setup.kong_backend;
     let user_principal = setup.user_principal;
-    let user_account = setup.user_account;
+    let _user_account = setup.user_account;
     let kong_account = setup.kong_account;
     let token_a_ledger_id = setup.token_a_ledger_id;
     let token_a_str = setup.token_a_str;
@@ -1108,20 +1011,9 @@ fn test_swap_direct_transfer_b_to_a() {
     let kong_balance_a_before_direct_swap_b = get_icrc1_balance(&ic, token_a_ledger_id, kong_account);
     let kong_balance_b_before_direct_swap_b = get_icrc1_balance(&ic, token_b_ledger_id, kong_account);
 
-    println!("\n--- Test: Swap B -> A (Direct Transfer) ---");
-    println!("--- Balances BEFORE Direct Transfer Swap (B -> A) ---");
-    println!(
-        "  User Balance A: {}, User Balance B: {}",
-        user_balance_a_before_direct_swap_b, user_balance_b_before_direct_swap_b
-    );
-    println!(
-        "  Kong Balance A: {}, Kong Balance B: {}",
-        kong_balance_a_before_direct_swap_b, kong_balance_b_before_direct_swap_b
-    );
 
     // --- Act ---
     // 1. User transfers Token B directly to Kong for the swap
-    println!("\n--- User transferring Token B directly to Kong for swap ---");
     let transfer_direct_swap_b_args = TransferArg {
         from_subaccount: None,
         to: kong_account, // Send TO Kong
@@ -1148,10 +1040,6 @@ fn test_swap_direct_transfer_b_to_a() {
         transfer_direct_swap_b_result
     );
     let tx_id_direct_swap_b = transfer_direct_swap_b_result.unwrap(); // Capture the block index (tx_id)
-    println!(
-        "  Token B direct transfer for swap successful, Tx ID: {}",
-        tx_id_direct_swap_b
-    );
 
     // Check user balance B immediately after transfer (before swap call)
     let user_balance_b_after_direct_transfer = get_icrc1_balance(&ic, token_b_ledger_id, user_account);
@@ -1164,7 +1052,6 @@ fn test_swap_direct_transfer_b_to_a() {
     );
 
     // 2. Perform the Swap (Token B -> Token A using direct transfer tx_id)
-    println!("\n--- Calling swap (Direct Transfer Flow B -> A) ---");
     let swap_args_direct_b = SwapArgs {
         pay_token: token_b_str.clone(), // Pay with B
         pay_amount: Nat::from(direct_swap_amount_b),
@@ -1186,7 +1073,6 @@ fn test_swap_direct_transfer_b_to_a() {
     let swap_result_direct_b = decode_one::<Result<SwapReply, String>>(&swap_response_bytes_direct_b)
         .expect("Failed to decode swap_transfer response (direct flow B->A)");
 
-    println!("Swap result (direct flow B->A): {:?}\nArgs: {:?}", swap_result_direct_b, swap_args_direct_b);
     assert!(
         swap_result_direct_b.is_ok(),
         "swap_transfer call failed (direct flow B->A): {:?}\nArgs: {:?}",
@@ -1204,7 +1090,6 @@ fn test_swap_direct_transfer_b_to_a() {
     );
 
     // Verify Balances After Direct Transfer Swap (B -> A)
-    println!("\n--- Balances AFTER Direct Transfer Swap (B -> A) ---");
     let user_balance_a_after_direct_swap_b = get_icrc1_balance(&ic, token_a_ledger_id, user_account);
     let user_balance_b_after_direct_swap_b = get_icrc1_balance(&ic, token_b_ledger_id, user_account);
     let kong_balance_a_after_direct_swap_b = get_icrc1_balance(&ic, token_a_ledger_id, kong_account);
@@ -1240,15 +1125,6 @@ fn test_swap_direct_transfer_b_to_a() {
         "Kong balance A after direct swap B->A. Expected {}, got {}",
         expected_kong_a_after_direct_swap_b, kong_balance_a_after_direct_swap_b
     );
-    println!(
-        "  User Balance A: {}, User Balance B: {}",
-        user_balance_a_after_direct_swap_b, user_balance_b_after_direct_swap_b
-    );
-    println!(
-        "  Kong Balance A: {}, Kong Balance B: {}",
-        kong_balance_a_after_direct_swap_b, kong_balance_b_after_direct_swap_b
-    );
 
-    println!("\n--- Test: test_swap_direct_transfer_b_to_a finished successfully! ---");
 }
 

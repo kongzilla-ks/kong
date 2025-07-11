@@ -81,14 +81,9 @@ impl PaymentVerifier {
             TxId::TransactionId(_) => return Err("IC tokens require BlockIndex, not TransactionId".to_string()),
         };
 
-        // Verify the transfer on the token's ledger
-        let actual_amount = verify_transfer(pay_token, &block_index, pay_amount).await
+        // Verify the transfer on the token's ledger (includes amount validation)
+        verify_transfer(pay_token, &block_index, pay_amount).await
             .map_err(|e| format!("Transfer verification failed: {}", e))?;
-
-        // Check if actual amount matches expected amount
-        if actual_amount != *pay_amount {
-            return Err(format!("Transfer amount mismatch: expected {} but got {}", pay_amount, actual_amount));
-        }
 
         Ok(PaymentVerification::IcpPayment {
             block_index,

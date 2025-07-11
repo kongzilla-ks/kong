@@ -39,12 +39,25 @@ pub enum TransactionType {
     TransferFrom,
 }
 
-/// Verifies a transfer by checking the ledger.
+/// Verifies a transfer by checking the ledger and validating the amount matches.
+/// For ICRC3 tokens, it tries ICRC3 methods first, falling back to traditional methods.
+/// For non-ICRC3 tokens, it uses the traditional verification methods.
+/// Returns Ok(()) if verification succeeds, otherwise returns an error.
+pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) -> Result<(), String> {
+    let actual_amount = get_transfer_amount(token, block_id).await?;
+    
+    if actual_amount != *amount {
+        return Err(format!("Transfer amount mismatch: expected {} but got {}", amount, actual_amount));
+    }
+    
+    Ok(())
+}
+
+/// Retrieves the actual transfer amount from the ledger without validation.
 /// For ICRC3 tokens, it tries ICRC3 methods first, falling back to traditional methods.
 /// For non-ICRC3 tokens, it uses the traditional verification methods.
 /// Returns the actual transfer amount found on the ledger.
-pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) -> Result<Nat, String> {
-    eprintln!("DEBUG verify_transfer: token={}, block_id={}, amount={}", token.symbol(), block_id, amount);
+pub async fn get_transfer_amount(token: &StableToken, block_id: &Nat) -> Result<Nat, String> {
     match token {
         StableToken::IC(ic_token) => {
             let canister_id = *token.canister_id().ok_or("Invalid canister id")?;
@@ -56,11 +69,9 @@ pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) 
 
             // try icrc3_get_blocks first
             if ic_token.icrc3 {
-                eprintln!("DEBUG verify_transfer: using ICRC3 path");
-                return verify_transfer_with_icrc3_get_blocks(
+                return get_transfer_amount_with_icrc3_get_blocks(
                     token,
                     block_id,
-                    amount,
                     canister_id,
                     &token_address_with_chain,
                     min_valid_timestamp,
@@ -72,17 +83,14 @@ pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) 
 
             // if ICP ledger, use query_blocks
             if token_address_with_chain == ICP_CANISTER_ID {
-                eprintln!("DEBUG verify_transfer: using ICP query_blocks path");
-                return verify_transfer_with_query_blocks(token, block_id, amount, canister_id, min_valid_timestamp, kong_backend_account)
+                return get_transfer_amount_with_query_blocks(token, block_id, canister_id, min_valid_timestamp, kong_backend_account)
                     .await;
             }
 
             // otherwise, use get_transactions
-            eprintln!("DEBUG verify_transfer: using get_transactions path");
-            verify_transfer_with_get_transactions(
+            get_transfer_amount_with_get_transactions(
                 token,
                 block_id,
-                amount,
                 canister_id,
                 min_valid_timestamp,
                 kong_backend_account,
@@ -90,7 +98,7 @@ pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) 
             )
             .await
         }
-        _ => Err("Verify transfer not supported for this token")?,
+        _ => Err("Get transfer amount not supported for this token")?,
     }
 }
 
@@ -133,10 +141,9 @@ fn try_decode_icrc3_account_value(icrc3_value_arr: &[ICRC3Value]) -> Option<Acco
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn verify_transfer_with_icrc3_get_blocks(
+async fn get_transfer_amount_with_icrc3_get_blocks(
     token: &StableToken,
     block_id: &Nat,
-    _amount: &Nat,
     canister_id: candid::Principal,
     token_address_with_chain: &String,
     min_valid_timestamp: u64,
@@ -315,10 +322,9 @@ async fn verify_transfer_with_icrc3_get_blocks(
     }
 }
 
-async fn verify_transfer_with_query_blocks(
+async fn get_transfer_amount_with_query_blocks(
     token: &StableToken,
     block_id: &Nat,
-    _amount: &Nat,
     canister_id: candid::Principal,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
@@ -375,10 +381,9 @@ async fn verify_transfer_with_query_blocks(
     }
 }
 
-async fn verify_transfer_with_get_transactions(
+async fn get_transfer_amount_with_get_transactions(
     token: &StableToken,
     block_id: &Nat,
-    _amount: &Nat,
     canister_id: candid::Principal,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
@@ -463,7 +468,6 @@ async fn verify_transfer_with_get_transactions(
                             Err("Expired transfer timestamp")?
                         }
 
-                        eprintln!("DEBUG verify_transfer (ICRC): found transfer_amount={}", transfer_amount);
                         return Ok(transfer_amount); // success
                     } else if let Some(_burn) = transaction.burn {
                         // not used
