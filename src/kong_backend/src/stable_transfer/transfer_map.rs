@@ -37,6 +37,15 @@ pub fn contains_tx_signature(token_id: u32, tx_signature: &str) -> bool {
     })
 }
 
+/// Check if a Solana transaction signature has been used for any token
+pub fn contains_tx_signature_any_token(tx_signature: &str) -> bool {
+    TRANSFER_MAP.with(|m| {
+        m.borrow()
+            .iter()
+            .any(|(_, v)| v.tx_id == TxId::TransactionId(tx_signature.to_string()))
+    })
+}
+
 pub fn insert(transfer: &StableTransfer) -> u64 {
     TRANSFER_MAP.with(|m| {
         let mut map = m.borrow_mut();

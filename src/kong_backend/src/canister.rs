@@ -107,7 +107,7 @@ async fn set_timer_processes() {
         Duration::from_secs(kong_settings_map::get().transfers_archive_interval_secs),
         || {
             ic_cdk::futures::spawn(async {
-                archive_transfer_map();
+                archive_transfer_map().await;
             });
         },
     );
