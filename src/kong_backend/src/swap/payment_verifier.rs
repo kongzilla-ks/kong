@@ -82,8 +82,13 @@ impl PaymentVerifier {
         };
 
         // Verify the transfer on the token's ledger
-        verify_transfer(pay_token, &block_index, pay_amount).await
+        let actual_amount = verify_transfer(pay_token, &block_index, pay_amount).await
             .map_err(|e| format!("Transfer verification failed: {}", e))?;
+
+        // Check if actual amount matches expected amount
+        if actual_amount != *pay_amount {
+            return Err(format!("Transfer amount mismatch: expected {} but got {}", pay_amount, actual_amount));
+        }
 
         Ok(PaymentVerification::IcpPayment {
             block_index,

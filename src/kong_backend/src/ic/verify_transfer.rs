@@ -1,6 +1,6 @@
 use candid::Principal;
 use candid::{CandidType, Deserialize, Nat};
-use ic_ledger_types::{query_blocks, AccountIdentifier, Block, GetBlocksArgs, Operation, Subaccount, Tokens};
+use ic_ledger_types::{query_blocks, AccountIdentifier, Block, GetBlocksArgs, Operation, Subaccount};
 use icrc_ledger_types::icrc::generic_value::ICRC3Value;
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc3::blocks::{GetBlocksRequest as ICRC3GetBlocksRequest, GetBlocksResult as ICRC3GetBlocksResult};
@@ -42,7 +42,8 @@ pub enum TransactionType {
 /// Verifies a transfer by checking the ledger.
 /// For ICRC3 tokens, it tries ICRC3 methods first, falling back to traditional methods.
 /// For non-ICRC3 tokens, it uses the traditional verification methods.
-pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) -> Result<(), String> {
+/// Returns the actual transfer amount found on the ledger.
+pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) -> Result<Nat, String> {
     match token {
         StableToken::IC(ic_token) => {
             let canister_id = *token.canister_id().ok_or("Invalid canister id")?;
@@ -131,13 +132,13 @@ fn try_decode_icrc3_account_value(icrc3_value_arr: &[ICRC3Value]) -> Option<Acco
 async fn verify_transfer_with_icrc3_get_blocks(
     token: &StableToken,
     block_id: &Nat,
-    amount: &Nat,
+    _amount: &Nat,
     canister_id: candid::Principal,
     token_address_with_chain: &String,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
     caller_account: icrc_ledger_types::icrc1::account::Account,
-) -> Result<(), String> {
+) -> Result<Nat, String> {
     // Prepare request arguments based on token type
     let blocks_result = if *token_address_with_chain == TAGGR_CANISTER_ID {
         // TAGGR uses a different format
@@ -228,11 +229,10 @@ async fn verify_transfer_with_icrc3_get_blocks(
                         tx_amount = Some(amt.clone());
                     }
                 }
-                match tx_amount {
-                    Some(transfer_amount) if transfer_amount == *amount => (),
-                    Some(transfer_amount) => Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?,
+                let transfer_amount = match tx_amount {
+                    Some(amt) => amt,
                     None => continue, // Missing amount
-                }
+                };
 
                 let tx_from = if let Some(ICRC3Value::Map(tx)) = tx_map {
                     tx.get("from").and_then(|v| {
@@ -302,7 +302,7 @@ async fn verify_transfer_with_icrc3_get_blocks(
                     Some(_) => Err("Invalid transfer spender")?,
                 }
 
-                return Ok(()); // success
+                return Ok(transfer_amount); // success
             }
 
             Err(format!("Failed to verify {} transfer block id {}", token.symbol(), block_id))?
@@ -314,11 +314,11 @@ async fn verify_transfer_with_icrc3_get_blocks(
 async fn verify_transfer_with_query_blocks(
     token: &StableToken,
     block_id: &Nat,
-    amount: &Nat,
+    _amount: &Nat,
     canister_id: candid::Principal,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
-) -> Result<(), String> {
+) -> Result<Nat, String> {
     // if ICP ledger, use query_blocks
     // API boundary: ICP ledger's query_blocks requires u64 block index
     let block_args = GetBlocksArgs {
@@ -332,7 +332,6 @@ async fn verify_transfer_with_query_blocks(
                 &kong_backend_account.owner,
                 &Subaccount(kong_backend_account.subaccount.unwrap_or([0; 32])),
             );
-            let amount = Tokens::from_e8s(nat_to_u64(amount).ok_or("Invalid ICP amount")?);
             for block in blocks.into_iter() {
                 match block.transaction.operation {
                     Some(operation) => match operation {
@@ -350,14 +349,12 @@ async fn verify_transfer_with_query_blocks(
                             if to != backend_account_id {
                                 Err("Transfer to does not match Kong backend")?
                             }
-                            if transfer_amount != amount {
-                                Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
-                            }
+                            let transfer_amount_nat = Nat::from(transfer_amount.e8s());
                             if block.transaction.created_at_time.timestamp_nanos < min_valid_timestamp {
                                 Err("Expired transfer timestamp")?
                             }
 
-                            return Ok(()); // success
+                            return Ok(transfer_amount_nat); // success
                         }
                         Operation::Mint { .. } => (),
                         Operation::Burn { .. } => (),
@@ -377,12 +374,12 @@ async fn verify_transfer_with_query_blocks(
 async fn verify_transfer_with_get_transactions(
     token: &StableToken,
     block_id: &Nat,
-    amount: &Nat,
+    _amount: &Nat,
     canister_id: candid::Principal,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
     caller_account: icrc_ledger_types::icrc1::account::Account,
-) -> Result<(), String> {
+) -> Result<Nat, String> {
     let token_address_with_chain = token.address_with_chain();
 
     // Handle special tokens (WUMBO, DAMONIC, CLOWN) that use get_transaction (no 's')
@@ -408,15 +405,12 @@ async fn verify_transfer_with_get_transactions(
                             Err("Transfer to does not match Kong backend")?
                         }
                         let transfer_amount = transfer.amount;
-                        if transfer_amount != *amount {
-                            Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
-                        }
                         let timestamp = transaction.timestamp;
                         if timestamp < min_valid_timestamp {
                             Err("Expired transfer timestamp")?
                         }
 
-                        Ok(())
+                        Ok(transfer_amount)
                     } else if let Some(_burn) = transaction.burn {
                         Err("Invalid burn transaction")?
                     } else if let Some(_mint) = transaction.mint {
@@ -460,15 +454,12 @@ async fn verify_transfer_with_get_transactions(
                             Err("Invalid transfer spender")?
                         }
                         let transfer_amount = transfer.amount;
-                        if transfer_amount != *amount {
-                            Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
-                        }
                         let timestamp = transaction.timestamp;
                         if timestamp < min_valid_timestamp {
                             Err("Expired transfer timestamp")?
                         }
 
-                        return Ok(()); // success
+                        return Ok(transfer_amount); // success
                     } else if let Some(_burn) = transaction.burn {
                         // not used
                     } else if let Some(_mint) = transaction.mint {
