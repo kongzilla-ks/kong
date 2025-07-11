@@ -44,6 +44,7 @@ pub enum TransactionType {
 /// For non-ICRC3 tokens, it uses the traditional verification methods.
 /// Returns the actual transfer amount found on the ledger.
 pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) -> Result<Nat, String> {
+    eprintln!("DEBUG verify_transfer: token={}, block_id={}, amount={}", token.symbol(), block_id, amount);
     match token {
         StableToken::IC(ic_token) => {
             let canister_id = *token.canister_id().ok_or("Invalid canister id")?;
@@ -55,6 +56,7 @@ pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) 
 
             // try icrc3_get_blocks first
             if ic_token.icrc3 {
+                eprintln!("DEBUG verify_transfer: using ICRC3 path");
                 return verify_transfer_with_icrc3_get_blocks(
                     token,
                     block_id,
@@ -70,11 +72,13 @@ pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) 
 
             // if ICP ledger, use query_blocks
             if token_address_with_chain == ICP_CANISTER_ID {
+                eprintln!("DEBUG verify_transfer: using ICP query_blocks path");
                 return verify_transfer_with_query_blocks(token, block_id, amount, canister_id, min_valid_timestamp, kong_backend_account)
                     .await;
             }
 
             // otherwise, use get_transactions
+            eprintln!("DEBUG verify_transfer: using get_transactions path");
             verify_transfer_with_get_transactions(
                 token,
                 block_id,
@@ -459,6 +463,7 @@ async fn verify_transfer_with_get_transactions(
                             Err("Expired transfer timestamp")?
                         }
 
+                        eprintln!("DEBUG verify_transfer (ICRC): found transfer_amount={}", transfer_amount);
                         return Ok(transfer_amount); // success
                     } else if let Some(_burn) = transaction.burn {
                         // not used

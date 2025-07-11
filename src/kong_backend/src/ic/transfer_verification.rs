@@ -99,6 +99,9 @@ pub async fn verify_and_record_transfer(
     
     match verify_transfer(token, tx_id, expected_amount).await {
         Ok(actual_amount) => {
+            // Debug: Print what we got
+            eprintln!("DEBUG verify_and_record_transfer: expected_amount={}, actual_amount={}", expected_amount, actual_amount);
+            
             if transfer_map::contain(token_id, tx_id) {
                 let e = format!("Duplicate block id #{}", tx_id);
                 request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));

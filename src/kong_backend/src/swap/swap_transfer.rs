@@ -46,6 +46,7 @@ use crate::chains::chains::SOL_CHAIN;
 ///    - Return a SwapReply indicating the refund status
 /// 3. Otherwise, proceed with the swap normally
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
+    eprintln!("DEBUG swap_transfer: args.pay_amount={}, args.pay_tx_id={:?}", args.pay_amount, args.pay_tx_id);
     
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
     // make sure user is registered, if not create a new user with referred_by if specified
