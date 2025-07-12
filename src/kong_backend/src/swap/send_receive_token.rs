@@ -14,7 +14,6 @@ use crate::stable_tx::{stable_tx::StableTx, swap_tx::SwapTx, tx_map};
 use super::create_solana_swap_job::create_solana_swap_job;
 use super::swap_calc::SwapCalc;
 use super::swap_reply::SwapReply;
-use super::swap_reply_helpers::{to_swap_reply, to_swap_reply_failed};
 
 #[allow(clippy::too_many_arguments)]
 pub async fn send_receive_token(
@@ -142,8 +141,8 @@ pub async fn send_receive_token(
     );
     let tx_id = tx_map::insert(&StableTx::Swap(swap_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::Swap(swap_tx)) => to_swap_reply(swap_tx),
-        _ => to_swap_reply_failed(request_id, pay_token, pay_amount, Some(receive_token), transfer_ids, &claim_ids, ts),
+        Some(StableTx::Swap(swap_tx)) => SwapReply::from(swap_tx),
+        _ => SwapReply::failed(request_id, pay_token, pay_amount, Some(receive_token), transfer_ids, &claim_ids, ts),
     };
     request_map::update_reply(request_id, Reply::Swap(reply.clone()));
 

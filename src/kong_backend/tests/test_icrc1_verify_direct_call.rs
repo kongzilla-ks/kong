@@ -40,7 +40,7 @@ fn test_verify_transfer_direct_function_call() {
 
     // Perform transfer
     let transfer_amount = Nat::from(50_000_000u64);
-    let tx_id = icrc1_transfer(
+    let _tx_id = icrc1_transfer(
         &ic,
         token_canister_id,
         user_principal,
@@ -51,7 +51,6 @@ fn test_verify_transfer_direct_function_call() {
     )
     .expect("Transfer failed");
 
-    println!("Transfer successful with tx_id: {}", tx_id);
 
     // TODO fix
     // verify_transfer assertion

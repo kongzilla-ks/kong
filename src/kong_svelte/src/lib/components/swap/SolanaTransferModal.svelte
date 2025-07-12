@@ -318,7 +318,6 @@
       step = 'signing';
 
       // Create canonical message
-      const timestamp = BigInt(Date.now());
       const payAmountBigInt = toBigInt(payAmount, payToken.decimals);
       const receiveAmountBigInt = toBigInt(receiveAmount, receiveToken.decimals);
 
@@ -343,7 +342,6 @@
         receiveAmount: receiveAmountBigInt,
         receiveAddress,
         maxSlippage,
-        timestamp,
       });
 
       // Sign the message
@@ -355,7 +353,6 @@
       dispatch('confirm', {
         transactionId,
         pay_signature: signature,
-        timestamp,
         canonicalMessage
       });
 

@@ -14,7 +14,7 @@ use crate::solana::payment_verification::{
 
 use super::swap_args::SwapArgs;
 use super::message_builder::CanonicalSwapMessage;
-use super::verify_canonical_message::verify_canonical_message;
+use crate::solana::signature_verification::verify_canonical_message;
 
 /// Result of payment verification
 pub enum PaymentVerification {
@@ -81,7 +81,7 @@ impl PaymentVerifier {
             TxId::TransactionId(_) => return Err("IC tokens require BlockIndex, not TransactionId".to_string()),
         };
 
-        // Verify the transfer on the token's ledger
+        // Verify the transfer on the token's ledger (includes amount validation)
         verify_transfer(pay_token, &block_index, pay_amount).await
             .map_err(|e| format!("Transfer verification failed: {}", e))?;
 

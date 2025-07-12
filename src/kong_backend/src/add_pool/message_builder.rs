@@ -2,13 +2,16 @@ use candid::Nat;
 use serde::{Deserialize, Serialize};
 
 use super::add_pool_args::AddPoolArgs;
+use crate::helpers::nat_helpers::serialize_amount_as_string;
 
 /// A structure representing the canonical message format for signing pool additions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalAddPoolMessage {
     pub token_0: String,
+    #[serde(serialize_with = "serialize_amount_as_string")]
     pub amount_0: Nat,
     pub token_1: String,
+    #[serde(serialize_with = "serialize_amount_as_string")]
     pub amount_1: Nat,
     pub lp_fee_bps: u8,
 }

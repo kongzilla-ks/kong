@@ -4,7 +4,6 @@ use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_pool::pool_map;
 
 use super::pools_reply::PoolReply;
-use super::pools_reply_helpers::to_pool_reply;
 
 #[query(guard = "not_in_maintenance_mode")]
 fn pools(symbol: Option<String>) -> Result<Vec<PoolReply>, String> {
@@ -13,6 +12,6 @@ fn pools(symbol: Option<String>) -> Result<Vec<PoolReply>, String> {
         None => pool_map::get(),
     }
     .iter()
-    .map(to_pool_reply)
+    .map(PoolReply::from)
     .collect())
 }

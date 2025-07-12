@@ -2,12 +2,14 @@ use candid::Nat;
 use serde::{Deserialize, Serialize};
 
 use super::remove_liquidity_args::RemoveLiquidityArgs;
+use crate::helpers::nat_helpers::serialize_amount_as_string;
 
 /// A structure representing the canonical message format for signing liquidity removals
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalRemoveLiquidityMessage {
     pub token_0: String,
     pub token_1: String,
+    #[serde(serialize_with = "serialize_amount_as_string")]
     pub remove_lp_token_amount: Nat,
     pub payout_address_0: Option<String>,
     pub payout_address_1: Option<String>,

@@ -8,7 +8,7 @@ use super::add_liquidity_transfer_from::archive_to_kong_data;
 use super::add_liquidity_transfer_from::{transfer_from_token, update_liquidity_pool};
 
 use crate::helpers::nat_helpers::{nat_subtract, nat_zero};
-use crate::ic::{address::Address, network::ICNetwork, transfer::icrc1_transfer, verify_transfer::verify_transfer};
+use crate::ic::{address::Address, network::ICNetwork, transfer::icrc1_transfer, verify_transfer::{verify_and_record_transfer, TokenType, TransferError}};
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_pool::pool_map;
@@ -19,6 +19,19 @@ use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_i
 use crate::stable_tx::{add_liquidity_tx::AddLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
 
+/// Adds liquidity to a pool with automatic amount mismatch handling
+/// 
+/// # Amount Mismatch Handling
+/// 
+/// This function handles cases where the actual transfer amounts differ from expected amounts.
+/// Since liquidity operations involve two tokens, amount mismatches can occur on either or both tokens.
+/// 
+/// When an amount mismatch is detected:
+/// 1. The transfer is recorded with the actual amount to prevent reuse
+/// 2. Both tokens are returned to the user (minus gas fees) if any were transferred
+/// 3. An AddLiquidityReply is created with refund details
+/// 
+/// This ensures users don't lose funds when transfer amounts don't match due to fees or token behavior.
 pub async fn add_liquidity_transfer(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     // user has transferred one of the tokens, we need to log the request immediately and verify the transfer
     // make sure user is registered, if not create a new user with referred_by if specified
@@ -27,10 +40,56 @@ pub async fn add_liquidity_transfer(args: AddLiquidityArgs) -> Result<AddLiquidi
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::AddLiquidity(args.clone()), ts));
 
     let (token_0, tx_id_0, transfer_id_0, token_1, tx_id_1, transfer_id_1) =
-        check_arguments(&args, request_id, ts).await.inspect_err(|_| {
-            request_map::update_status(request_id, StatusCode::Failed, None);
-            _ = archive_to_kong_data(request_id);
-        })?;
+        match check_arguments(&args, request_id, ts).await {
+            Ok(result) => result,
+            Err(TransferError::AmountMismatch { transfer_id, .. }) => {
+                // Amount mismatch - the transfer was recorded, so we need to return tokens
+                let mut transfer_ids = vec![transfer_id];
+                let caller_id = ICNetwork::caller_id();
+                
+                // Return tokens and update request with reply
+                return_tokens(
+                    request_id,
+                    user_id,
+                    &caller_id,
+                    None,
+                    None,
+                    &Err("Transfer amount mismatch".to_string()),
+                    &Nat::from(0u32),
+                    None,
+                    &Err("Transfer amount mismatch".to_string()),
+                    &Nat::from(0u32),
+                    &mut transfer_ids,
+                    ts,
+                )
+                .await;
+                
+                // Check if return_tokens created an AddLiquidityReply
+                match request_map::get_by_request_id(request_id) {
+                    Some(request) => match request.reply {
+                        Reply::AddLiquidity(reply) => {
+                            _ = archive_to_kong_data(request_id);
+                            return Ok(reply);
+                        },
+                        _ => {
+                            request_map::update_status(request_id, StatusCode::Failed, None);
+                            _ = archive_to_kong_data(request_id);
+                            return Err("Amount mismatch: add liquidity cancelled".to_string());
+                        }
+                    },
+                    None => {
+                        request_map::update_status(request_id, StatusCode::Failed, None);
+                        _ = archive_to_kong_data(request_id);
+                        return Err("Amount mismatch: add liquidity cancelled".to_string());
+                    }
+                }
+            }
+            Err(e) => {
+                request_map::update_status(request_id, StatusCode::Failed, None);
+                _ = archive_to_kong_data(request_id);
+                return Err(e.to_string());
+            }
+        };
 
     let result = match process_add_liquidity(
         request_id,
@@ -66,9 +125,10 @@ pub async fn add_liquidity_transfer_async(args: AddLiquidityArgs) -> Result<u64,
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::AddLiquidity(args.clone()), ts));
 
     let (token_0, tx_id_0, transfer_id_0, token_1, tx_id_1, transfer_id_1) =
-        check_arguments(&args, request_id, ts).await.inspect_err(|_| {
+        check_arguments(&args, request_id, ts).await.map_err(|e| {
             request_map::update_status(request_id, StatusCode::Failed, None);
             _ = archive_to_kong_data(request_id);
+            e.to_string()
         })?;
 
     ic_cdk::futures::spawn(async move {
@@ -109,7 +169,7 @@ async fn check_arguments(
         Option<Nat>,
         Result<u64, String>,
     ),
-    String,
+    TransferError,
 > {
     // update the request status
     request_map::update_status(request_id, StatusCode::Start, None);
@@ -134,7 +194,7 @@ async fn check_arguments(
 
     // either token_0 and token_1 must be valid token
     if token_0.is_none() && token_1.is_none() {
-        Err("Token_0 or Token_1 is required".to_string())?
+        return Err(TransferError::TransferNotFound { error: "Token_0 or Token_1 is required".to_string() });
     }
 
     // check tx_id_0 is valid block index Nat
@@ -150,7 +210,7 @@ async fn check_arguments(
 
     // either tx_id_0 or tx_id_1 must be valid
     if tx_id_0.is_none() && tx_id_1.is_none() {
-        Err("Tx_id_0 or Tx_id_1 is required".to_string())?
+        return Err(TransferError::TransferNotFound { error: "Tx_id_0 or Tx_id_1 is required".to_string() });
     }
 
     // transfer_id_0 is used to store if the transfer was successful
@@ -158,7 +218,7 @@ async fn check_arguments(
         Some(tx_id) if token_0.is_some() => {
             let token = token_0.as_ref().unwrap();
             if token.is_removed() {
-                Err("Token_0 is suspended or removed".to_string())?
+                return Err(TransferError::TransferNotFound { error: "Token_0 is suspended or removed".to_string() });
             }
             let amount = &args.amount_0;
             let transfer_id = verify_transfer_token(request_id, &TokenIndex::Token0, token, tx_id, amount, ts).await?;
@@ -171,7 +231,7 @@ async fn check_arguments(
         Some(tx_id) if token_1.is_some() => {
             let token = token_1.as_ref().unwrap();
             if token.is_removed() {
-                Err("Token_1 is suspended or removed".to_string())?
+                return Err(TransferError::TransferNotFound { error: "Token_1 is suspended or removed".to_string() });
             }
             let amount = &args.amount_1;
             let transfer_id = verify_transfer_token(request_id, &TokenIndex::Token1, token, tx_id, amount, ts).await?;
@@ -182,7 +242,7 @@ async fn check_arguments(
 
     // one of the transfers must be successful
     if transfer_id_0.is_err() && transfer_id_1.is_err() {
-        Err("Failed to verify transfers".to_string())?
+        return Err(TransferError::TransferNotFound { error: "Failed to verify transfers".to_string() });
     }
 
     Ok((token_0, tx_id_0, transfer_id_0, token_1, tx_id_1, transfer_id_1))
@@ -383,48 +443,15 @@ async fn verify_transfer_token(
     tx_id: &Nat,
     amount: &Nat,
     ts: u64,
-) -> Result<u64, String> {
-    let token_id = token.token_id();
-
-    match token_index {
-        TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0, None),
-        TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1, None),
+) -> Result<u64, TransferError> {
+    // Convert our TokenIndex to the shared TokenType
+    let token_type = match token_index {
+        TokenIndex::Token0 => TokenType::Token0,
+        TokenIndex::Token1 => TokenType::Token1,
     };
-
-    match verify_transfer(token, tx_id, amount).await {
-        Ok(_) => {
-            // contain() will use the latest state of TRANSFER_MAP to prevent reentrancy issues after verify_transfer()
-            if transfer_map::contain(token_id, tx_id) {
-                let e = format!("Duplicate block id #{}", tx_id);
-                match token_index {
-                    TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Failed, Some(&e)),
-                    TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Failed, Some(&e)),
-                };
-                return Err(e);
-            }
-            let transfer_id = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: true,
-                amount: amount.clone(),
-                token_id,
-                tx_id: TxId::BlockIndex(tx_id.clone()),
-                ts,
-            });
-            match token_index {
-                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Success, None),
-                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Success, None),
-            };
-            Ok(transfer_id)
-        }
-        Err(e) => {
-            match token_index {
-                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Failed, Some(&e)),
-                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Failed, Some(&e)),
-            };
-            Err(e)
-        }
-    }
+    
+    // Use the shared utility for consistent transfer verification
+    verify_and_record_transfer(request_id, token_type, token, tx_id, amount, ts).await
 }
 
 #[allow(clippy::too_many_arguments)]

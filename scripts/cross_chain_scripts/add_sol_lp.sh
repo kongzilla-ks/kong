@@ -8,7 +8,11 @@ set -euo pipefail
 
 # ============================ CONFIG ============================
 NETWORK="${1:-local}"                   # "local" or "ic"
-IDENTITY_FLAG="--identity kong_user1"
+IDENTITY_FLAG="--identity kong_user1" # make sure this identity has the IC funds
+
+# CANISTER IDS
+MAINNET_KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"
+LOCAL_KONG_BACKEND="kong_backend"  # Will use dfx canister id locally
 
 # Token 0 (Solana - SOL)
 SOL_CHAIN="SOL"
@@ -20,14 +24,21 @@ USDT_CHAIN="IC"
 USDT_SYMBOL=$([ "${NETWORK}" == "local" ] && echo "ksUSDT" || echo "ckUSDT")
 USDT_AMOUNT=1000000           # 1 USDT (6 decimals)
 USDT_FEE=10000
-# ckUSDT ic : cngnf-vqaaa-aaaar-qag4q-cai
-# ksUSDT local : zdzgz-siaaa-aaaar-qaiba-cai
+# USDT LEDGER CANISTER IDS
+MAINNET_USDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT
+LOCAL_USDT_LEDGER="ksusdt_ledger"  # Will use dfx canister id locally
 # ===============================================================
 
 NETWORK_FLAG=$([ "${NETWORK}" == "local" ] && echo "" || echo "--network ${NETWORK}")
-KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
-USDT_LEDGER_NAME="$(echo ${USDT_SYMBOL} | tr '[:upper:]' '[:lower:]')_ledger"
-USDT_LEDGER=$(dfx canister id ${NETWORK_FLAG} ${USDT_LEDGER_NAME})
+
+# Set canister IDs based on network
+if [ "${NETWORK}" == "ic" ]; then
+    KONG_BACKEND="${MAINNET_KONG_BACKEND}"
+    USDT_LEDGER="${MAINNET_USDT_LEDGER}"
+else
+    KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
+    USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
+fi
 
 # --- Helper ---
 check_ok() { local r="$1"; local ctx="$2"; echo "$r" | grep -q -e "Ok" -e "ok" || { echo "Error: $ctx" >&2; echo "$r" >&2; exit 1; }; }
@@ -46,7 +57,7 @@ SOL_TX_SIG=$(echo "$TX_OUT" | grep -o 'Signature: .*' | awk '{print $2}')
 
 echo "Transferred $SOL_DEC SOL (tx $SOL_TX_SIG)"
 echo "Waiting for transaction to be processed by kong_rpc..."
-sleep 10
+sleep 30
 
 # --- 2. Approve USDT ---
 APPROVE_AMOUNT=$((USDT_AMOUNT+USDT_FEE))
@@ -54,7 +65,7 @@ APR=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGER} icrc2_ap
 check_ok "$APR" "USDT approve failed"
 
 # --- 3. Sign message ---
-MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s]}' \
+MSG=$(printf '{"token_0":"%s.%s","amount_0":"%s","token_1":"%s.%s","amount_1":"%s"}' \
   "$SOL_CHAIN" "$SOL_ADDRESS" "$SOL_AMOUNT" \
   "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT")
 echo "DEBUG: Message to sign: $MSG"

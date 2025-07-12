@@ -528,7 +528,6 @@ export class SwapService {
       referred_by: [] | [string];
       pay_tx_id: [] | [{ BlockIndex: bigint }] | [{ TransactionId: string }];
       pay_signature: [] | [string];
-      timestamp: [] | [bigint];
     },
     onRetryProgress?: (attempt: number, maxAttempts: number) => void
   ): Promise<BE.SwapAsyncResponse> {
@@ -828,8 +827,7 @@ export class SwapService {
         receive_address: swapParams.receive_address,
         referred_by: swapParams.referred_by,
         pay_tx_id: swapParams.pay_tx_id,
-        pay_signature: swapParams.pay_signature,
-        timestamp: swapParams.timestamp
+        pay_signature: swapParams.pay_signature
       });
 
       const result = await SwapService.swap_async(swapParams, (attempt, maxAttempts) => {
@@ -900,12 +898,11 @@ export class SwapService {
           maxSlippage: params.userMaxSlippage,
           onConfirm: async (modalData) => {
             try {
-              const { transactionId, pay_signature: signature, timestamp } = modalData;
+              const { transactionId, pay_signature: signature } = modalData;
               
               console.log('[SwapService] Cross-chain swap modalData:', {
                 transactionId,
                 signature,
-                timestamp,
                 modalData
               });
               
@@ -926,7 +923,7 @@ export class SwapService {
                 referred_by: [] as [] | [string],
                 pay_tx_id: [{ TransactionId: transactionId }] as [] | [{ TransactionId: string }],
                 pay_signature: [signature] as [] | [string],
-                timestamp: [timestamp] as [] | [bigint],
+                timestamp: [] as [] | [bigint],
               };
 
               console.log('[SwapService] Final cross-chain swap_async params:', {
@@ -938,8 +935,7 @@ export class SwapService {
                 receive_address: swapParams.receive_address,
                 referred_by: swapParams.referred_by,
                 pay_tx_id: swapParams.pay_tx_id,
-                pay_signature: swapParams.pay_signature,
-                timestamp: swapParams.timestamp
+                pay_signature: swapParams.pay_signature
               });
 
               const result = await SwapService.swap_async(swapParams, (attempt, maxAttempts) => {

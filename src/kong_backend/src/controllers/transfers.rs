@@ -55,8 +55,8 @@ fn update_transfers(stable_transfers_json: String) -> Result<String, String> {
 }
 
 #[update(hidden = true, guard = "caller_is_kingkong")]
-fn archive_transfers() -> Result<String, String> {
-    archive_transfer_map();
+async fn archive_transfers() -> Result<String, String> {
+    archive_transfer_map().await;
 
     Ok("Transfers archived".to_string())
 }

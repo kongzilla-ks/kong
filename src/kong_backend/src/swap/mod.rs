@@ -13,8 +13,6 @@ pub mod swap_calc;
 pub mod swap_calc_impl;
 pub mod swap_job;
 pub mod swap_reply;
-pub mod swap_reply_helpers;
 pub mod swap_transfer;
 pub mod swap_transfer_from;
 pub mod update_liquidity_pool;
-pub mod verify_canonical_message;

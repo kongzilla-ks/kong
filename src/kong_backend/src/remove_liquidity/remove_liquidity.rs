@@ -20,7 +20,7 @@ use crate::swap::create_solana_swap_job::create_solana_swap_job;
 use crate::solana::utils::validation;
 use crate::stable_tx::{remove_liquidity_tx::RemoveLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
-use crate::swap::verify_canonical_message::verify_canonical_message;
+use crate::solana::signature_verification::verify_canonical_message;
 
 use super::message_builder::CanonicalRemoveLiquidityMessage;
 

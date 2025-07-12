@@ -3,7 +3,7 @@
   {
     "match": "**/*",
     "headers": {
-      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:4943 http://umunu-kh777-77774-qaaca-cai.localhost:4943;"
+      "Content-Security-Policy": "default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; connect-src *; font-src *; media-src *; object-src *; child-src *; frame-src *; worker-src *; manifest-src *;"
     }
   }
 ] 
