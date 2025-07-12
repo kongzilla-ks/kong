@@ -13,7 +13,7 @@ use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_i
 use crate::swap::create_solana_swap_job::create_solana_swap_job;
 use crate::stable_memory::get_solana_transaction;
 
-use super::swap_reply_helpers::to_swap_reply_failed;
+use super::swap_reply::SwapReply;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn return_pay_token(
@@ -45,7 +45,7 @@ pub async fn return_pay_token(
                     StatusCode::ReturnPayTokenFailed, 
                     Some(&format!("Cannot return Solana tokens: sender address not found in metadata. Need to implement metadata fetching: {}", e)),
                 );
-                let reply = to_swap_reply_failed(request_id, pay_token, pay_amount, receive_token, transfer_ids, &claim_ids, ts);
+                let reply = SwapReply::failed(request_id, pay_token, pay_amount, receive_token, transfer_ids, &claim_ids, ts);
                 request_map::update_reply(request_id, Reply::Swap(reply));
                 return;
             }
@@ -140,7 +140,7 @@ pub async fn return_pay_token(
         );
     };
 
-    let reply = to_swap_reply_failed(request_id, pay_token, pay_amount, receive_token, transfer_ids, &claim_ids, ts);
+    let reply = SwapReply::failed(request_id, pay_token, pay_amount, receive_token, transfer_ids, &claim_ids, ts);
     request_map::update_reply(request_id, Reply::Swap(reply));
 }
 
