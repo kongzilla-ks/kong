@@ -71,7 +71,7 @@ APPROVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGE
 check_ok "${APPROVE_RESULT}" "${USDT_SYMBOL} approval failed"
 
 # --- 3. Sign message ---
-MESSAGE_JSON=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s],"lp_fee_bps":30}' \
+MESSAGE_JSON=$(printf '{"token_0":"%s.%s","amount_0":"%s","token_1":"%s.%s","amount_1":"%s","lp_fee_bps":30}' \
     "${SOL_CHAIN}" "${SOL_ADDRESS}" "${SOL_AMOUNT}" \
     "${USDT_CHAIN}" "${USDT_LEDGER}" "${USDT_AMOUNT}")
 SIGNATURE=$(solana sign-offchain-message "${MESSAGE_JSON}")

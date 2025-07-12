@@ -6,7 +6,7 @@ use candid::{Nat, Principal};
 
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_transfer::tx_id::TxId;
-use crate::swap::verify_canonical_message::verify_canonical_message;
+use crate::solana::signature_verification::verify_canonical_message;
 use crate::solana::payment_verification::{
     extract_solana_sender_from_transaction,
     verify_solana_transaction,

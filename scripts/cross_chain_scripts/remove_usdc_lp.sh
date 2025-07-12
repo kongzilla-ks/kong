@@ -90,7 +90,7 @@ echo "  - ${USDT_SYMBOL}: $USDT_DEC ($USDT_AMOUNT units)"
 # 4. Sign message for Solana payout
 echo ""
 echo "=== Signing Message for Solana Payout ==="
-MESSAGE_JSON=$(printf '{"token_0":"%s.%s","token_1":"%s.%s","remove_lp_token_amount":[%s],"payout_address_0":"%s","payout_address_1":null}' \
+MESSAGE_JSON=$(printf '{"token_0":"%s.%s","token_1":"%s.%s","remove_lp_token_amount":"%s","payout_address_0":"%s","payout_address_1":null}' \
     "${USDC_CHAIN}" "${USDC_ADDRESS}" \
     "${USDT_CHAIN}" "${USDT_LEDGER}" \
     "${REMOVE_AMOUNT}" \

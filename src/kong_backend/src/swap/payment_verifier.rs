@@ -14,7 +14,7 @@ use crate::solana::payment_verification::{
 
 use super::swap_args::SwapArgs;
 use super::message_builder::CanonicalSwapMessage;
-use super::verify_canonical_message::verify_canonical_message;
+use crate::solana::signature_verification::verify_canonical_message;
 
 /// Result of payment verification
 pub enum PaymentVerification {

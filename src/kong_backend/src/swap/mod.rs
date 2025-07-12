@@ -16,4 +16,3 @@ pub mod swap_reply;
 pub mod swap_transfer;
 pub mod swap_transfer_from;
 pub mod update_liquidity_pool;
-pub mod verify_canonical_message;

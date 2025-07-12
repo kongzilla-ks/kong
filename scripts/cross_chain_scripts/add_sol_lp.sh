@@ -65,7 +65,7 @@ APR=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGER} icrc2_ap
 check_ok "$APR" "USDT approve failed"
 
 # --- 3. Sign message ---
-MSG=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s]}' \
+MSG=$(printf '{"token_0":"%s.%s","amount_0":"%s","token_1":"%s.%s","amount_1":"%s"}' \
   "$SOL_CHAIN" "$SOL_ADDRESS" "$SOL_AMOUNT" \
   "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT")
 echo "DEBUG: Message to sign: $MSG"
