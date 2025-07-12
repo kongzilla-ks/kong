@@ -12,7 +12,7 @@ use crate::ic::{
     icp::is_icp,
     network::ICNetwork,
     transfer::{icrc1_transfer, icrc2_transfer_from},
-    transfer_verification::{verify_and_record_transfer, TokenType, TransferError},
+    verify_transfer::{verify_and_record_transfer, TokenType, TransferError},
 };
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;

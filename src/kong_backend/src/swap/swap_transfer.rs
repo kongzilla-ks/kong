@@ -4,7 +4,7 @@ use crate::helpers::nat_helpers::nat_is_zero;
 use crate::ic::address::Address;
 use crate::ic::address_helpers::get_address;
 use crate::ic::network::ICNetwork;
-use crate::ic::transfer_verification::{verify_and_record_transfer, TokenType, TransferError};
+use crate::ic::verify_transfer::{verify_and_record_transfer, TokenType, TransferError};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode, reply::Reply};
 use crate::stable_token::token::Token;
@@ -117,6 +117,12 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
         }
         Err(e) => {
             // Other errors don't require token return
+            // This includes signature verification failures, which are security-related:
+            // - Signature failures indicate potential replay attacks where someone tries to reuse
+            //   another user's transaction signature without being the original sender
+            // - No refund is warranted because the caller never actually sent any tokens
+            // - Only amount mismatches (handled above) warrant automatic refunds since those
+            //   involve legitimate users who sent wrong amounts
             request_map::update_status(request_id, StatusCode::Failed, None);
             let _ = archive_to_kong_data(request_id);
             return Err(e.to_string());

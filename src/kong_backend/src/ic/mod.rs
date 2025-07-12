@@ -11,6 +11,5 @@ pub mod logging;
 pub mod management_canister;
 pub mod network;
 pub mod transfer;
-pub mod transfer_verification;
 pub mod verify_transfer;
 pub mod wumbo;
