@@ -2,16 +2,7 @@ use candid::Nat;
 use serde::{Deserialize, Serialize};
 
 use super::remove_liquidity_args::RemoveLiquidityArgs;
-
-/// Custom serializer to convert Nat to string (matching frontend format)
-fn serialize_amount_as_string<S>(amount: &Nat, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    // Remove underscores from Nat serialization to match frontend format
-    let amount_str = amount.to_string().replace('_', "");
-    serializer.serialize_str(&amount_str)
-}
+use crate::helpers::nat_helpers::serialize_amount_as_string;
 
 /// A structure representing the canonical message format for signing liquidity removals
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
