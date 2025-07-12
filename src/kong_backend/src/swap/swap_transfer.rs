@@ -4,9 +4,9 @@ use crate::helpers::nat_helpers::nat_is_zero;
 use crate::ic::address::Address;
 use crate::ic::address_helpers::get_address;
 use crate::ic::network::ICNetwork;
-use crate::ic::verify_transfer::verify_transfer;
+use crate::ic::verify_transfer::{verify_and_record_transfer, TokenType, TransferError};
 use crate::stable_kong_settings::kong_settings_map;
-use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
+use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode, reply::Reply};
 use crate::stable_token::token::Token;
 use crate::stable_token::{stable_token::StableToken, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
@@ -23,6 +23,27 @@ use super::update_liquidity_pool::update_liquidity_pool;
 
 use crate::chains::chains::SOL_CHAIN;
 
+/// Processes a token swap with automatic amount mismatch handling
+/// 
+/// # Amount Mismatch Handling
+/// 
+/// When a user initiates a swap, they specify a pay_amount. However, the actual amount recorded
+/// on the blockchain may differ due to transfer fees or token contract behavior. This function
+/// handles such mismatches by:
+/// 
+/// 1. **Detection**: Using `verify_and_record_transfer` to compare actual vs expected amounts
+/// 2. **Recording**: Always recording the transfer to prevent reuse, even on mismatch
+/// 3. **Recovery**: Automatically returning tokens to the user (minus gas fees) when mismatch occurs
+/// 4. **Reporting**: Providing clear error messages and creating a SwapReply with refund details
+/// 
+/// # Flow
+/// 
+/// 1. Validate arguments and verify the pay token transfer
+/// 2. If amount mismatch is detected:
+///    - Extract the actual amount from the recorded transfer
+///    - Call `return_pay_token` to refund the user
+///    - Return a SwapReply indicating the refund status
+/// 3. Otherwise, proceed with the swap normally
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
@@ -38,16 +59,79 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     let ts = ICNetwork::get_time();
     // insert request into request_map so we have immediate record of this
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
+    
     // check arguments and verify the pay token transfer
-    let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.inspect_err(|_| {
-        // if any arguments are invalid, no token to refund and return failed request status
-        request_map::update_status(request_id, StatusCode::Failed, None);
-        let _ = archive_to_kong_data(request_id);
-    })?;
+    let check_result = check_arguments(&args, request_id, ts).await;
+    
+    let (pay_token, pay_amount, pay_transfer_id) = match check_result {
+        Ok(result) => result,
+        Err(TransferError::AmountMismatch { actual, transfer_id, .. }) => {
+                // Amount Mismatch Recovery Process:
+                // 1. The transfer verification detected that actual_amount != expected_amount
+                // 2. The transfer was already recorded in transfer_map to prevent reuse
+                // 3. We now need to return the actual amount (minus gas) to the user
+                // 4. Create a SwapReply to inform the user about the refund
+                let pay_token = match token_map::get_by_token(&args.pay_token) {
+                    Ok(token) => token,
+                    Err(_) => {
+                        request_map::update_status(request_id, StatusCode::Failed, None);
+                        let _ = archive_to_kong_data(request_id);
+                        return Err("Failed to get pay token".to_string());
+                    }
+                };
+                
+                // Return the tokens to the user with the actual amount
+                let caller_id = ICNetwork::caller_id();
+                let mut transfer_ids = vec![transfer_id];
+                return_pay_token(
+                    request_id,
+                    user_id,
+                    &caller_id,
+                    &pay_token,
+                    &actual,
+                    None,
+                    &mut transfer_ids,
+                    ts,
+                )
+                .await;
+                
+                // Check if return_pay_token created a SwapReply
+                match request_map::get_by_request_id(request_id) {
+                    Some(request) => match request.reply {
+                        Reply::Swap(reply) => {
+                            let _ = archive_to_kong_data(request_id);
+                            return Ok(reply);
+                        },
+                        _ => {
+                            request_map::update_status(request_id, StatusCode::Failed, None);
+                            let _ = archive_to_kong_data(request_id);
+                            return Err("Amount mismatch: swap cancelled".to_string());
+                        }
+                    },
+                    None => {
+                        request_map::update_status(request_id, StatusCode::Failed, None);
+                        let _ = archive_to_kong_data(request_id);
+                        return Err("Amount mismatch: swap cancelled".to_string());
+                    }
+                }
+        }
+        Err(e) => {
+            // Other errors don't require token return
+            // This includes signature verification failures, which are security-related:
+            // - Signature failures indicate potential replay attacks where someone tries to reuse
+            //   another user's transaction signature without being the original sender
+            // - No refund is warranted because the caller never actually sent any tokens
+            // - Only amount mismatches (handled above) warrant automatic refunds since those
+            //   involve legitimate users who sent wrong amounts
+            request_map::update_status(request_id, StatusCode::Failed, None);
+            let _ = archive_to_kong_data(request_id);
+            return Err(e.to_string());
+        }
+    };
 
     // initialize transfer_ids to keep track of transfers
     let mut transfer_ids = Vec::new();
-    let (receive_token, receive_amount_with_fees_and_gas, to_address, mid_price, price, slippage, swaps) = process_swap(
+    let process_swap_result = process_swap(
         request_id,
         user_id,
         &pay_token,
@@ -57,11 +141,32 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
         &mut transfer_ids,
         ts,
     )
-    .await
-    .inspect_err(|_| {
-        request_map::update_status(request_id, StatusCode::Failed, None);
-        let _ = archive_to_kong_data(request_id);
-    })?;
+    .await;
+    
+    let (receive_token, receive_amount_with_fees_and_gas, to_address, mid_price, price, slippage, swaps) = match process_swap_result {
+        Ok(result) => result,
+        Err(_) => {
+            // Check if return_pay_token was called and created a SwapReply
+            match request_map::get_by_request_id(request_id) {
+                Some(request) => match request.reply {
+                    Reply::Swap(reply) => {
+                        let _ = archive_to_kong_data(request_id);
+                        return Ok(reply);
+                    },
+                    _ => {
+                        request_map::update_status(request_id, StatusCode::Failed, None);
+                        let _ = archive_to_kong_data(request_id);
+                        return Err("Swap failed and no reply was created".to_string());
+                    }
+                },
+                None => {
+                    request_map::update_status(request_id, StatusCode::Failed, None);
+                    let _ = archive_to_kong_data(request_id);
+                    return Err("Swap failed and request not found".to_string());
+                }
+            }
+        }
+    };
 
     let result = send_receive_token(
         request_id,
@@ -96,9 +201,10 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
     let user_id = user_map::insert_with_anonymous_option(args.referred_by.as_deref(), allow_anonymous)?;
     let ts = ICNetwork::get_time();
     let request_id = request_map::insert(&StableRequest::new(user_id, &Request::Swap(args.clone()), ts));
-    let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.inspect_err(|_| {
+    let (pay_token, pay_amount, pay_transfer_id) = check_arguments(&args, request_id, ts).await.map_err(|e| {
         request_map::update_status(request_id, StatusCode::Failed, None);
         let _ = archive_to_kong_data(request_id);
+        e.to_string()
     })?;
 
     ic_cdk::futures::spawn(async move {
@@ -149,12 +255,13 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
 }
 
 /// check pay token is valid and verify the transfer
-async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(StableToken, Nat, u64), String> {
+async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(StableToken, Nat, u64), TransferError> {
     request_map::update_status(request_id, StatusCode::Start, None);
 
     // check pay_token is a valid token. We need to know the canister id so return here if token is not valid
-    let pay_token = token_map::get_by_token(&args.pay_token).inspect_err(|e| {
-        request_map::update_status(request_id, StatusCode::PayTokenNotFound, Some(e));
+    let pay_token = token_map::get_by_token(&args.pay_token).map_err(|e| {
+        request_map::update_status(request_id, StatusCode::PayTokenNotFound, Some(&e));
+        TransferError::TransferNotFound { error: e }
     })?;
 
 
@@ -167,15 +274,18 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
         let verifier = PaymentVerifier::new(ICNetwork::caller());
         let verification = verifier.verify_payment(args, &pay_token, &pay_amount)
             .await
-            .inspect_err(|e| {
-                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(e));
+            .map_err(|e| {
+                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
+                TransferError::TransferNotFound { error: e }
             })?;
 
         match verification {
             PaymentVerification::SolanaPayment { tx_signature, .. } => {
                 // Check if this Solana transaction has already been used
                 if transfer_map::contains_tx_signature(pay_token.token_id(), &tx_signature) {
-                    return Err("Solana transaction signature already used for this token".to_string());
+                    return Err(TransferError::TransferNotFound { 
+                    error: "Solana transaction signature already used for this token".to_string() 
+                });
                 }
                 
                 // For Solana payments, we create a transfer record with the transaction hash
@@ -215,12 +325,16 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                 TxId::TransactionId(_) => {
                     // TransactionId is only valid for cross-chain swaps with signatures
                     request_map::update_status(request_id, StatusCode::PayTxIdNotSupported, None);
-                    Err("TransactionId requires signature for cross-chain swaps. For IC tokens, use BlockIndex.".to_string())?
+                    return Err(TransferError::TransferNotFound { 
+                        error: "TransactionId requires signature for cross-chain swaps. For IC tokens, use BlockIndex.".to_string() 
+                    });
                 }
             },
             None => {
                 request_map::update_status(request_id, StatusCode::PayTxIdNotFound, None);
-                Err("Pay tx_id required for IC token swaps".to_string())?
+                return Err(TransferError::TransferNotFound { 
+                    error: "Pay tx_id required for IC token swaps".to_string() 
+                });
             }
         };
         Ok((pay_token, pay_amount, transfer_id))
@@ -350,34 +464,7 @@ async fn process_swap(
     ))
 }
 
-async fn verify_transfer_token(request_id: u64, token: &StableToken, tx_id: &Nat, amount: &Nat, ts: u64) -> Result<u64, String> {
-    let token_id = token.token_id();
-
-    request_map::update_status(request_id, StatusCode::VerifyPayToken, None);
-
-    match verify_transfer(token, tx_id, amount).await {
-        Ok(_) => {
-            // contain() will use the latest state of TRANSFER_MAP to prevent reentrancy issues after verify_transfer()
-            if transfer_map::contain(token_id, tx_id) {
-                let e = format!("Duplicate block id #{}", tx_id);
-                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
-                Err(e)?
-            }
-            let transfer_id = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: true,
-                amount: amount.clone(),
-                token_id,
-                tx_id: TxId::BlockIndex(tx_id.clone()),
-                ts,
-            });
-            request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);
-            Ok(transfer_id)
-        }
-        Err(e) => {
-            request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
-            Err(e)
-        }
-    }
+async fn verify_transfer_token(request_id: u64, token: &StableToken, tx_id: &Nat, amount: &Nat, ts: u64) -> Result<u64, TransferError> {
+    // Use the shared utility for consistent transfer verification
+    verify_and_record_transfer(request_id, TokenType::PayToken, token, tx_id, amount, ts).await
 }

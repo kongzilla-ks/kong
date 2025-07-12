@@ -57,8 +57,7 @@ pub fn setup_swap_test_environment() -> Result<SwapTestSetup> {
     // --- Phase 1: Setup Environment, Identities, Use Pre-created Tokens ---
     let (ic, kong_backend) = setup_ic_environment()?;
 
-    let readable_kong_backend = format!("{:?}", kong_backend);
-    println!("Kong backend: {}", readable_kong_backend);
+    let _readable_kong_backend = format!("{:?}", kong_backend);
 
     let controller_identity = get_identity_from_pem_file(CONTROLLER_PEM_FILE)?;
     let controller_principal = controller_identity

@@ -14,6 +14,10 @@ set -euo pipefail
 NETWORK="${1:-local}"                   # "local" or "ic"
 IDENTITY_FLAG="--identity kong_user1"   # change if needed
 
+# CANISTER IDS
+MAINNET_KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"
+LOCAL_KONG_BACKEND="kong_backend"  # Will use dfx canister id locally
+
 # Token 0 (USDC on Solana)
 USDC_CHAIN="SOL"
 if [ "${NETWORK}" == "ic" ]; then
@@ -21,24 +25,27 @@ if [ "${NETWORK}" == "ic" ]; then
 else
     USDC_ADDRESS="4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"   # Devnet mint
 fi
-USDC_AMOUNT=1000000           # 1 USDC (6 decimals)
+USDC_AMOUNT=100000           # 0.1 USDC (6 decimals)
 
 # Token 1 (USDT on IC)
 USDT_CHAIN="IC"
 USDT_SYMBOL=$([ "${NETWORK}" == "local" ] && echo "ksUSDT" || echo "ckUSDT")
-USDT_AMOUNT=1000000           # 1 USDT (6 decimals)
+USDT_AMOUNT=100000           # 0.1 USDT (6 decimals)
 USDT_FEE=10000
-# ckUSDT (ic): cngnf-vqaaa-aaaar-qag4q-cai
-# ksUSDT (local): zdzgz-siaaa-aaaar-qaiba-cai
+# USDT LEDGER CANISTER IDS
+MAINNET_USDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT
+LOCAL_USDT_LEDGER="ksusdt_ledger"  # Will use dfx canister id locally
 # ===============================================================
 
 NETWORK_FLAG=$([ "${NETWORK}" == "local" ] && echo "" || echo "--network ${NETWORK}")
-KONG_BACKEND=$(dfx canister id ${NETWORK_FLAG} kong_backend)
-# Use fixed canister IDs for USDT ledger instead of trying to derive from canister_ids
+
+# Set canister IDs based on network
 if [ "${NETWORK}" == "ic" ]; then
-    USDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"   # ckUSDT mainnet
+    KONG_BACKEND="${MAINNET_KONG_BACKEND}"
+    USDT_LEDGER="${MAINNET_USDT_LEDGER}"
 else
-    USDT_LEDGER="zdzgz-siaaa-aaaar-qaiba-cai"   # ksUSDT local/staging
+    KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
+    USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
 fi
 
 # --- Helper to check for command success ---
@@ -61,7 +68,7 @@ USDC_DEC=$(bc <<< "scale=6; ${USDC_AMOUNT} / 1000000")
 echo "Transferring ${USDC_DEC} USDC to Kong..."
 TRANSFER_OUTPUT=$(spl-token transfer --allow-unfunded-recipient "${USDC_ADDRESS}" "${USDC_DEC}" "${KONG_SOLANA_ADDRESS}" --fund-recipient)
 USDC_TX_SIG=$(echo "${TRANSFER_OUTPUT}" | grep -o 'Signature: .*' | awk '{print $2}')
-echo "USDC transferred. Tx: ${USDC_TX_SIG}"; sleep 10
+echo "USDC transferred. Tx: ${USDC_TX_SIG}"; sleep 30
 
 # --- 2. Approve USDT spending ---
 APPROVE_AMOUNT=$((USDT_AMOUNT + USDT_FEE))
@@ -69,7 +76,7 @@ APPROVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGE
 check_ok "${APPROVE_RESULT}" "${USDT_SYMBOL} approval failed"
 
 # --- 3. Sign message ---
-MESSAGE_JSON=$(printf '{"token_0":"%s.%s","amount_0":[%s],"token_1":"%s.%s","amount_1":[%s],"lp_fee_bps":30}' \
+MESSAGE_JSON=$(printf '{"token_0":"%s.%s","amount_0":"%s","token_1":"%s.%s","amount_1":"%s","lp_fee_bps":30}' \
     "${USDC_CHAIN}" "${USDC_ADDRESS}" "${USDC_AMOUNT}" \
     "${USDT_CHAIN}" "${USDT_LEDGER}" "${USDT_AMOUNT}")
 SIGNATURE=$(solana sign-offchain-message "${MESSAGE_JSON}")

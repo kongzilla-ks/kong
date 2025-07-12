@@ -2,13 +2,16 @@ use candid::Nat;
 use serde::{Deserialize, Serialize};
 
 use super::add_liquidity_args::AddLiquidityArgs;
+use crate::helpers::nat_helpers::serialize_amount_as_string;
 
 /// A structure representing the canonical message format for signing liquidity additions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalAddLiquidityMessage {
     pub token_0: String,
+    #[serde(serialize_with = "serialize_amount_as_string")]
     pub amount_0: Nat,
     pub token_1: String,
+    #[serde(serialize_with = "serialize_amount_as_string")]
     pub amount_1: Nat,
 }
 

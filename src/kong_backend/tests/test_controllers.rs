@@ -64,8 +64,7 @@ fn test_controllers_as_controller() {
     let args = encode_one(()).expect("Failed to encode arguments for status");
     let response = match ic.query_call(kong_backend, controller_principal_id, "status", args) {
         Ok(response) => response,
-        Err(err) => {
-            println!("{:?}", err.reject_message);
+        Err(_) => {
             return;
         }
     };
