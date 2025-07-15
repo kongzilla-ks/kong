@@ -21,7 +21,7 @@ PAY_AMOUNT=10000000          # 10 USDT (6 decimals)
 # Receive Token (SOL)
 RECEIVE_TOKEN="SOL"
 RECEIVE_AMOUNT=0             # Let system calculate optimal amount
-MAX_SLIPPAGE=90.0            # 90%
+MAX_SLIPPAGE=95.0            # 95%
 # USDT LEDGER CANISTER IDS
 MAINNET_USDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"  # ckUSDT
 LOCAL_USDT_LEDGER="ksusdt_ledger"  # Will use dfx canister id locally
