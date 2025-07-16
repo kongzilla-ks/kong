@@ -88,28 +88,53 @@ Here's how kong_rpc works:
 
 1. kong_rpc directory. This is all new code. This is a console program that interacts with a Solana RPC node provider and calls the kong_backend api to notify or update states in kong_backend
 
-2. src/kong_backend. The following functionality had to be upgraded to support Solana transactions
-   - stable_token - added SOL token type
-   - tokens
-   - pools
-   - add_token
-   - add_pool
-   - add_liquidity
-   - remove_liquidity
-   - swap
+2. In src/kong_backend/solana directory, most of the Solana specific code
 
-In stable_memory.rs there are several new Solana specific stable memory structures:
+   network.rs - get_public_key() generation of Schnorr public key for Solana address
 
-CACHED_SOLANA_ADDRESS - String to store the canister's Solana address to retrieve quickly. There is a canister api, cache_solana_address() which sets this, and get_solana_address() to retreive it
-SOLANA_LATEST_BLOCKHASH - stores the latest Solana blockhash which is required for all Solana transactions
-NEXT_SOLANA_SWAP_JOB_ID - counter for kong_rpc job id
-SOLANA_SWAP_JOB_QUEUE - BTreeMap of pending outgoing Solana transaactions
-SOLANA_TX_NOTIFICATIONS - BTreeMap of incoming Solana transactions
+3. In src/stable_memory.rs there are several new Solana specific stable memory structures:
 
-In src/kong_backend/solana directory is most of the Solana specific code
+   CACHED_SOLANA_ADDRESS - String to store the canister's Solana address to retrieve quickly. There is a canister api, cache_solana_address() which sets this, and get_solana_address() to retreive it
 
-network.rs -
-get_public_key() generation of Schnorr public key for Solana address
+   SOLANA_LATEST_BLOCKHASH - stores the latest Solana blockhash which is required for all Solana transactions
+
+   NEXT_SOLANA_SWAP_JOB_ID - counter for kong_rpc job id
+
+   SOLANA_SWAP_JOB_QUEUE - BTreeMap of pending outgoing Solana transaactions
+
+   SOLANA_TX_NOTIFICATIONS - BTreeMap of incoming Solana transactions
+
+4. src/kong_backend. The following functionality had to be upgraded to support Solana transactions
+
+   1. StableToken src/kong_backend/stable_token/stable_token.rs - data type for storing token in stable memory
+
+      - Added SolanaToken type src/kong_backend/stable_token/solana_token.rs to store all the SPL token properties
+      - Added SolanaToken to StableToken enum src/kong_backend/stable_token/stable_token.rs
+
+   2. extended canister api tokens() to handle Solana tokens. this just returns a list of all the tokens on Kong
+
+      - Added SolanaReply type src/kong_backend/tokens/solana_reply.rs
+      - Added SolanaReply to TokensReply enum src/kong_backend/tokens/tokens_reply.rs
+
+   3. extended canister api add_token() and update_token() to handle Solana tokens
+      src/kong_backend/add_token directory
+
+      - add_token() is not supported for SPL tokens as kong_rpc automatically creates these and calls add_spl_token()
+      - update_token() added support for Solana tokens but only admin account can call this
+
+   4. extended canister api add_pool() to handle creating pools with Solana tokens
+      src/kong_backend/add_pool directory
+
+      - AddPoolArgs extended to handle potentially 2 Solana transactions for token_0 and token_1
+
+   5. extended canister api add_liquidity() to handle adding liquidity for Solana pools
+      src/kong_backend/add_liquidity directory
+
+   6. extended canister api remove_liquidity() to handle removing liquidity for Solana pools
+      src/kong_backend/remove_liquidity directory
+
+   7. extended canister api swap() to handle swaps involving SOL/SPL tokens
+      src/kong_backend/swap directory
 
 ## Solana message signing
 
@@ -117,5 +142,6 @@ kong_rpc is able to detect when there is a Solana deposit to our address. Howeve
 swap() is indeed the same person that made the transfer, we require the user sign the arguments of the swap() with their private key. Then, we can verify if the signature is indeed the same public key of the sender of the tx hash. This message signing verification is required for all incoming SOL/SPL token transfers. The code for this is in,
 
 src/kong_backend/solana/signature_verification.rs - verify_canonical_message()
-We support 2 message signing standards: ed25519_dalek and off-chain message with the different being a header prefix with off-chain
-messages. ed25519_dalek is more easy for javascript while off-chain messages is used by the Solana CLI.
+
+- We support 2 message signing standards: ed25519_dalek and off-chain message with the different being a header prefix with off-chain.
+  messages. ed25519_dalek is more easy for javascript while off-chain messages is used by the Solana CLI.
