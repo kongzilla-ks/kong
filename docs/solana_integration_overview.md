@@ -34,11 +34,12 @@ To use the Kong Swap Solana integration locally, make sure you have the followin
 With the IC local replica running ("dfx start"), to deploy the Kong backend, do the following
 
 1. Run "scripts/deploy_kong.sh local" - compiles the backend, create the test tokens (ICP, ksUSDT, ksBTC, ksETH, ksKONG),
-   initialize some pools and other setups. This may take some time, but when done the IC setup and canisters should be deployed
+   initialize some pools and other setups. This may take some time, but when done the kong_backend and the test token
+   ledger canisters should be deployed
 
 kong_rpc, also needs to be deployed for Solana to work. Do the following,
 
-1. In a new Terminal, in kong_rpc directory, run "cargo run". This will output several logs regarding the configuration and then
+2. In a new Terminal, in kong_rpc directory, run "cargo run". This will output several logs regarding the configuration and then
    eventually the it will just keep sending Solana latest hash txs
 
 ## Test Solana transactions
@@ -52,13 +53,27 @@ In scripts/cross_chain_scripts are all the scripts to try
 
 ## Solana Integration Architecture Overview
 
-The Kong Solana integration allows for fast native swaps between IC and SOL/SPL tokens. In many ways, the architecture is just an extension of the IC-only framework that KongSwap was built upon.
+The Kong Solana integration allows for fast, native swaps between Internet Computer (IC) and Solana (SOL/SPL) tokens. This was
+accomplished by extending the Kong's existing IC-only architecture to support the Solana network.
 
-In the original KongSwap, all tokens were deposited to the kong_backend canister and then the accounting was kept in stable memory. This allowed for the single canister architecture where all deposits went to kong_backend, accounting was then in stable memory and settlement would also be done from kong_backend. We extend this for Solana, where kong_backend creates 1 Solana wallet address through the IC management canister and all users deposit SOL/SPL tokens into this address, accounting is done again in stable memory and if settlement is needed on the Solana chain, kong_backend's Solana wallet is used for the transfer. Unlike many examples and chain-key minting bridging, we do not generate a new address for every user.
+The current Kong Swap operated on a single-canister architecture. All tokens were deposited into the kong_backend canister, with accounting handled in stable memory. This setup allowed deposits, accounting, and settlements to all be managed by the same canister.
 
-From a user's point of view, the 1 Solana wallet address is really the "only" new enhancement for Kong. If a user wants to swap SOL for ICP, the user just needs to deposit SOL to Kong's Solana address, calls swap() on the kong_backend and then will receive ICP from kong_backend. For swapping ICP to SOL.USDC, the user deposits ICP to kong_backend, calls swap() on the kong_backend and then kong_backend will transfer from its Solana address the SOL.USDC to complete the swap. Therfore, SOL/SPL tokens stay on the Solana blockchain and IC tokens stay on the IC blockchain and allow users to swap tokens natively.
+To integrate Solana, we extended this architecture. The kong_backend canister uses the IC management canister to create a single Solana wallet address. All users deposit their SOL/SPL tokens into this one address, and accounting is still tracked in stable memory. For any settlements needed on the Solana chain, the kong_backend's Solana wallet is used to complete the transfer.
 
-Behind the scenes, we had to create kong_rpc which acts as a proxy server to read and relay Solana transactions to the kong_backend. It's functions much like the Solana RPC canister, but we had to write our own initially until this was released. Here's some of the functionality,
+This approach is different from many other bridging solutions and chain-key minting examples, as we do not create a new Solana wallet address for every user.
+
+From a user's perspective, the integration adds a single Solana wallet address to Kong. The user experience remains simple and familiar.
+
+If you want to swap SOL for ICP, you just deposit your SOL to Kong's Solana address and call the swap() function on the kong_backend canister. You'll then receive ICP directly from the same canister.
+
+Conversely, to swap ICP for SOL.USDC, you deposit your ICP into the kong_backend canister and call swap(). The canister will then complete the transaction by transferring the SOL.USDC from its Solana wallet to your address.
+
+This design keeps SOL/SPL tokens on the Solana network and IC tokens on the Internet Computer blockchain, enabling seamless, native token swaps for users.
+
+Behind the scenes, we built kong_rpc, a proxy server that reads and relays Solana transfers to the kong_backend. We developed our own proxy
+because the public Solana RPC canister was not available at the time.
+
+Here's how kong_rpc works:
 
 1. Proxy between RPC node provider (Validation Cloud, QuickNode, ...)
 2. Sends periodically the latest tx hash from the Solana chain to kong_backend as any transactions requires a recent tx hash
