@@ -1,19 +1,21 @@
+## Kong Swap Solana Integration Overview
+
 To use the Kong Swap Solana integration locally, make sure you have the following installed.
 
 1. Rust Language - https://www.rust-lang.org/tools/install
 2. Internet Computer SDK - https://internetcomputer.org/docs/building-apps/getting-started/install
 3. Solana CLI - https://solana.com/docs/intro/installation
-4. After installation you may need to start a new Terminal or source .bashrc to ensure the PATH environment variable
+4. After installation, you may need to start a new Terminal or source .bashrc to ensure the PATH environment variable
    is set properly. From the command line you should be able to run: cargo, rustc, dfx, solana, spl-token
 
 ## Internet Computer Setup
 
 1. Create user ids - "scripts/create_identity.sh" will create the required user accounts with "kong" being the admin account
-2. Start local replica - "dfx start --clean --background" will delete any replica and start a new local replica
+2. Start local replica - "dfx start --clean --background" will delete any existing replica and start a new local replica
 
 ## Solana CLI Setup
 
-1. https://solana.com/docs/intro/installation half way down look for "Solana CLI Basic".
+1. https://solana.com/docs/intro/installation look for "Solana CLI Basic".
 
    - Run "solana config set --url devnet" to use DEVNET
    - Run "solana-keygen new" to create a new wallet
@@ -22,12 +24,12 @@ To use the Kong Swap Solana integration locally, make sure you have the followin
    - Run "solana airdrop 5" to get 5 SOL test tokens
    - Run "solana balance" to get your SOL balance
 
-2. Solana also has SPL tokens, which is similar to ERC-20 for Ethereum which allows anyone to create their own tokens.
+2. Solana also has SPL tokens, which is similar to ERC-20 for Ethereum and allows for custom tokens.
    For example USDC on Solana is a SPL token. Use the "spl-token" command line to interact with SPL tokens.
+
    - Run "spl-token accounts" to get balances of all your SPL tokens
    - https://faucet.circle.com - visit the faucet to get USDC test tokens. Select USDC and Network: Solana Devnet. Then
      paste your Solana wallet address. (from solana address). Re-run "spl-token accounts" and see that you received 10 USDC
-     test tokens
 
 ## Kong Backend Deployment
 
@@ -39,8 +41,8 @@ With the IC local replica running ("dfx start"), to deploy the Kong backend, do 
 
 kong_rpc, also needs to be deployed for Solana to work. Do the following,
 
-2. In a new Terminal, in kong_rpc directory, run "cargo run". This will output several logs regarding the configuration and then
-   eventually the it will just keep sending Solana latest hash txs
+2. In a new Terminal, in kong_rpc directory, run "cargo run". This will output logs with the current configuration and then
+   just keep sending Solana latest hash txs to kong_backend
 
 ## Test Solana transactions
 
@@ -48,19 +50,19 @@ In scripts/cross_chain_scripts are all the scripts to try
 
 1. "add_sol_pool.sh local" this creates the SOL/ksUSDT liquidity pool
 2. "add_usdc_pool.sh local" this creates the USDC/ksUSDT liquidity pool
-3. "swap_usdt_to_sol.sh local" this swaps ksUSDT to SOL - an IC token to SOL token swap
-4. "swap_sol_to_usdc.sh local" this swaps SOL to USDC - a SOL token to SPL tken swap
+3. "swap_usdt_to_sol.sh local" this swaps ksUSDT to SOL - swap an IC token to SOL token
+4. "swap_sol_to_usdc.sh local" this swaps SOL to USDC - swap SOL token to SPL token
 
 ## Solana Integration Architecture Overview
 
 The Kong Solana integration allows for fast, native swaps between Internet Computer (IC) and Solana (SOL/SPL) tokens. This was
 accomplished by extending the Kong's existing IC-only architecture to support the Solana network.
 
-The current Kong Swap operated on a single-canister architecture. All tokens were deposited into the kong_backend canister, with accounting handled in stable memory. This setup allowed deposits, accounting, and settlements to all be managed by the same canister.
+The current Kong Swap operates on a single-canister architecture. All tokens are deposited into the kong_backend canister, with accounting handled in stable memory. This setup allows deposits, accounting, and settlements to all be managed by the same canister.
 
-To integrate Solana, we extended this architecture. The kong_backend canister uses the IC management canister to create a single Solana wallet address. All users deposit their SOL/SPL tokens into this one address, and accounting is still tracked in stable memory. For any settlements needed on the Solana chain, the kong_backend's Solana wallet is used to complete the transfer.
+To integrate Solana, we extended this architecture. The kong_backend canister uses the IC management canister to create a single Solana wallet address. This is only done once when the canister is initialized and is based on the canister's principal id and a fixed derivation path. All users deposit their SOL/SPL tokens into this one address, and accounting is still tracked in stable memory. For any settlements needed on the Solana chain, the same Solana wallet is used to complete the transfer.
 
-This approach is different from many other bridging solutions and chain-key minting examples, as we do not create a new Solana wallet address for every user.
+This approach is different from many current code examples and bridging solutions such as chain-key tokens, as we do not create a new Solana wallet address for every user.
 
 From a user's perspective, the integration adds a single Solana wallet address to Kong. The user experience remains simple and familiar.
 
@@ -111,6 +113,9 @@ get_public_key() generation of Schnorr public key for Solana address
 
 ## Solana message signing
 
-With kong_rpc we are able to detect when there is a Solana deposit to our address. However, the user needs to "claim" the transaction and tell us what to do with the funds. For example, if a user wants to swap SOL for ICP, the user sends SOL to our address, but then needs to call swap() on kong_backend providing instructions like what token to receive and the wallet address to send to. Therefore, to verify that the caller of swap() is indeed the same person that made the transfer, we require the user sign the arguments of the swap() with the private key. Then, we can verify if the signature is indeed the same as the public key of the sender on the tx hash. This message signing verification is required for all incoming SOL/SPL token transfers. The codefor this is in,
+kong_rpc is able to detect when there is a Solana deposit to our address. However, the user needs to "claim" the transaction and tell us what to do with the funds. For example, if a user wants to swap SOL for ICP, the user sends SOL to our address, but then needs to call swap() on kong_backend providing instructions like what token to receive and the wallet address to send to. Therefore, to verify that the caller of
+swap() is indeed the same person that made the transfer, we require the user sign the arguments of the swap() with their private key. Then, we can verify if the signature is indeed the same public key of the sender of the tx hash. This message signing verification is required for all incoming SOL/SPL token transfers. The code for this is in,
 
-src/kong_backend/solana/signature_verification.rs - verify_canonical_message(). We support 2 message signing standards: ed25519_dalek and off-chain message with the different being a header prefix with off-chain messages. ed25519_dalek is more easy for javascript while off-chain messages is used by the Solana CLI.
+src/kong_backend/solana/signature_verification.rs - verify_canonical_message()
+We support 2 message signing standards: ed25519_dalek and off-chain message with the different being a header prefix with off-chain
+messages. ed25519_dalek is more easy for javascript while off-chain messages is used by the Solana CLI.
