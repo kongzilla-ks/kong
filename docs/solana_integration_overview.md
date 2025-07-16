@@ -8,7 +8,7 @@ To use the Kong Swap Solana integration locally, make sure you have the followin
 
 ## Internet Computer Setup
 
-1. Create user ids - scripts/create_identity.sh will create the required user accounts with "kong" being the admin account
+1. Create user ids - "scripts/create_identity.sh" will create the required user accounts with "kong" being the admin account
 2. Start local replica - "dfx start --clean --background" will delete any replica and start a new local replica
 
 ## Solana CLI Setup
@@ -33,13 +33,13 @@ To use the Kong Swap Solana integration locally, make sure you have the followin
 
 With the IC local replica running ("dfx start"), to deploy the Kong backend, do the following
 
-1. Run "scripts/deploy_kong.sh local". This is compile the backend, create the test tokens (ICP, ksUSDT, ksBTC, ksETH, ksKONG),
-   initialize some pools and other setups
-2. This may take some time, but when done all the IC setup and canisters should be deployed
+1. Run "scripts/deploy_kong.sh local" - compiles the backend, create the test tokens (ICP, ksUSDT, ksBTC, ksETH, ksKONG),
+   initialize some pools and other setups. This may take some time, but when done the IC setup and canisters should be deployed
 
-kong_rpc, also needs to be deployed for Solana to work. Do the following
+kong_rpc, also needs to be deployed for Solana to work. Do the following,
 
-1. in kong_rpc directory, run "cargo run". This will output several logs regarding the configuration and then eventually the Solana latest hash txs
+1. In a new Terminal, in kong_rpc directory, run "cargo run". This will output several logs regarding the configuration and then
+   eventually the it will just keep sending Solana latest hash txs
 
 ## Test Solana transactions
 
