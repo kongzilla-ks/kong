@@ -9,6 +9,7 @@
       "type": "custom",
       "build": "bash ./scripts/build_kong_backend.sh",
       "wasm": "target/wasm32-unknown-unknown/release/kong_backend.wasm",
+      "specified_id": "u6kfa-6aaaa-aaaam-qdxba-cai",
       "metadata": [
         {
           "name": "candid:service"
@@ -46,6 +47,7 @@
       ],
       "type": "assets",
       "workspace": "kong_svelte",
+      "specified_id": "uxjo4-iiaaa-aaaam-qdxaq-cai",
       "metadata": [
         {
           "name": "candid:service"

@@ -532,7 +532,7 @@ export class SwapService {
     onRetryProgress?: (attempt: number, maxAttempts: number) => void
   ): Promise<BE.SwapAsyncResponse> {
     const MAX_RETRY_ATTEMPTS = 10;
-    const RETRY_DELAY_MS = 1000; // 1 second
+    const RETRY_DELAY_MS = 3000; // 3 seconds
     
     // Helper function to check for TRANSACTION_NOT_READY in various formats
     const isTransactionNotReadyError = (error: any): boolean => {
@@ -642,8 +642,26 @@ export class SwapService {
         actor = swapActor({anon: true, requiresSigning: false});
       }
       
-      // Ensure we only pass a single-element array or empty array
+      // Backend expects [[] | [bigint]] which is an array containing an optional bigint
+      // We pass the bigint directly, no need to convert to number
+      console.log('[SwapService.requests] Calling actor.requests with:', [requestIds[0]]);
       const result = await actor.requests([requestIds[0]]);
+      
+      // Log the raw response
+      console.log('[SwapService.requests] Raw response from backend:', result);
+      console.log('[SwapService.requests] Response type:', typeof result);
+      console.log('[SwapService.requests] Response keys:', result ? Object.keys(result) : 'null');
+      
+      // If it's an Ok response, log the contents
+      if (result && 'Ok' in result) {
+        console.log('[SwapService.requests] Ok response contents:', result.Ok);
+        console.log('[SwapService.requests] Ok response length:', result.Ok.length);
+        if (result.Ok.length > 0) {
+          console.log('[SwapService.requests] First item in Ok:', result.Ok[0]);
+          console.log('[SwapService.requests] First item keys:', Object.keys(result.Ok[0]));
+        }
+      }
+      
       return result;
     } catch (error) {
       console.error("Error getting request status:", error);
