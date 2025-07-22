@@ -318,7 +318,15 @@ export interface SolanaTokenReply {
   'program_id' : string,
   'is_spl_token' : boolean,
   'mint_address' : string,
-  'total_supply' : [] | [bigint],
+  'symbol' : string,
+}
+export interface SolanaTransferReply {
+  'is_send' : boolean,
+  'signature' : string,
+  'chain' : string,
+  'slot' : [] | [bigint],
+  'amount' : bigint,
+  'mint_address' : string,
   'symbol' : string,
 }
 export interface SwapAmountsReply {
@@ -410,7 +418,8 @@ export interface TransferIdReply {
   'transfer_id' : bigint,
   'transfer' : TransferReply,
 }
-export type TransferReply = { 'IC' : ICTransferReply };
+export type TransferReply = { 'IC' : ICTransferReply } |
+  { 'Solana' : SolanaTransferReply };
 export type TransfersResult = { 'Ok' : Array<TransferIdReply> } |
   { 'Err' : string };
 export type TxId = { 'TransactionId' : string } |

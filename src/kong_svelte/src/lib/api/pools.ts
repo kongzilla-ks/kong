@@ -373,11 +373,24 @@ export async function pollRequestStatus(
       // For mainnet deployment, always use swapActor
       const actor = swapActor({anon: true});
       
+      console.log('[pools.pollRequestStatus] Calling actor.requests with:', [requestId]);
       const result = await actor.requests([requestId]);
+      
+      // Log the raw response
+      console.log('[pools.pollRequestStatus] Raw response:', result);
+      console.log('[pools.pollRequestStatus] Response type:', typeof result);
+      console.log('[pools.pollRequestStatus] Response keys:', result ? Object.keys(result) : 'null');
 
       if ('Err' in result) {
         if (toastId !== undefined) toastStore.dismiss(String(toastId));
         throw new Error("Failed to get request status");
+      }
+
+      console.log('[pools.pollRequestStatus] Ok response:', result.Ok);
+      console.log('[pools.pollRequestStatus] Ok response length:', result.Ok.length);
+      if (result.Ok.length > 0) {
+        console.log('[pools.pollRequestStatus] First item:', result.Ok[0]);
+        console.log('[pools.pollRequestStatus] First item keys:', Object.keys(result.Ok[0]));
       }
 
       const status = result.Ok[0];

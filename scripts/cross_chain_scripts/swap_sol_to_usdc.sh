@@ -114,7 +114,7 @@ echo "Message signed"
 echo
 echo "--- 4. Executing swap ---"
 MAX_RETRIES=10
-RETRY_DELAY=1
+RETRY_DELAY=3
 SWAP_RESULT=""
 
 for i in $(seq 1 $MAX_RETRIES); do
@@ -143,7 +143,7 @@ for i in $(seq 1 $MAX_RETRIES); do
     fi
     
     if [ $i -lt $MAX_RETRIES ]; then
-        echo "Retrying in $RETRY_DELAY second..."
+        echo "Retrying in $RETRY_DELAY seconds..."
         sleep $RETRY_DELAY
     fi
 done

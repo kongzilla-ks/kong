@@ -21,7 +21,19 @@ export const idlFactory = ({ IDL }) => {
     'amount' : IDL.Nat,
     'symbol' : IDL.Text,
   });
-  const TransferReply = IDL.Variant({ 'IC' : ICTransferReply });
+  const SolanaTransferReply = IDL.Record({
+    'is_send' : IDL.Bool,
+    'signature' : IDL.Text,
+    'chain' : IDL.Text,
+    'slot' : IDL.Opt(IDL.Nat64),
+    'amount' : IDL.Nat,
+    'mint_address' : IDL.Text,
+    'symbol' : IDL.Text,
+  });
+  const TransferReply = IDL.Variant({
+    'IC' : ICTransferReply,
+    'Solana' : SolanaTransferReply,
+  });
   const TransferIdReply = IDL.Record({
     'transfer_id' : IDL.Nat64,
     'transfer' : TransferReply,
@@ -128,7 +140,6 @@ export const idlFactory = ({ IDL }) => {
     'program_id' : IDL.Text,
     'is_spl_token' : IDL.Bool,
     'mint_address' : IDL.Text,
-    'total_supply' : IDL.Opt(IDL.Nat),
     'symbol' : IDL.Text,
   });
   const AddTokenReply = IDL.Variant({
