@@ -19,12 +19,12 @@ use crate::add_token::update_token_args::UpdateTokenArgs;
 use crate::add_token::update_token_reply::UpdateTokenReply;
 use crate::chains::chains::SOL_CHAIN;
 use crate::claims::claims_timer::process_claims_timer;
-use crate::helpers::nat_helpers::nat_is_zero;
-use crate::helpers::nat_helpers::{nat_to_decimals_f64, nat_to_f64};
+use crate::helpers::nat_helpers::{nat_is_zero, nat_to_decimals_f64, nat_to_f64};
 use crate::ic::network::ICNetwork;
 use crate::remove_liquidity::remove_liquidity_args::RemoveLiquidityArgs;
 use crate::solana::utils::validation;
 use crate::stable_kong_settings::kong_settings_map;
+use crate::stable_memory::cleanup_old_notifications;
 use crate::stable_request::request_archive::archive_request_map;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
@@ -124,10 +124,7 @@ async fn set_timer_processes() {
     let _ = set_timer_interval(Duration::from_secs(3600), || {
         // Clean up every hour
         ic_cdk::futures::spawn(async {
-            let removed_count = crate::stable_memory::cleanup_old_notifications();
-            if removed_count > 0 {
-                crate::ic::network::ICNetwork::info_log(&format!("Cleaned up {} old Solana notifications", removed_count));
-            }
+            cleanup_old_notifications();
         });
     });
 }
