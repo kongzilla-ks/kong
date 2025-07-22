@@ -17,9 +17,13 @@ use crate::add_token::add_token_args::AddTokenArgs;
 use crate::add_token::add_token_reply::AddTokenReply;
 use crate::add_token::update_token_args::UpdateTokenArgs;
 use crate::add_token::update_token_reply::UpdateTokenReply;
+use crate::chains::chains::SOL_CHAIN;
 use crate::claims::claims_timer::process_claims_timer;
+use crate::helpers::nat_helpers::nat_is_zero;
 use crate::helpers::nat_helpers::{nat_to_decimals_f64, nat_to_f64};
 use crate::ic::network::ICNetwork;
+use crate::remove_liquidity::remove_liquidity_args::RemoveLiquidityArgs;
+use crate::solana::utils::validation;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_request::request_archive::archive_request_map;
 use crate::stable_token::token::Token;
@@ -28,9 +32,6 @@ use crate::stable_transfer::transfer_archive::archive_transfer_map;
 use crate::stable_tx::tx_archive::archive_tx_map;
 use crate::stable_user::principal_id_map::create_principal_id_map;
 use crate::swap::swap_args::SwapArgs;
-use crate::remove_liquidity::remove_liquidity_args::RemoveLiquidityArgs;
-use crate::chains::chains::SOL_CHAIN;
-use crate::solana::utils::validation;
 
 use super::kong_backend::KongBackend;
 use super::stable_memory::{get_cached_solana_address, get_solana_transaction};
@@ -120,7 +121,8 @@ async fn set_timer_processes() {
     });
 
     // start the background timer to cleanup old Solana notifications
-    let _ = set_timer_interval(Duration::from_secs(3600), || {  // Clean up every hour
+    let _ = set_timer_interval(Duration::from_secs(3600), || {
+        // Clean up every hour
         ic_cdk::futures::spawn(async {
             let removed_count = crate::stable_memory::cleanup_old_notifications();
             if removed_count > 0 {
@@ -137,7 +139,7 @@ fn inspect_message() {
     let method_name = ic_cdk::api::msg_method_name();
     if QUERY_METHODS.contains(&method_name.as_str()) {
         ICNetwork::info_log(&format!("{} called as update from {}", method_name, ICNetwork::caller().to_text()));
-        ic_cdk::trap(&format!("{} must be called as query", method_name));
+        ic_cdk::trap(format!("{} must be called as query", method_name));
     }
 
     // Add anti-spam filtering for swap operations
@@ -146,7 +148,7 @@ fn inspect_message() {
             ic_cdk::trap(&e);
         }
     }
-    
+
     // Add validation for remove liquidity operations
     if method_name == "remove_liquidity" || method_name == "remove_liquidity_async" {
         if let Err(e) = validate_remove_liquidity_request() {
@@ -161,12 +163,12 @@ fn inspect_message() {
 fn validate_swap_request() -> Result<(), String> {
     // Get the raw argument bytes for basic validation
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     // Basic size check - prevent extremely large payloads
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     // Try to decode swap args for basic validation
     match decode_one::<SwapArgs>(&args_bytes) {
         Ok(args) => {
@@ -174,22 +176,20 @@ fn validate_swap_request() -> Result<(), String> {
             if args.pay_token.is_empty() || args.receive_token.is_empty() {
                 return Err("Invalid token parameters".to_string());
             }
-            
+
             // Amount validation - prevent zero or extremely large amounts
-            if args.pay_amount == Nat::from(0_u8) {
+            if nat_is_zero(&args.pay_amount) {
                 return Err("Pay amount cannot be zero".to_string());
             }
-            
+
             // Check if Solana transaction is ready (zero-cost early rejection)
-            if let Some(tx_id) = &args.pay_tx_id {
-                if let TxId::TransactionId(signature) = tx_id {
-                    // This is a Solana transaction - check if it exists in canister memory
-                    if get_solana_transaction(signature.clone()).is_none() {
-                        return Err("TRANSACTION_NOT_READY".to_string());
-                    }
+            if let Some(TxId::TransactionId(signature)) = args.pay_tx_id {
+                // This is a Solana transaction - check if it exists in canister memory
+                if get_solana_transaction(signature).is_none() {
+                    return Err("TRANSACTION_NOT_READY".to_string());
                 }
             }
-            
+
             Ok(())
         }
         Err(_) => Err("Invalid swap arguments format".to_string()),
@@ -199,12 +199,12 @@ fn validate_swap_request() -> Result<(), String> {
 /// Validation for remove liquidity requests to prevent invalid cross-chain operations
 fn validate_remove_liquidity_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     // Basic size check
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     // Try to decode remove liquidity args
     match decode_one::<RemoveLiquidityArgs>(&args_bytes) {
         Ok(args) => {
@@ -212,41 +212,39 @@ fn validate_remove_liquidity_request() -> Result<(), String> {
             if args.token_0.is_empty() || args.token_1.is_empty() {
                 return Err("Invalid token parameters".to_string());
             }
-            
+
             // Amount validation
-            if args.remove_lp_token_amount == Nat::from(0_u8) {
+            if nat_is_zero(&args.remove_lp_token_amount) {
                 return Err("Remove amount cannot be zero".to_string());
             }
-            
+
             // Parse tokens to check if they're Solana tokens
             let (chain_0, _) = args.token_0.split_once('.').unwrap_or(("", ""));
             let (chain_1, _) = args.token_1.split_once('.').unwrap_or(("", ""));
-            
+
             // If token_0 is Solana and no payout_address_0, reject early
             if chain_0 == SOL_CHAIN && args.payout_address_0.is_none() {
                 return Err("Solana token payouts require payout_address_0".to_string());
             }
-            
+
             // If token_1 is Solana and no payout_address_1, reject early
             if chain_1 == SOL_CHAIN && args.payout_address_1.is_none() {
                 return Err("Solana token payouts require payout_address_1".to_string());
             }
-            
+
             // Validate Solana addresses if provided
             if let Some(ref addr) = args.payout_address_0 {
                 if chain_0 == SOL_CHAIN {
-                    validation::validate_address(addr)
-                        .map_err(|_| format!("Invalid Solana address for payout_address_0: {}", addr))?;
+                    validation::validate_address(addr).map_err(|_| format!("Invalid Solana address for payout_address_0: {}", addr))?;
                 }
             }
-            
+
             if let Some(ref addr) = args.payout_address_1 {
                 if chain_1 == SOL_CHAIN {
-                    validation::validate_address(addr)
-                        .map_err(|_| format!("Invalid Solana address for payout_address_1: {}", addr))?;
+                    validation::validate_address(addr).map_err(|_| format!("Invalid Solana address for payout_address_1: {}", addr))?;
                 }
             }
-            
+
             Ok(())
         }
         Err(_) => Err("Invalid remove liquidity arguments format".to_string()),

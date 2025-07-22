@@ -49,7 +49,7 @@ fn custom_getrandom(buf: &mut [u8]) -> Result<(), Error> {
     // This is not cryptographically secure but sufficient for basic randomness needs
     let time_nanos = ic_cdk::api::time();
     let mut seed_bytes = time_nanos.to_le_bytes();
-    
+
     // Simple XOR-based PRNG for filling the buffer
     for (i, byte) in buf.iter_mut().enumerate() {
         let idx = i % seed_bytes.len();
@@ -57,7 +57,7 @@ fn custom_getrandom(buf: &mut [u8]) -> Result<(), Error> {
         // Mix the seed for next iteration
         seed_bytes[idx] = seed_bytes[idx].wrapping_add(1);
     }
-    
+
     Ok(())
 }
 
