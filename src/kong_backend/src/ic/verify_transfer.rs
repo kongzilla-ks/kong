@@ -61,7 +61,7 @@ pub enum TransferError {
         expected: Nat, 
         actual: Nat,
         token_id: u32,
-        tx_id: Nat,
+        tx_id: TxId,
     },
 }
 
@@ -172,7 +172,7 @@ pub async fn verify_and_record_transfer(
             expected: expected_amount.clone(),
             actual: actual_amount,
             token_id,
-            tx_id: tx_id.clone(),
+            tx_id: TxId::BlockIndex(tx_id.clone()),
         };
         request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
         return Err(error);

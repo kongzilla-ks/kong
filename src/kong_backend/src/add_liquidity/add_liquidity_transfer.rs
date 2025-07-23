@@ -53,7 +53,7 @@ pub async fn add_liquidity_transfer(args: AddLiquidityArgs) -> Result<AddLiquidi
                     is_send: true,
                     amount: actual.clone(),
                     token_id,
-                    tx_id: TxId::BlockIndex(tx_id),
+                    tx_id,
                     ts,
                 });
                 

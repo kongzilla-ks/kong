@@ -87,7 +87,7 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
                     is_send: true,
                     amount: actual.clone(),
                     token_id,
-                    tx_id: TxId::BlockIndex(tx_id),
+                    tx_id,
                     ts,
                 });
                 

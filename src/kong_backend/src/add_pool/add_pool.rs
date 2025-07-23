@@ -354,7 +354,7 @@ async fn process_add_pool(
                 is_send: true,
                 amount: actual_0.clone(),
                 token_id: *token_id_0,
-                tx_id: TxId::BlockIndex(tx_id_0.clone()),
+                tx_id: tx_id_0.clone(),
                 ts,
             });
             let tid_1 = transfer_map::insert(&StableTransfer {
@@ -363,7 +363,7 @@ async fn process_add_pool(
                 is_send: true,
                 amount: actual_1.clone(),
                 token_id: *token_id_1,
-                tx_id: TxId::BlockIndex(tx_id_1.clone()),
+                tx_id: tx_id_1.clone(),
                 ts,
             });
             transfer_ids.push(tid_0);
@@ -380,13 +380,13 @@ async fn process_add_pool(
                 is_send: true,
                 amount: actual.clone(),
                 token_id: *token_id,
-                tx_id: TxId::BlockIndex(tx_id.clone()),
+                tx_id: tx_id.clone(),
                 ts,
             });
             transfer_ids.push(tid_0);
             transfer_ids.push(*tid_1);
             return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, actual,
-                         &Err("Not transferred".to_string()), token_1, amount_1, 
+                         &Ok(()), token_1, amount_1, 
                          &mut transfer_ids, ts).await;
             return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
         }
@@ -399,11 +399,11 @@ async fn process_add_pool(
                 is_send: true,
                 amount: actual.clone(),
                 token_id: *token_id,
-                tx_id: TxId::BlockIndex(tx_id.clone()),
+                tx_id: tx_id.clone(),
                 ts,
             });
             transfer_ids.push(tid_1);
-            return_tokens(request_id, user_id, &caller_id, &Err("Not transferred".to_string()), 
+            return_tokens(request_id, user_id, &caller_id, &Ok(()), 
                          token_0, amount_0, &Ok(()), token_1, actual,
                          &mut transfer_ids, ts).await;
             return Err(format!("Req #{} failed. {}", request_id, transfer_1.as_ref().unwrap_err().to_string()));
