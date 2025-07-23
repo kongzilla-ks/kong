@@ -332,7 +332,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
         // For IC tokens, we need a valid block index
         let transfer_id = match &args.pay_tx_id {
             Some(pay_tx_id) => match pay_tx_id {
-                TxId::BlockIndex(pay_tx_id) => verify_transfer_token(request_id, &pay_token, pay_tx_id, &pay_amount, ts).await?,
+                TxId::BlockIndex(pay_tx_id) => verify_and_record_transfer(request_id, TokenType::PayToken, &pay_token, pay_tx_id, &pay_amount, ts).await?,
                 TxId::TransactionId(_) => {
                     // TransactionId is only valid for cross-chain swaps with signatures
                     request_map::update_status(request_id, StatusCode::PayTxIdNotSupported, None);
@@ -475,7 +475,3 @@ async fn process_swap(
     ))
 }
 
-async fn verify_transfer_token(request_id: u64, token: &StableToken, tx_id: &Nat, amount: &Nat, ts: u64) -> Result<u64, TransferError> {
-    // Use the shared utility for consistent transfer verification
-    verify_and_record_transfer(request_id, TokenType::PayToken, token, tx_id, amount, ts).await
-}
