@@ -238,7 +238,7 @@ pub fn get_solana_transaction(signature: String) -> Option<TransactionNotificati
 /// 
 /// Used by the canister's background timer (canister.rs:125) which runs every hour
 /// to remove transaction notifications that are older than 24 hours.
-pub fn cleanup_old_notifications() -> u32 {
+pub fn cleanup_old_notifications() {
     const TWENTY_FOUR_HOURS_NANOS: u64 = 24 * 60 * 60 * 1_000_000_000;
     let current_time = ICNetwork::get_time();
     let cutoff_time = current_time.saturating_sub(TWENTY_FOUR_HOURS_NANOS);
@@ -254,8 +254,8 @@ pub fn cleanup_old_notifications() -> u32 {
         }
 
         // Remove them
-        for key in to_remove {
-            notifications.remove(&key);
+        for key in to_remove.iter() {
+            notifications.remove(key);
         }
     })
 }
