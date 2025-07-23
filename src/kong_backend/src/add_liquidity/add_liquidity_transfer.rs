@@ -247,7 +247,7 @@ async fn check_arguments(
                 return Err(TransferError::TransferNotFound { error: "Token_0 is suspended or removed".to_string() });
             }
             let amount = &args.amount_0;
-            let transfer_id = verify_transfer_token(request_id, &TokenIndex::Token0, token, tx_id, amount, ts).await?;
+            let transfer_id = verify_and_record_transfer(request_id, TokenType::Token0, token, tx_id, amount, ts).await?;
             Ok(transfer_id)
         }
         _ => Err("Tx_id_0 not specified".to_string()),
@@ -260,7 +260,7 @@ async fn check_arguments(
                 return Err(TransferError::TransferNotFound { error: "Token_1 is suspended or removed".to_string() });
             }
             let amount = &args.amount_1;
-            let transfer_id = verify_transfer_token(request_id, &TokenIndex::Token1, token, tx_id, amount, ts).await?;
+            let transfer_id = verify_and_record_transfer(request_id, TokenType::Token1, token, tx_id, amount, ts).await?;
             Ok(transfer_id)
         }
         _ => Err("Tx_id_1 not specified".to_string()),
@@ -462,23 +462,6 @@ async fn process_add_liquidity(
     Ok(reply)
 }
 
-async fn verify_transfer_token(
-    request_id: u64,
-    token_index: &TokenIndex,
-    token: &StableToken,
-    tx_id: &Nat,
-    amount: &Nat,
-    ts: u64,
-) -> Result<u64, TransferError> {
-    // Convert our TokenIndex to the shared TokenType
-    let token_type = match token_index {
-        TokenIndex::Token0 => TokenType::Token0,
-        TokenIndex::Token1 => TokenType::Token1,
-    };
-    
-    // Use the shared utility for consistent transfer verification
-    verify_and_record_transfer(request_id, token_type, token, tx_id, amount, ts).await
-}
 
 #[allow(clippy::too_many_arguments)]
 async fn return_tokens(
