@@ -154,6 +154,14 @@ fn inspect_message() {
         }
     }
 
+    // Protect cache_solana_address - only allow if address not already cached
+    if method_name == "cache_solana_address" {
+        let cached = get_cached_solana_address();
+        if !cached.is_empty() {
+            ic_cdk::trap("Solana address already cached. This operation is only allowed once.");
+        }
+    }
+
     ic_cdk::api::accept_message();
 }
 
