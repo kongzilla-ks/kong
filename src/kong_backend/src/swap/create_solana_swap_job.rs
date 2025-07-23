@@ -9,7 +9,7 @@ use serde_json;
 
 use crate::ic::address::Address;
 use crate::ic::network::ICNetwork;
-use crate::stable_memory::{get_cached_solana_address, get_next_solana_swap_job_id, with_swap_job_queue_mut, with_solana_latest_blockhash};
+use crate::stable_memory::{get_cached_solana_address, get_next_solana_swap_job_id, with_swap_job_queue_mut};
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::solana::transaction::builder::{TransactionBuilder, SplTransferWithAtaParams};
 use crate::solana::transaction::sign::sign_transaction;
@@ -47,15 +47,6 @@ pub async fn create_solana_swap_job(
         if kong_address.is_empty() {
             return Err("Kong Solana address not initialized".to_string());
         }
-
-        // Get the latest blockhash
-        let _blockhash = with_solana_latest_blockhash(|cell| {
-            let latest = cell.get();
-            if latest.blockhash.is_empty() {
-                return Err("No blockhash available".to_string());
-            }
-            Ok(latest.blockhash.clone())
-        })?;
 
         // Get the job ID
         let job_id = get_next_solana_swap_job_id();
