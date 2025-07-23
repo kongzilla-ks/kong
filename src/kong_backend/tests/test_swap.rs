@@ -1128,3 +1128,200 @@ fn test_swap_direct_transfer_b_to_a() {
 
 }
 
+#[test]
+fn test_swap_duplicate_block_id_protection() {
+    // This test verifies that the system protects against using the same block ID twice
+    // This is a critical security test to prevent double spending
+    
+    // --- Arrange ---
+    let setup = setup_swap_test_environment().expect("Failed to setup swap test environment");
+    let ic = setup.ic;
+    let ledger_id_a = setup.token_a_ledger_id;
+    let ledger_id_b = setup.token_b_ledger_id;
+    let kong_id = setup.kong_backend;
+    let controller = setup.controller_principal;
+    let user = setup.user_principal;
+    let kong_account = setup.kong_account;
+    let user_account = setup.user_account;
+    
+    // Setup: User needs Token A for the swap
+    let transfer_amount = Nat::from(10_000_000u64); // 10 tokens
+    let transfer_args = TransferArg {
+        from_subaccount: None,
+        to: user_account,
+        amount: transfer_amount.clone(),
+        fee: None,
+        memo: None,
+        created_at_time: None,
+    };
+    
+    // Controller transfers Token A to user
+    let payload = encode_one(transfer_args).expect("Failed to encode transfer args");
+    ic.update_call(
+        ledger_id_a,
+        controller,
+        "icrc1_transfer",
+        payload,
+    )
+    .expect("Failed to transfer Token A to user");
+    
+    // --- Act ---
+    // User transfers Token A to Kong (this is the single blockchain transaction)
+    let transfer_to_kong_args = TransferArg {
+        from_subaccount: None,
+        to: kong_account,
+        amount: transfer_amount.clone(),
+        fee: None,
+        memo: None,
+        created_at_time: None,
+    };
+    
+    let payload = encode_one(transfer_to_kong_args).expect("Failed to encode transfer args");
+    let response = ic
+        .update_call(
+            ledger_id_a,
+            user,
+            "icrc1_transfer",
+            payload,
+        )
+        .expect("Failed to transfer Token A to Kong");
+    
+    let block_id = match decode_one::<Result<Nat, TransferError>>(&response)
+        .expect("Failed to decode transfer response") {
+        Ok(block_id) => block_id,
+        Err(e) => panic!("Transfer to Kong failed: {:?}", e),
+    };
+    
+    // Get token strings for swap
+    let token_a_str = format!("IC.{}", ledger_id_a.to_string());
+    let token_b_str = format!("IC.{}", ledger_id_b.to_string());
+    
+    // First swap attempt with the block ID
+    let swap_args_1 = SwapArgs {
+        pay_token: token_a_str.clone(),
+        pay_amount: transfer_amount.clone(),
+        pay_tx_id: Some(TxId::BlockIndex(block_id.clone())),
+        receive_token: token_b_str.clone(),
+        receive_amount: Some(Nat::from(1u64)), // Minimum expected
+        receive_address: None,
+        max_slippage: Some(100.0), // 100% slippage tolerance for test
+        referred_by: None,
+        pay_signature: None,
+    };
+    
+    let payload_1 = encode_one(swap_args_1).expect("Failed to encode swap args 1");
+    let swap_response_1 = ic
+        .update_call(
+            kong_id,
+            user,
+            "swap",
+            payload_1,
+        )
+        .expect("Failed to call swap 1");
+    
+    let swap_reply_1 = decode_one::<Result<SwapReply, String>>(&swap_response_1)
+        .expect("Failed to decode swap response 1");
+    
+    // Second swap attempt with the SAME block ID (simulating race condition)
+    let swap_args_2 = SwapArgs {
+        pay_token: token_a_str.clone(),
+        pay_amount: transfer_amount.clone(),
+        pay_tx_id: Some(TxId::BlockIndex(block_id.clone())), // SAME block ID!
+        receive_token: token_b_str.clone(),
+        receive_amount: Some(Nat::from(1u64)),
+        receive_address: None,
+        max_slippage: Some(100.0),
+        referred_by: None,
+        pay_signature: None,
+    };
+    
+    let payload_2 = encode_one(swap_args_2).expect("Failed to encode swap args 2");
+    let swap_response_2 = ic
+        .update_call(
+            kong_id,
+            user,
+            "swap",
+            payload_2,
+        )
+        .expect("Failed to call swap 2");
+    
+    let swap_reply_2 = decode_one::<Result<SwapReply, String>>(&swap_response_2)
+        .expect("Failed to decode swap response 2");
+    
+    // --- Assert ---
+    // Print the results for debugging
+    println!("\n=== SWAP TEST RESULTS ===");
+    println!("Swap 1 result: {:?}", swap_reply_1);
+    println!("Swap 2 result: {:?}", swap_reply_2);
+    
+    // Check if the second swap failed due to slippage rather than duplicate block ID
+    if let Err(error2) = &swap_reply_2 {
+        if error2.contains("Slippage exceeded") {
+            println!("\n⚠️  WARNING: Swap 2 failed due to slippage, not duplicate block ID!");
+            println!("This suggests the race condition might exist but was masked by slippage.");
+            
+            // In production with parallel execution, we saw:
+            // - Both swaps recorded the same block_id with different transfer_ids
+            // - Only slippage protection prevented double payout
+            println!("\nIn production, we observed:");
+            println!("- transfer_id=250 for block 910571");
+            println!("- transfer_id=251 for block 910571 (SAME BLOCK!)");
+            println!("This proves the race condition exists in concurrent execution.");
+        }
+    }
+    
+    // One swap should succeed, the other should fail with duplicate block ID error
+    match (&swap_reply_1, &swap_reply_2) {
+        (Ok(reply1), Err(error2)) => {
+            // First succeeded, second failed - this is the expected behavior
+            assert_eq!(reply1.status, "Success", "First swap should succeed");
+            assert!(
+                error2.contains("Duplicate block id") || error2.contains("duplicate"),
+                "Second swap should fail with duplicate block ID error, got: {}",
+                error2
+            );
+        }
+        (Err(error1), Ok(reply2)) => {
+            // First failed, second succeeded - this would indicate a race condition
+            // but is acceptable if the system processes them in reverse order
+            assert!(
+                error1.contains("Duplicate block id") || error1.contains("duplicate"),
+                "First swap should fail with duplicate block ID error if second succeeds, got: {}",
+                error1
+            );
+            assert_eq!(reply2.status, "Success", "Second swap should succeed if first failed");
+        }
+        (Ok(reply1), Ok(reply2)) => {
+            // CRITICAL: Both succeeded - this is the vulnerability!
+            panic!(
+                "SECURITY VULNERABILITY: Both swaps succeeded with the same block ID!\n\
+                First swap: request_id={}, status={}\n\
+                Second swap: request_id={}, status={}\n\
+                This indicates a race condition that allows double spending!",
+                reply1.request_id, reply1.status,
+                reply2.request_id, reply2.status
+            );
+        }
+        (Err(error1), Err(error2)) => {
+            panic!(
+                "Both swaps failed unexpectedly.\n\
+                First error: {}\n\
+                Second error: {}",
+                error1, error2
+            );
+        }
+    }
+    
+    // Additional check: Verify user's Token B balance only increased once
+    let user_balance_b = get_icrc1_balance(&ic, ledger_id_b, user_account);
+    
+    // The user should have received Token B from exactly one swap
+    // (We can't check the exact amount without knowing the pool state, but it should be > 0)
+    assert!(
+        user_balance_b > Nat::from(0u64),
+        "User should have received some Token B from the successful swap"
+    );
+    
+    println!("✅ Duplicate block ID protection test passed!");
+}
+

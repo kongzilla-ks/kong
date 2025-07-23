@@ -156,14 +156,8 @@ pub async fn verify_and_record_transfer(
     
     request_map::update_status(request_id, token_type.verify_status(), None);
     
-    // Check for duplicate transfers first
-    if transfer_map::contain(token_id, tx_id) {
-        let error = TransferError::DuplicateTransfer { tx_id: tx_id.clone() };
-        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
-        return Err(error);
-    }
-    
-    // Get the actual amount from the ledger
+    // CRITICAL FIX: Move async call BEFORE duplicate check to close race window
+    // Get the actual amount from the ledger first
     let actual_amount = match get_transfer_amount(token, tx_id).await {
         Ok(amount) => amount,
         Err(e) => {
@@ -171,6 +165,14 @@ pub async fn verify_and_record_transfer(
             return Err(TransferError::TransferNotFound { error: e });
         }
     };
+    
+    // NOW check for duplicates and insert atomically
+    // The key is that duplicate check and insert happen without any async gap between them
+    if transfer_map::contain(token_id, tx_id) {
+        let error = TransferError::DuplicateTransfer { tx_id: tx_id.clone() };
+        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
+        return Err(error);
+    }
     
     // Check if amounts match
     if actual_amount != *expected_amount {
@@ -609,13 +611,12 @@ async fn get_transfer_amount_with_get_transactions(
             length: Nat::from(1_u32),
         };
         match ic_cdk::call::Call::unbounded_wait(canister_id, "get_transactions")
-            .with_arg((block_args,))
+            .with_arg(block_args)
             .await
         {
             Ok(response) => {
-                let get_transactions_response = response.candid::<(GetTransactionsResponse,)>()
-                    .map_err(|e| format!("{:?}", e))?
-                    .0;
+                let get_transactions_response = response.candid::<GetTransactionsResponse>()
+                    .map_err(|e| format!("{:?}", e))?;
                 let transactions = get_transactions_response.transactions;
                 for transaction in transactions.into_iter() {
                     if let Some(transfer) = transaction.transfer {
