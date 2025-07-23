@@ -55,7 +55,7 @@ pub fn get_by_principal_id_with_anonymous_option(principal_id: &str, allow_anony
     if !allow_anonymous {
         ICNetwork::principal_id_is_not_anonymous(principal_id)?;
     }
-    
+
     Ok(match principal_id_map::get_user_id(principal_id) {
         Some(user_id) => get_by_user_id(user_id),
         None => None,
@@ -148,10 +148,12 @@ pub fn insert_with_anonymous_option(referred_by: Option<&str>, allow_anonymous: 
             };
             let user = StableUser {
                 user_id: kong_settings_map::inc_user_map_idx(),
+                principal_id: ICNetwork::caller().to_text(),
                 my_referral_code: generate_referral_code(&mut rng),
                 referred_by,
                 referred_by_expires_at,
-                ..Default::default()
+                fee_level: 0,
+                fee_level_expires_at: None,
             };
             // insert to principal_id_map
             principal_id_map::insert_principal_id(&user);
@@ -182,14 +184,13 @@ pub fn archive_to_kong_data(user: &StableUser) -> Result<(), String> {
         Err(e) => Err(format!("Failed to serialize user_id #{}. {}", user_id, e))?,
     };
 
-            ic_cdk::futures::spawn(async move {
+    ic_cdk::futures::spawn(async move {
         let kong_data = kong_settings_map::get().kong_data;
         match ic_cdk::call::Call::unbounded_wait(kong_data, "update_user")
             .with_arg((user_json,))
             .await
             .map_err(|e| format!("{:?}", e))
-            .and_then(|response| response.candid::<(Result<String, String>,)>()
-                .map_err(|e| format!("{:?}", e)))
+            .and_then(|response| response.candid::<(Result<String, String>,)>().map_err(|e| format!("{:?}", e)))
             .unwrap_or_else(|e| (Err(e),))
             .0
         {

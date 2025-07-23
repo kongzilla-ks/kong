@@ -3,6 +3,7 @@ use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
+use crate::ic::network::ICNetwork;
 use crate::solana::latest_blockhash::LatestBlockhash;
 use crate::solana::proxy::types::{TransactionNotification, TransactionNotificationId};
 use crate::stable_claim::stable_claim::{StableClaim, StableClaimId};
@@ -117,7 +118,7 @@ thread_local! {
     });
 
     // Stable map for Solana transaction notifications
-    pub static SOLANA_TX_NOTIFICATIONS: RefCell<StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>> = 
+    pub static SOLANA_TX_NOTIFICATIONS: RefCell<StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>> =
         with_memory_manager(|memory_manager| {
             RefCell::new(StableBTreeMap::init(
                 memory_manager.get(SOLANA_TX_NOTIFICATIONS_ID)
@@ -204,12 +205,16 @@ pub fn with_swap_job_queue_mut<R>(f: impl FnOnce(&mut StableBTreeMap<u64, SwapJo
 }
 
 /// Helper function to access solana transaction notifications
-pub fn with_solana_tx_notifications<R>(f: impl FnOnce(&StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>) -> R) -> R {
+pub fn with_solana_tx_notifications<R>(
+    f: impl FnOnce(&StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>) -> R,
+) -> R {
     SOLANA_TX_NOTIFICATIONS.with(|cell| f(&cell.borrow()))
 }
 
 /// Helper function to mutate solana transaction notifications
-pub fn with_solana_tx_notifications_mut<R>(f: impl FnOnce(&mut StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>) -> R) -> R {
+pub fn with_solana_tx_notifications_mut<R>(
+    f: impl FnOnce(&mut StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>) -> R,
+) -> R {
     SOLANA_TX_NOTIFICATIONS.with(|cell| f(&mut cell.borrow_mut()))
 }
 
@@ -234,30 +239,23 @@ pub fn get_solana_transaction(signature: String) -> Option<TransactionNotificati
 /// Used by the canister's background timer (canister.rs:125) which runs every hour
 /// to remove transaction notifications that are older than 24 hours.
 pub fn cleanup_old_notifications() -> u32 {
-    use crate::ic::network::ICNetwork;
-    
     const TWENTY_FOUR_HOURS_NANOS: u64 = 24 * 60 * 60 * 1_000_000_000;
     let current_time = ICNetwork::get_time();
     let cutoff_time = current_time.saturating_sub(TWENTY_FOUR_HOURS_NANOS);
-    
-    let mut removed_count = 0u32;
-    
+
     with_solana_tx_notifications_mut(|notifications| {
         let mut to_remove = Vec::new();
-        
+
         // Find old entries
         for (key, notification) in notifications.iter() {
             if notification.timestamp < cutoff_time {
                 to_remove.push(key.clone());
             }
         }
-        
+
         // Remove them
         for key in to_remove {
             notifications.remove(&key);
-            removed_count += 1;
         }
-    });
-    
-    removed_count
+    })
 }

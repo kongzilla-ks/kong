@@ -42,17 +42,15 @@ impl SolanaNetwork {
 
     pub async fn get_public_key(canister: &Principal) -> Result<String> {
         let derivation_path = ManagementCanister::get_canister_derivation_path(canister);
-        
+
         // Get the Schnorr public key - fail properly if not available
         let public_key_bytes = ManagementCanister::get_schnorr_public_key(canister, derivation_path)
             .await
             .map_err(|e| SolanaError::PublicKeyRetrievalError(e.to_string()))?;
-        
+
         let validated_public_key = SolanaNetwork::validate_public_key(&public_key_bytes)?;
         Ok(SolanaNetwork::bs58_encode_public_key(&validated_public_key))
     }
-
-
 
     pub fn validate_public_key(public_key: &[u8]) -> Result<Vec<u8>> {
         if public_key.len() == 32 {
