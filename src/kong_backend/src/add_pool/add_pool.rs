@@ -345,28 +345,64 @@ async fn process_add_pool(
 
     // both transfers must be successful
     match (&transfer_0, &transfer_1) {
-        (Err(TransferError::AmountMismatch { actual: actual_0, transfer_id: tid_0, .. }), 
-         Err(TransferError::AmountMismatch { actual: actual_1, transfer_id: tid_1, .. })) => {
-            // Both mismatch - return both with actual amounts
-            transfer_ids.push(*tid_0);
-            transfer_ids.push(*tid_1);
+        (Err(TransferError::AmountMismatch { actual: actual_0, token_id: token_id_0, tx_id: tx_id_0, .. }), 
+         Err(TransferError::AmountMismatch { actual: actual_1, token_id: token_id_1, tx_id: tx_id_1, .. })) => {
+            // Both mismatch - record and return both with actual amounts
+            let tid_0 = transfer_map::insert(&StableTransfer {
+                transfer_id: 0,
+                request_id,
+                is_send: true,
+                amount: actual_0.clone(),
+                token_id: *token_id_0,
+                tx_id: TxId::BlockIndex(tx_id_0.clone()),
+                ts,
+            });
+            let tid_1 = transfer_map::insert(&StableTransfer {
+                transfer_id: 0,
+                request_id,
+                is_send: true,
+                amount: actual_1.clone(),
+                token_id: *token_id_1,
+                tx_id: TxId::BlockIndex(tx_id_1.clone()),
+                ts,
+            });
+            transfer_ids.push(tid_0);
+            transfer_ids.push(tid_1);
             return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, &actual_0,
                          &Ok(()), token_1, &actual_1, &mut transfer_ids, ts).await;
             return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
         }
-        (Err(TransferError::AmountMismatch { actual, transfer_id, .. }), Ok(tid_1)) => {
-            // Token0 mismatch - return it with actual amount
-            transfer_ids.push(*transfer_id);
+        (Err(TransferError::AmountMismatch { actual, token_id, tx_id, .. }), Ok(tid_1)) => {
+            // Token0 mismatch - record and return it with actual amount
+            let tid_0 = transfer_map::insert(&StableTransfer {
+                transfer_id: 0,
+                request_id,
+                is_send: true,
+                amount: actual.clone(),
+                token_id: *token_id,
+                tx_id: TxId::BlockIndex(tx_id.clone()),
+                ts,
+            });
+            transfer_ids.push(tid_0);
             transfer_ids.push(*tid_1);
             return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, actual,
                          &Err("Not transferred".to_string()), token_1, amount_1, 
                          &mut transfer_ids, ts).await;
             return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
         }
-        (Ok(tid_0), Err(TransferError::AmountMismatch { actual, transfer_id, .. })) => {
-            // Token1 mismatch - return it with actual amount
+        (Ok(tid_0), Err(TransferError::AmountMismatch { actual, token_id, tx_id, .. })) => {
+            // Token1 mismatch - record and return it with actual amount
             transfer_ids.push(*tid_0);
-            transfer_ids.push(*transfer_id);
+            let tid_1 = transfer_map::insert(&StableTransfer {
+                transfer_id: 0,
+                request_id,
+                is_send: true,
+                amount: actual.clone(),
+                token_id: *token_id,
+                tx_id: TxId::BlockIndex(tx_id.clone()),
+                ts,
+            });
+            transfer_ids.push(tid_1);
             return_tokens(request_id, user_id, &caller_id, &Err("Not transferred".to_string()), 
                          token_0, amount_0, &Ok(()), token_1, actual,
                          &mut transfer_ids, ts).await;

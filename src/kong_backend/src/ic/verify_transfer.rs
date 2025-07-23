@@ -60,7 +60,8 @@ pub enum TransferError {
     AmountMismatch { 
         expected: Nat, 
         actual: Nat,
-        transfer_id: u64,
+        token_id: u32,
+        tx_id: Nat,
     },
 }
 
@@ -167,21 +168,11 @@ pub async fn verify_and_record_transfer(
     
     // Check if amounts match
     if actual_amount != *expected_amount {
-        // IMPORTANT: Record the transfer with the actual amount to prevent reuse
-        let transfer_id = transfer_map::insert(&StableTransfer {
-            transfer_id: 0,
-            request_id,
-            is_send: true,
-            amount: actual_amount.clone(),
-            token_id,
-            tx_id: TxId::BlockIndex(tx_id.clone()),
-            ts,
-        });
-        
         let error = TransferError::AmountMismatch {
             expected: expected_amount.clone(),
             actual: actual_amount,
-            transfer_id,
+            token_id,
+            tx_id: tx_id.clone(),
         };
         request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
         return Err(error);

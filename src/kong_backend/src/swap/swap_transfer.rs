@@ -65,11 +65,11 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     
     let (pay_token, pay_amount, pay_transfer_id) = match check_result {
         Ok(result) => result,
-        Err(TransferError::AmountMismatch { actual, transfer_id, .. }) => {
+        Err(TransferError::AmountMismatch { actual, token_id, tx_id, .. }) => {
                 // Amount Mismatch Recovery Process:
                 // 1. The transfer verification detected that actual_amount != expected_amount
-                // 2. The transfer was already recorded in transfer_map to prevent reuse
-                // 3. We now need to return the actual amount (minus gas) to the user
+                // 2. We need to record the transfer to prevent reuse
+                // 3. Return the actual amount (minus gas) to the user
                 // 4. Create a SwapReply to inform the user about the refund
                 let pay_token = match token_map::get_by_token(&args.pay_token) {
                     Ok(token) => token,
@@ -79,6 +79,17 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
                         return Err("Failed to get pay token".to_string());
                     }
                 };
+                
+                // Record the transfer with actual amount to prevent reuse
+                let transfer_id = transfer_map::insert(&StableTransfer {
+                    transfer_id: 0,
+                    request_id,
+                    is_send: true,
+                    amount: actual.clone(),
+                    token_id,
+                    tx_id: TxId::BlockIndex(tx_id),
+                    ts,
+                });
                 
                 // Return the tokens to the user with the actual amount
                 let caller_id = ICNetwork::caller_id();
