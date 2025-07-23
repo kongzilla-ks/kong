@@ -52,13 +52,6 @@ pub struct TaggrGetBlocksArgs {
     pub length: u64,
 }
 
-/// Represents the type of a transaction being verified.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum TransactionType {
-    Approve,
-    Transfer,
-    TransferFrom,
-}
 
 #[derive(Debug, Clone)]
 pub enum TransferError {
@@ -156,7 +149,6 @@ pub async fn verify_and_record_transfer(
     
     request_map::update_status(request_id, token_type.verify_status(), None);
     
-    // CRITICAL FIX: Move async call BEFORE duplicate check to close race window
     // Get the actual amount from the ledger first
     let actual_amount = match get_transfer_amount(token, tx_id).await {
         Ok(amount) => amount,
@@ -166,8 +158,7 @@ pub async fn verify_and_record_transfer(
         }
     };
     
-    // NOW check for duplicates and insert atomically
-    // The key is that duplicate check and insert happen without any async gap between them
+    // Check for duplicates and insert atomically
     if transfer_map::contain(token_id, tx_id) {
         let error = TransferError::DuplicateTransfer { tx_id: tx_id.clone() };
         request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
