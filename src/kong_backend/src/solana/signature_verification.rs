@@ -26,44 +26,6 @@ pub fn verify_ed25519_signature(message: &[u8], signature: &[u8], public_key: &s
     Ok(verifying_key.verify(message, &signature).is_ok())
 }
 
-/// Canonical swap message for signing/verification
-#[derive(Debug, Clone)]
-pub struct CanonicalSwapMessage {
-    pub pay_token: String,
-    pub pay_amount: u64,
-    pub pay_address: String,
-    pub receive_token: String,
-    pub receive_amount: u64,
-    pub receive_address: String,
-    pub max_slippage: f64,
-    pub referred_by: Option<String>,
-}
-
-impl CanonicalSwapMessage {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let message = format!(
-            "KongSwap Swap Request:\n\
-            Pay Token: {}\n\
-            Pay Amount: {}\n\
-            Pay Address: {}\n\
-            Receive Token: {}\n\
-            Receive Amount: {}\n\
-            Receive Address: {}\n\
-            Max Slippage: {}\n\
-            Referred By: {}",
-            self.pay_token,
-            self.pay_amount,
-            self.pay_address,
-            self.receive_token,
-            self.receive_amount,
-            self.receive_address,
-            self.max_slippage,
-            self.referred_by.as_deref().unwrap_or("None")
-        );
-
-        message.into_bytes()
-    }
-}
 
 fn verify_raw_message(message: &str, pubkey: &Pubkey, signature: &SolanaSignature) -> Result<()> {
     let verify_key = ed25519_dalek::VerifyingKey::from_bytes(&pubkey.to_bytes())?;
