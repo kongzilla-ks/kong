@@ -281,7 +281,7 @@ async fn process_add_pool(
         // IC-only path (backward compatible)
         match tx_id_0 {
             Some(block_id) => {
-                verify_transfer_token(request_id, &TokenIndex::Token0, token_0, block_id, amount_0, &mut transfer_ids, ts).await
+                verify_and_record_transfer(request_id, TokenType::Token0, token_0, block_id, amount_0, ts).await
             }
             None => {
                 transfer_from_token(
@@ -319,7 +319,7 @@ async fn process_add_pool(
         // IC-only path (backward compatible)
         match tx_id_1 {
             Some(block_id) => {
-                verify_transfer_token(request_id, &TokenIndex::Token1, token_1, block_id, amount_1, &mut transfer_ids, ts).await
+                verify_and_record_transfer(request_id, TokenType::Token1, token_1, block_id, amount_1, ts).await
             }
             None => {
                 //  if transfer_token_0 failed, no need to icrc2_transfer_from token_1
@@ -532,26 +532,6 @@ async fn process_add_pool(
     Ok(reply)
 }
 
-async fn verify_transfer_token(
-    request_id: u64,
-    token_index: &TokenIndex,
-    token: &StableToken,
-    tx_id: &Nat,
-    amount: &Nat,
-    transfer_ids: &mut Vec<u64>,
-    ts: u64,
-) -> Result<u64, TransferError> {
-    // Convert our TokenIndex to the shared TokenType
-    let token_type = match token_index {
-        TokenIndex::Token0 => TokenType::Token0,
-        TokenIndex::Token1 => TokenType::Token1,
-    };
-    
-    // Use the shared utility for consistent transfer verification
-    let transfer_id = verify_and_record_transfer(request_id, token_type, token, tx_id, amount, ts).await?;
-    transfer_ids.push(transfer_id);
-    Ok(transfer_id)
-}
 
 #[allow(clippy::too_many_arguments)]
 async fn transfer_from_token(
