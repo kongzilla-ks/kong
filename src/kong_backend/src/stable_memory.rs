@@ -234,20 +234,10 @@ pub fn get_solana_transaction(signature: String) -> Option<TransactionNotificati
     })
 }
 
-/// Check if a transaction exists
-pub fn transaction_exists(signature: &str) -> bool {
-    with_solana_tx_notifications(|notifications| {
-        let key = TransactionNotificationId(signature.to_string());
-        notifications.contains_key(&key)
-    })
-}
-
-/// Get transaction count for metrics
-pub fn get_transaction_count() -> u64 {
-    with_solana_tx_notifications(|notifications| notifications.len())
-}
-
 /// Clean up old notifications (older than 24 hours)
+/// 
+/// Used by the canister's background timer (canister.rs:125) which runs every hour
+/// to remove transaction notifications that are older than 24 hours.
 pub fn cleanup_old_notifications() {
     const TWENTY_FOUR_HOURS_NANOS: u64 = 24 * 60 * 60 * 1_000_000_000;
     let current_time = ICNetwork::get_time();
@@ -264,8 +254,8 @@ pub fn cleanup_old_notifications() {
         }
 
         // Remove them
-        for key in to_remove {
-            notifications.remove(&key);
+        for key in to_remove.iter() {
+            notifications.remove(key);
         }
     })
 }

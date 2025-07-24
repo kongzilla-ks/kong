@@ -1,14 +1,14 @@
 use ic_cdk::update;
 
-use crate::ic::guards::caller_is_kingkong;
 use crate::kong_backend::KongBackend;
 use crate::stable_memory::{get_cached_solana_address, set_cached_solana_address};
 
-/// Cache the canister's Solana address (Controller only)
+/// Cache the canister's Solana address (One-time initialization)
 /// This method derives the Solana address from the canister's Ed25519 key
 /// and stores it in memory for fast query access
+/// Can only be called once - subsequent calls are rejected at ingress level if successfully cached
 /// If already cached, it verifies the cached address matches the current derivation
-#[update(hidden = true, guard = "caller_is_kingkong")]
+#[update(hidden = true)]
 pub async fn cache_solana_address() -> Result<String, String> {
     // Derive the Solana address from the canister's Ed25519 key
     let address = KongBackend::get_solana_address()

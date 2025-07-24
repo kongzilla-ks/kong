@@ -12,6 +12,5 @@ pub use endpoints::{
 pub use crate::stable_memory::{
     get_solana_transaction,
     store_transaction_notification,
-    transaction_exists,
 };
 pub use types::{TransactionNotification, TransactionNotificationId};

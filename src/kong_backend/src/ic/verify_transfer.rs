@@ -52,13 +52,6 @@ pub struct TaggrGetBlocksArgs {
     pub length: u64,
 }
 
-/// Represents the type of a transaction being verified.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum TransactionType {
-    Approve,
-    Transfer,
-    TransferFrom,
-}
 
 #[derive(Debug, Clone)]
 pub enum TransferError {
@@ -67,7 +60,8 @@ pub enum TransferError {
     AmountMismatch { 
         expected: Nat, 
         actual: Nat,
-        transfer_id: u64,
+        token_id: u32,
+        tx_id: TxId,
     },
 }
 
@@ -156,14 +150,7 @@ pub async fn verify_and_record_transfer(
     
     request_map::update_status(request_id, token_type.verify_status(), None);
     
-    // Check for duplicate transfers first
-    if transfer_map::contain(token_id, tx_id) {
-        let error = TransferError::DuplicateTransfer { tx_id: tx_id.clone() };
-        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
-        return Err(error);
-    }
-    
-    // Get the actual amount from the ledger
+    // Get the actual amount from the ledger first
     let actual_amount = match get_transfer_amount(token, tx_id).await {
         Ok(amount) => amount,
         Err(e) => {
@@ -172,23 +159,20 @@ pub async fn verify_and_record_transfer(
         }
     };
     
+    // Check for duplicates and insert atomically
+    if transfer_map::contain(token_id, tx_id) {
+        let error = TransferError::DuplicateTransfer { tx_id: tx_id.clone() };
+        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
+        return Err(error);
+    }
+    
     // Check if amounts match
     if actual_amount != *expected_amount {
-        // IMPORTANT: Record the transfer with the actual amount to prevent reuse
-        let transfer_id = transfer_map::insert(&StableTransfer {
-            transfer_id: 0,
-            request_id,
-            is_send: true,
-            amount: actual_amount.clone(),
-            token_id,
-            tx_id: TxId::BlockIndex(tx_id.clone()),
-            ts,
-        });
-        
         let error = TransferError::AmountMismatch {
             expected: expected_amount.clone(),
             actual: actual_amount,
-            transfer_id,
+            token_id,
+            tx_id: TxId::BlockIndex(tx_id.clone()),
         };
         request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
         return Err(error);
@@ -609,13 +593,12 @@ async fn get_transfer_amount_with_get_transactions(
             length: Nat::from(1_u32),
         };
         match ic_cdk::call::Call::unbounded_wait(canister_id, "get_transactions")
-            .with_arg((block_args,))
+            .with_arg(block_args)
             .await
         {
             Ok(response) => {
-                let get_transactions_response = response.candid::<(GetTransactionsResponse,)>()
-                    .map_err(|e| format!("{:?}", e))?
-                    .0;
+                let get_transactions_response = response.candid::<GetTransactionsResponse>()
+                    .map_err(|e| format!("{:?}", e))?;
                 let transactions = get_transactions_response.transactions;
                 for transaction in transactions.into_iter() {
                     if let Some(transfer) = transaction.transfer {

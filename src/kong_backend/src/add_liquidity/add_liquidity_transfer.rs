@@ -42,10 +42,36 @@ pub async fn add_liquidity_transfer(args: AddLiquidityArgs) -> Result<AddLiquidi
     let (token_0, tx_id_0, transfer_id_0, token_1, tx_id_1, transfer_id_1) =
         match check_arguments(&args, request_id, ts).await {
             Ok(result) => result,
-            Err(TransferError::AmountMismatch { transfer_id, .. }) => {
-                // Amount mismatch - the transfer was recorded, so we need to return tokens
-                let mut transfer_ids = vec![transfer_id];
+            Err(TransferError::AmountMismatch { actual, token_id, tx_id, .. }) => {
+                // Amount mismatch - we need to record the transfer and return tokens
                 let caller_id = ICNetwork::caller_id();
+                
+                // Record the transfer with actual amount to prevent reuse
+                let transfer_id = transfer_map::insert(&StableTransfer {
+                    transfer_id: 0,
+                    request_id,
+                    is_send: true,
+                    amount: actual.clone(),
+                    token_id,
+                    tx_id,
+                    ts,
+                });
+                
+                let mut transfer_ids = vec![transfer_id];
+                
+                // Get the tokens
+                let token_0 = token_map::get_by_token(&args.token_0).ok();
+                let token_1 = token_map::get_by_token(&args.token_1).ok();
+                
+                // Determine which token had the mismatch
+                let (return_token_0, return_token_1) = 
+                    if token_0.as_ref().map(|t| t.token_id()) == Some(token_id) {
+                        // Token 0 had the mismatch
+                        (token_0.as_ref(), None)
+                    } else {
+                        // Token 1 had the mismatch
+                        (None, token_1.as_ref())
+                    };
                 
                 // Return tokens and update request with reply
                 return_tokens(
@@ -53,12 +79,12 @@ pub async fn add_liquidity_transfer(args: AddLiquidityArgs) -> Result<AddLiquidi
                     user_id,
                     &caller_id,
                     None,
-                    None,
-                    &Err("Transfer amount mismatch".to_string()),
-                    &Nat::from(0u32),
-                    None,
-                    &Err("Transfer amount mismatch".to_string()),
-                    &Nat::from(0u32),
+                    return_token_0,
+                    &Ok(()),
+                    &actual,
+                    return_token_1,
+                    &Ok(()),
+                    &actual,
                     &mut transfer_ids,
                     ts,
                 )
@@ -221,7 +247,7 @@ async fn check_arguments(
                 return Err(TransferError::TransferNotFound { error: "Token_0 is suspended or removed".to_string() });
             }
             let amount = &args.amount_0;
-            let transfer_id = verify_transfer_token(request_id, &TokenIndex::Token0, token, tx_id, amount, ts).await?;
+            let transfer_id = verify_and_record_transfer(request_id, TokenType::Token0, token, tx_id, amount, ts).await?;
             Ok(transfer_id)
         }
         _ => Err("Tx_id_0 not specified".to_string()),
@@ -234,7 +260,7 @@ async fn check_arguments(
                 return Err(TransferError::TransferNotFound { error: "Token_1 is suspended or removed".to_string() });
             }
             let amount = &args.amount_1;
-            let transfer_id = verify_transfer_token(request_id, &TokenIndex::Token1, token, tx_id, amount, ts).await?;
+            let transfer_id = verify_and_record_transfer(request_id, TokenType::Token1, token, tx_id, amount, ts).await?;
             Ok(transfer_id)
         }
         _ => Err("Tx_id_1 not specified".to_string()),
@@ -436,23 +462,6 @@ async fn process_add_liquidity(
     Ok(reply)
 }
 
-async fn verify_transfer_token(
-    request_id: u64,
-    token_index: &TokenIndex,
-    token: &StableToken,
-    tx_id: &Nat,
-    amount: &Nat,
-    ts: u64,
-) -> Result<u64, TransferError> {
-    // Convert our TokenIndex to the shared TokenType
-    let token_type = match token_index {
-        TokenIndex::Token0 => TokenType::Token0,
-        TokenIndex::Token1 => TokenType::Token1,
-    };
-    
-    // Use the shared utility for consistent transfer verification
-    verify_and_record_transfer(request_id, token_type, token, tx_id, amount, ts).await
-}
 
 #[allow(clippy::too_many_arguments)]
 async fn return_tokens(
