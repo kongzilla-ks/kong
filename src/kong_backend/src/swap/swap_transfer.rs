@@ -306,7 +306,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                     is_send: true,
                     amount: pay_amount.clone(),
                     token_id: pay_token.token_id(),
-                    tx_id: TxId::BlockIndex(block_index.into()),
+                    tx_id: TxId::BlockIndex(block_index),
                     ts,
                 });
                 request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);

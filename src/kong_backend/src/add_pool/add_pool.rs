@@ -368,8 +368,8 @@ async fn process_add_pool(
             });
             transfer_ids.push(tid_0);
             transfer_ids.push(tid_1);
-            return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, &actual_0,
-                         &Ok(()), token_1, &actual_1, &mut transfer_ids, ts).await;
+            return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, actual_0,
+                         &Ok(()), token_1, actual_1, &mut transfer_ids, ts).await;
             return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
         }
         (Err(TransferError::AmountMismatch { actual, token_id, tx_id, .. }), Ok(tid_1)) => {

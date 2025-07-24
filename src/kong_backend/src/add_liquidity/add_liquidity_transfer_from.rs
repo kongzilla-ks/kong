@@ -238,7 +238,7 @@ async fn process_add_liquidity(
         let signature = args.signature_0.as_ref().ok_or("Token_0: Solana tokens require signature")?;
 
         let verification = verifier
-            .verify_liquidity_payment(&args, &token_0, add_amount_0, tx_id_0, signature)
+            .verify_liquidity_payment(args, &token_0, add_amount_0, tx_id_0, signature)
             .await
             .map_err(|e| format!("Token_0 Solana payment verification failed. {}", e))?;
 
@@ -246,7 +246,7 @@ async fn process_add_liquidity(
         match &verification {
             LiquidityPaymentVerification::SolanaPayment { tx_signature, .. } => {
                 if transfer_map::contains_tx_signature(token_0.token_id(), tx_signature) {
-                    return Err(format!("Token_0 Solana transaction signature already used"));
+                    return Err("Token_0 Solana transaction signature already used".to_string());
                 }
             }
         }
@@ -291,13 +291,13 @@ async fn process_add_liquidity(
 
         match (tx_id_1, signature) {
             (Ok(tx_id), Ok(sig)) => {
-                match verifier.verify_liquidity_payment(&args, &token_1, add_amount_1, tx_id, sig).await {
+                match verifier.verify_liquidity_payment(args, &token_1, add_amount_1, tx_id, sig).await {
                     Ok(verification) => {
                         // Check if this Solana transaction has already been used
                         match &verification {
                             LiquidityPaymentVerification::SolanaPayment { tx_signature, .. } => {
                                 if transfer_map::contains_tx_signature(token_1.token_id(), tx_signature) {
-                                    return Err(format!("Token_1 Solana transaction signature already used"));
+                                    return Err("Token_1 Solana transaction signature already used".to_string());
                                 }
                             }
                         }
