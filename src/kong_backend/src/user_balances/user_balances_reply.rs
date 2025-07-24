@@ -1,7 +1,6 @@
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
-use super::lp_reply::LPReply;
 use crate::helpers::nat_helpers::{nat_add, nat_divide, nat_multiply, nat_to_decimals_f64, nat_zero};
 use crate::ic::ckusdt::{ckusdt_amount, to_ckusdt_decimals_f64};
 use crate::stable_lp_token::lp_token_map;
@@ -9,6 +8,8 @@ use crate::stable_lp_token::stable_lp_token::StableLPToken;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
+
+use super::lp_reply::LPReply;
 
 #[derive(CandidType, Clone, Debug, Serialize, Deserialize)]
 pub enum UserBalancesReply {

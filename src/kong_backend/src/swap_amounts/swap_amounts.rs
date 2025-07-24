@@ -1,13 +1,13 @@
 use candid::Nat;
 use ic_cdk::query;
 
-use super::swap_amounts_reply::SwapAmountsReply;
-use super::swap_amounts_reply_impl::to_swap_amounts_tx_reply;
-
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
 use crate::swap;
+
+use super::swap_amounts_reply::SwapAmountsReply;
+use super::swap_amounts_reply_impl::to_swap_amounts_tx_reply;
 
 #[query(guard = "not_in_maintenance_mode")]
 pub fn swap_amounts(pay_token: String, pay_amount: Nat, receive_token: String) -> Result<SwapAmountsReply, String> {

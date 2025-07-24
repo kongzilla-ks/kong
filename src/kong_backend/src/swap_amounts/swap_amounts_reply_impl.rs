@@ -1,11 +1,11 @@
 use num::{BigRational, Zero};
 
-use super::swap_amounts_reply::SwapAmountsTxReply;
-
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
 use crate::swap::swap_calc::SwapCalc;
 use crate::{helpers::math_helpers::price_rounded, stable_pool::pool_map};
+
+use super::swap_amounts_reply::SwapAmountsTxReply;
 
 pub fn to_swap_amounts_tx_reply(swap: &SwapCalc) -> Option<SwapAmountsTxReply> {
     let pool = pool_map::get_by_pool_id(swap.pool_id)?;

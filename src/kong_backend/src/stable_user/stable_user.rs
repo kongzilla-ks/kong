@@ -15,7 +15,6 @@ pub const ANONYMOUS_USER_ID: u32 = 0;
 pub const ALL_USERS_USER_ID: u32 = 1;
 #[allow(dead_code)]
 pub const SYSTEM_USER_ID: u32 = 2;
-#[allow(dead_code)]
 pub const CLAIMS_TIMER_USER_ID: u32 = 3;
 
 #[derive(CandidType, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
