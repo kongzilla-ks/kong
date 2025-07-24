@@ -71,7 +71,7 @@ pub fn get_address(token: &str) -> Option<String> {
         Some((chain, addr)) => (Some(chain), addr),
         None => (None, token),
     };
-    
+
     match chain {
         Some(IC_CHAIN) => Some(address.to_string()),
         Some(SOL_CHAIN) => Some(address.to_string()), // Solana addresses are base58 strings
@@ -167,6 +167,10 @@ pub fn get() -> Vec<StableToken> {
     })
 }
 
+pub fn get_disabled() -> Vec<StableToken> {
+    TOKEN_MAP.with_borrow(|m| m.iter().filter_map(|(_, v)| if v.is_removed() { Some(v) } else { None }).collect())
+}
+
 // token's address is the unique identifier
 pub fn exists(address_with_chain: &str) -> bool {
     TOKEN_MAP.with(|m| m.borrow().iter().any(|(_, v)| v.address_with_chain() == address_with_chain))
@@ -243,14 +247,13 @@ fn archive_to_kong_data(token: &StableToken) -> Result<(), String> {
         Err(e) => Err(format!("Failed to serialize token_id #{}. {}", token_id, e))?,
     };
 
-            ic_cdk::futures::spawn(async move {
+    ic_cdk::futures::spawn(async move {
         let kong_data = kong_settings_map::get().kong_data;
         match ic_cdk::call::Call::unbounded_wait(kong_data, "update_token")
             .with_arg((token_json,))
             .await
             .map_err(|e| format!("{:?}", e))
-            .and_then(|response| response.candid::<(Result<String, String>,)>()
-                .map_err(|e| format!("{:?}", e)))
+            .and_then(|response| response.candid::<(Result<String, String>,)>().map_err(|e| format!("{:?}", e)))
             .unwrap_or_else(|e| (Err(e),))
             .0
         {

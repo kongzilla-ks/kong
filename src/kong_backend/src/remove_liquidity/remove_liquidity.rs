@@ -13,6 +13,7 @@ use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_lp_token::{lp_token_map, stable_lp_token::StableLPToken};
 use crate::stable_pool::{pool_map, stable_pool::StablePool};
 use crate::stable_request::{reply::Reply, request::Request, request_map, stable_request::StableRequest, status::StatusCode};
+use crate::stable_token::token_management::handle_failed_transfer;
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{remove_liquidity_tx::RemoveLiquidityTx, stable_tx::StableTx, tx_map};
@@ -756,6 +757,7 @@ async fn transfer_token(
                 let claim_id = claim_map::insert(&claim);
                 claim_ids.push(claim_id);
                 let message = format!("Saved as claim #{}. {}", claim_id, e);
+                handle_failed_transfer(&token, e);
                 match token_index {
                     TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::ReceiveToken0Failed, Some(&message)),
                     TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::ReceiveToken1Failed, Some(&message)),

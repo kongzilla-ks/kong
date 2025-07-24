@@ -3,6 +3,7 @@ use crate::stable_claim::claim_map;
 use crate::stable_claim::stable_claim::ClaimStatus;
 use crate::stable_memory::CLAIM_MAP;
 use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
+use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
 use crate::stable_user::stable_user::CLAIMS_TIMER_USER_ID;
 
@@ -51,7 +52,9 @@ pub async fn process_claims_timer() {
             Some(address) => address.clone(),
             None => continue, // continue to next claim if to_address is not found
         };
-        if claim.attempt_request_id.len() > 50 && claim.status != ClaimStatus::UnclaimedOverride {
+        if (claim.attempt_request_id.len() > 50 || (claim.attempt_request_id.len() > 10 && token.is_removed()))
+            && claim.status != ClaimStatus::UnclaimedOverride
+        {
             // if claim has more than 50 attempts, update status to too_many_attempts and investigate manually
             claim_map::update_too_many_attempts_status(claim.claim_id);
             let _ = claim_map::archive_to_kong_data(claim.claim_id);
