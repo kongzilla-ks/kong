@@ -1,9 +1,9 @@
 use candid::{Nat, Principal};
 
-use super::stable_token::StableToken;
-use super::stable_token::StableToken::{IC, LP, Solana};
-
 use crate::helpers::nat_helpers::nat_zero;
+
+use super::stable_token::StableToken;
+use super::stable_token::StableToken::{Solana, IC, LP};
 
 pub trait Token {
     fn token_id(&self) -> u32;

@@ -1,12 +1,12 @@
 use candid::Nat;
 
-use super::stable_lp_token::{StableLPToken, StableLPTokenId};
-
 use crate::helpers::nat_helpers::{nat_add, nat_zero};
 use crate::ic::network::ICNetwork;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_memory::LP_TOKEN_MAP;
 use crate::stable_user::user_map;
+
+use super::stable_lp_token::{StableLPToken, StableLPTokenId};
 
 /// get lp_token of the caller
 pub fn get_by_token_id(token_id: u32) -> Option<StableLPToken> {
@@ -77,14 +77,13 @@ pub fn archive_to_kong_data(lp_token: &StableLPToken) -> Result<(), String> {
         Err(e) => Err(format!("Failed to serialize lp_token_id #{}. {}", lp_token_id, e))?,
     };
 
-            ic_cdk::futures::spawn(async move {
+    ic_cdk::futures::spawn(async move {
         let kong_data = kong_settings_map::get().kong_data;
         match ic_cdk::call::Call::unbounded_wait(kong_data, "update_lp_token")
             .with_arg((lp_token_json,))
             .await
             .map_err(|e| format!("{:?}", e))
-            .and_then(|response| response.candid::<(Result<String, String>,)>()
-                .map_err(|e| format!("{:?}", e)))
+            .and_then(|response| response.candid::<(Result<String, String>,)>().map_err(|e| format!("{:?}", e)))
             .unwrap_or_else(|e| (Err(e),))
             .0
         {

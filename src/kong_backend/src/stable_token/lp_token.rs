@@ -1,12 +1,12 @@
 use candid::CandidType;
 use serde::{Deserialize, Serialize};
 
-use super::stable_token::StableToken;
-use super::token;
-
 use crate::chains::chains::LP_CHAIN;
 use crate::stable_pool::pool_map;
 use crate::stable_pool::stable_pool::StablePool;
+
+use super::stable_token::StableToken;
+use super::token;
 
 pub const LP_DECIMALS: u8 = 8; // LP token decimal
 

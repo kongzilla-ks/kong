@@ -1,8 +1,9 @@
 use candid::{CandidType, Nat};
 use serde::{Deserialize, Serialize};
+
 use crate::stable_pool::stable_pool::StablePool;
-use crate::stable_token::token_map;
 use crate::stable_token::token::Token;
+use crate::stable_token::token_map;
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct PoolReply {
