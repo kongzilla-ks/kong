@@ -1,9 +1,9 @@
 use candid::Nat;
 use serde::{Deserialize, Serialize};
 
-use super::add_pool_args::AddPoolArgs;
 use crate::helpers::nat_helpers::serialize_amount_as_string;
 
+use super::add_pool_args::AddPoolArgs;
 /// A structure representing the canonical message format for signing pool additions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalAddPoolMessage {
@@ -19,14 +19,13 @@ pub struct CanonicalAddPoolMessage {
 impl CanonicalAddPoolMessage {
     /// Create a canonical message from AddPoolArgs
     pub fn from_add_pool_args(args: &AddPoolArgs) -> Self {
-        let result = Self {
+        Self {
             token_0: args.token_0.clone(),
             amount_0: args.amount_0.clone(),
             token_1: args.token_1.clone(),
             amount_1: args.amount_1.clone(),
             lp_fee_bps: args.lp_fee_bps.unwrap_or(30), // Default 30 bps if not specified
-        };
-        result
+        }
     }
 
     /// Serialize to JSON string for signing

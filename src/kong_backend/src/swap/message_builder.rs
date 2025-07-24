@@ -1,8 +1,9 @@
 use candid::Nat;
 use serde::{Deserialize, Serialize};
 
-use super::swap_args::SwapArgs;
 use crate::helpers::nat_helpers::serialize_amount_as_string;
+
+use super::swap_args::SwapArgs;
 
 /// A structure representing the canonical message format for signing
 /// This must serialize to exactly the same JSON format as the frontend
@@ -24,17 +25,12 @@ impl CanonicalSwapMessage {
     /// Create a canonical message from SwapArgs
     /// NOTE: This must create a message that serializes identically to the frontend
     pub fn from_swap_args(args: &SwapArgs) -> Self {
-        
         // For cross-chain swaps, we need to use the same values that the frontend used when signing
         // The frontend includes receive_amount and receive_address in the signed message
-        let receive_amount = args
-            .receive_amount
-            .as_ref()
-            .cloned()
-            .unwrap_or_else(|| Nat::from(0u64));
-            
+        let receive_amount = args.receive_amount.as_ref().cloned().unwrap_or_else(|| Nat::from(0u64));
+
         let receive_address = args.receive_address.clone().unwrap_or_default();
-        
+
         Self {
             pay_token: args.pay_token.clone(),
             pay_amount: args.pay_amount.clone(),
@@ -46,7 +42,7 @@ impl CanonicalSwapMessage {
             referred_by: args.referred_by.clone(),
         }
     }
-    
+
     /// Create a canonical message with a specific sender address
     pub fn with_sender(mut self, sender: String) -> Self {
         self.pay_address = sender;
@@ -55,7 +51,6 @@ impl CanonicalSwapMessage {
 
     /// Serialize to JSON string for signing
     pub fn to_signing_message(&self) -> String {
-        let json_message = serde_json::to_string(self).expect("Failed to serialize message");
-        json_message
+        serde_json::to_string(self).expect("Failed to serialize message")
     }
 }
