@@ -1,30 +1,10 @@
-//! Transfer verification utilities
-//! 
-//! This module provides comprehensive functionality for verifying transfers and handling amount mismatches
-//! across different operations (swap, add_liquidity, add_pool). It ensures consistent behavior
-//! when the actual transfer amount on the blockchain differs from the expected amount.
-//! 
-//! # Amount Mismatch Handling
-//! 
-//! When a user initiates a transfer, they specify an amount. However, the actual amount recorded
-//! on the blockchain may differ due to:
-//! - Transfer fees not accounted for by the user
-//! - Token contract behavior
-//! - Rounding differences
-//! 
-//! This module handles these mismatches by:
-//! 1. Recording the transfer with the actual amount to prevent reuse
-//! 2. Returning a clear error message with both expected and actual amounts
-//! 3. Enabling the calling code to return tokens to the user
-
 use candid::Principal;
 use candid::{CandidType, Deserialize, Nat};
-use ic_ledger_types::{query_blocks, AccountIdentifier, Block, GetBlocksArgs, Operation, Subaccount};
+use ic_ledger_types::{query_blocks, AccountIdentifier, Block, GetBlocksArgs, Operation, Subaccount, Tokens};
 use icrc_ledger_types::icrc::generic_value::ICRC3Value;
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc3::blocks::{GetBlocksRequest as ICRC3GetBlocksRequest, GetBlocksResult as ICRC3GetBlocksResult};
 use icrc_ledger_types::icrc3::transactions::{GetTransactionsRequest, GetTransactionsResponse};
-use num_traits::cast::ToPrimitive;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -33,8 +13,7 @@ use crate::ic::network::ICNetwork;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token::Token;
-use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
-use crate::stable_request::{request_map, status::StatusCode};
+use num_traits::cast::ToPrimitive;
 
 use super::wumbo::Transaction1;
 
@@ -52,166 +31,18 @@ pub struct TaggrGetBlocksArgs {
     pub length: u64,
 }
 
-
-#[derive(Debug, Clone)]
-pub enum TransferError {
-    DuplicateTransfer { tx_id: Nat },
-    TransferNotFound { error: String },
-    AmountMismatch { 
-        expected: Nat, 
-        actual: Nat,
-        token_id: u32,
-        tx_id: TxId,
-    },
+/// Represents the type of a transaction being verified.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum TransactionType {
+    Approve,
+    Transfer,
+    TransferFrom,
 }
 
-impl TransferError {
-    pub fn to_string(&self) -> String {
-        match self {
-            Self::DuplicateTransfer { tx_id } => 
-                format!("Duplicate block id #{}", tx_id),
-            Self::TransferNotFound { error } => error.clone(),
-            Self::AmountMismatch { expected, actual, .. } => 
-                format!("Transfer amount mismatch: expected {} but got {}", expected, actual),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum TokenType {
-    PayToken,
-    Token0,
-    Token1,
-}
-
-impl TokenType {
-    fn verify_status(&self) -> StatusCode {
-        match self {
-            TokenType::PayToken => StatusCode::VerifyPayToken,
-            TokenType::Token0 => StatusCode::VerifyToken0,
-            TokenType::Token1 => StatusCode::VerifyToken1,
-        }
-    }
-    
-    fn verify_failed_status(&self) -> StatusCode {
-        match self {
-            TokenType::PayToken => StatusCode::VerifyPayTokenFailed,
-            TokenType::Token0 => StatusCode::VerifyToken0Failed,
-            TokenType::Token1 => StatusCode::VerifyToken1Failed,
-        }
-    }
-    
-    fn verify_success_status(&self) -> StatusCode {
-        match self {
-            TokenType::PayToken => StatusCode::VerifyPayTokenSuccess,
-            TokenType::Token0 => StatusCode::VerifyToken0Success,
-            TokenType::Token1 => StatusCode::VerifyToken1Success,
-        }
-    }
-}
-
-/// Verifies a transfer and records it in the transfer map
-/// 
-/// This function:
-/// 1. Verifies the transfer exists on the blockchain
-/// 2. Checks for duplicate transfers
-/// 3. Compares the actual amount with the expected amount
-/// 4. Records the transfer to prevent reuse
-/// 
-/// # Arguments
-/// 
-/// * `request_id` - The unique identifier for this request
-/// * `token_type` - The type of token being verified (PayToken, Token0, or Token1)
-/// * `token` - The token being transferred
-/// * `tx_id` - The transaction/block ID on the blockchain
-/// * `expected_amount` - The amount the user specified
-/// * `ts` - The timestamp of the operation
-/// 
-/// # Returns
-/// 
-/// * `Ok(transfer_id)` - The ID of the recorded transfer
-/// * `Err(TransferError)` - Error if verification fails or amount mismatches
-/// 
-/// # Amount Mismatch Behavior
-/// 
-/// When the actual amount differs from the expected amount:
-/// 1. The transfer is still recorded with the actual amount to prevent reuse
-/// 2. An error is returned with both amounts for clarity
-/// 3. The calling code can then initiate a token return
-pub async fn verify_and_record_transfer(
-    request_id: u64,
-    token_type: TokenType,
-    token: &StableToken,
-    tx_id: &Nat,
-    expected_amount: &Nat,
-    ts: u64,
-) -> Result<u64, TransferError> {
-    let token_id = token.token_id();
-    
-    request_map::update_status(request_id, token_type.verify_status(), None);
-    
-    // Get the actual amount from the ledger first
-    let actual_amount = match get_transfer_amount(token, tx_id).await {
-        Ok(amount) => amount,
-        Err(e) => {
-            request_map::update_status(request_id, token_type.verify_failed_status(), Some(&e));
-            return Err(TransferError::TransferNotFound { error: e });
-        }
-    };
-    
-    // Check for duplicates and insert atomically
-    if transfer_map::contain(token_id, tx_id) {
-        let error = TransferError::DuplicateTransfer { tx_id: tx_id.clone() };
-        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
-        return Err(error);
-    }
-    
-    // Check if amounts match
-    if actual_amount != *expected_amount {
-        let error = TransferError::AmountMismatch {
-            expected: expected_amount.clone(),
-            actual: actual_amount,
-            token_id,
-            tx_id: TxId::BlockIndex(tx_id.clone()),
-        };
-        request_map::update_status(request_id, token_type.verify_failed_status(), Some(&error.to_string()));
-        return Err(error);
-    }
-    
-    // Amounts match - record the transfer and return success
-    let transfer_id = transfer_map::insert(&StableTransfer {
-        transfer_id: 0,
-        request_id,
-        is_send: true,
-        amount: expected_amount.clone(),
-        token_id,
-        tx_id: TxId::BlockIndex(tx_id.clone()),
-        ts,
-    });
-    
-    request_map::update_status(request_id, token_type.verify_success_status(), None);
-    Ok(transfer_id)
-}
-
-/// Verifies a transfer by checking the ledger and validating the amount matches.
+/// Verifies a transfer by checking the ledger.
 /// For ICRC3 tokens, it tries ICRC3 methods first, falling back to traditional methods.
 /// For non-ICRC3 tokens, it uses the traditional verification methods.
-/// Returns Ok(()) if verification succeeds, otherwise returns an error.
 pub async fn verify_transfer(token: &StableToken, block_id: &Nat, amount: &Nat) -> Result<(), String> {
-    let actual_amount = get_transfer_amount(token, block_id).await?;
-    
-    if actual_amount != *amount {
-        return Err(format!("Transfer amount mismatch: expected {} but got {}", amount, actual_amount));
-    }
-    
-    Ok(())
-}
-
-/// Retrieves the actual transfer amount from the ledger without validation.
-/// For ICRC3 tokens, it tries ICRC3 methods first, falling back to traditional methods.
-/// For non-ICRC3 tokens, it uses the traditional verification methods.
-/// Returns the actual transfer amount found on the ledger.
-pub async fn get_transfer_amount(token: &StableToken, block_id: &Nat) -> Result<Nat, String> {
     match token {
         StableToken::IC(ic_token) => {
             let canister_id = *token.canister_id().ok_or("Invalid canister id")?;
@@ -223,9 +54,10 @@ pub async fn get_transfer_amount(token: &StableToken, block_id: &Nat) -> Result<
 
             // try icrc3_get_blocks first
             if ic_token.icrc3 {
-                return get_transfer_amount_with_icrc3_get_blocks(
+                return verify_transfer_with_icrc3_get_blocks(
                     token,
                     block_id,
+                    amount,
                     canister_id,
                     &token_address_with_chain,
                     min_valid_timestamp,
@@ -237,14 +69,15 @@ pub async fn get_transfer_amount(token: &StableToken, block_id: &Nat) -> Result<
 
             // if ICP ledger, use query_blocks
             if token_address_with_chain == ICP_CANISTER_ID {
-                return get_transfer_amount_with_query_blocks(token, block_id, canister_id, min_valid_timestamp, kong_backend_account)
+                return verify_transfer_with_query_blocks(token, block_id, amount, canister_id, min_valid_timestamp, kong_backend_account)
                     .await;
             }
 
             // otherwise, use get_transactions
-            get_transfer_amount_with_get_transactions(
+            verify_transfer_with_get_transactions(
                 token,
                 block_id,
+                amount,
                 canister_id,
                 min_valid_timestamp,
                 kong_backend_account,
@@ -252,7 +85,7 @@ pub async fn get_transfer_amount(token: &StableToken, block_id: &Nat) -> Result<
             )
             .await
         }
-        _ => Err("Get transfer amount not supported for this token")?,
+        _ => Err("Verify transfer not supported for this token")?,
     }
 }
 
@@ -295,19 +128,19 @@ fn try_decode_icrc3_account_value(icrc3_value_arr: &[ICRC3Value]) -> Option<Acco
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn get_transfer_amount_with_icrc3_get_blocks(
+async fn verify_transfer_with_icrc3_get_blocks(
     token: &StableToken,
     block_id: &Nat,
+    amount: &Nat,
     canister_id: candid::Principal,
     token_address_with_chain: &String,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
     caller_account: icrc_ledger_types::icrc1::account::Account,
-) -> Result<Nat, String> {
+) -> Result<(), String> {
     // Prepare request arguments based on token type
     let blocks_result = if *token_address_with_chain == TAGGR_CANISTER_ID {
         // TAGGR uses a different format
-        // API boundary: TAGGR's icrc3_get_blocks requires u64
         let start_u64 = nat_to_u64(block_id).ok_or("Invalid block_id format for TAGGR")?;
         let block_args = vec![TaggrGetBlocksArgs {
             start: start_u64,
@@ -394,10 +227,11 @@ async fn get_transfer_amount_with_icrc3_get_blocks(
                         tx_amount = Some(amt.clone());
                     }
                 }
-                let transfer_amount = match tx_amount {
-                    Some(amt) => amt,
+                match tx_amount {
+                    Some(transfer_amount) if transfer_amount == *amount => (),
+                    Some(transfer_amount) => Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?,
                     None => continue, // Missing amount
-                };
+                }
 
                 let tx_from = if let Some(ICRC3Value::Map(tx)) = tx_map {
                     tx.get("from").and_then(|v| {
@@ -467,7 +301,7 @@ async fn get_transfer_amount_with_icrc3_get_blocks(
                     Some(_) => Err("Invalid transfer spender")?,
                 }
 
-                return Ok(transfer_amount); // success
+                return Ok(()); // success
             }
 
             Err(format!("Failed to verify {} transfer block id {}", token.symbol(), block_id))?
@@ -476,15 +310,15 @@ async fn get_transfer_amount_with_icrc3_get_blocks(
     }
 }
 
-async fn get_transfer_amount_with_query_blocks(
+async fn verify_transfer_with_query_blocks(
     token: &StableToken,
     block_id: &Nat,
+    amount: &Nat,
     canister_id: candid::Principal,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
-) -> Result<Nat, String> {
+) -> Result<(), String> {
     // if ICP ledger, use query_blocks
-    // API boundary: ICP ledger's query_blocks requires u64 block index
     let block_args = GetBlocksArgs {
         start: nat_to_u64(block_id).ok_or_else(|| format!("ICP ledger block id {:?} not found", block_id))?,
         length: 1,
@@ -496,6 +330,7 @@ async fn get_transfer_amount_with_query_blocks(
                 &kong_backend_account.owner,
                 &Subaccount(kong_backend_account.subaccount.unwrap_or([0; 32])),
             );
+            let amount = Tokens::from_e8s(nat_to_u64(amount).ok_or("Invalid ICP amount")?);
             for block in blocks.into_iter() {
                 match block.transaction.operation {
                     Some(operation) => match operation {
@@ -513,12 +348,14 @@ async fn get_transfer_amount_with_query_blocks(
                             if to != backend_account_id {
                                 Err("Transfer to does not match Kong backend")?
                             }
-                            let transfer_amount_nat = Nat::from(transfer_amount.e8s());
+                            if transfer_amount != amount {
+                                Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
+                            }
                             if block.transaction.created_at_time.timestamp_nanos < min_valid_timestamp {
                                 Err("Expired transfer timestamp")?
                             }
 
-                            return Ok(transfer_amount_nat); // success
+                            return Ok(()); // success
                         }
                         Operation::Mint { .. } => (),
                         Operation::Burn { .. } => (),
@@ -535,14 +372,15 @@ async fn get_transfer_amount_with_query_blocks(
     }
 }
 
-async fn get_transfer_amount_with_get_transactions(
+async fn verify_transfer_with_get_transactions(
     token: &StableToken,
     block_id: &Nat,
+    amount: &Nat,
     canister_id: candid::Principal,
     min_valid_timestamp: u64,
     kong_backend_account: &icrc_ledger_types::icrc1::account::Account,
     caller_account: icrc_ledger_types::icrc1::account::Account,
-) -> Result<Nat, String> {
+) -> Result<(), String> {
     let token_address_with_chain = token.address_with_chain();
 
     // Handle special tokens (WUMBO, DAMONIC, CLOWN) that use get_transaction (no 's')
@@ -568,12 +406,15 @@ async fn get_transfer_amount_with_get_transactions(
                             Err("Transfer to does not match Kong backend")?
                         }
                         let transfer_amount = transfer.amount;
+                        if transfer_amount != *amount {
+                            Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
+                        }
                         let timestamp = transaction.timestamp;
                         if timestamp < min_valid_timestamp {
                             Err("Expired transfer timestamp")?
                         }
 
-                        Ok(transfer_amount)
+                        Ok(())
                     } else if let Some(_burn) = transaction.burn {
                         Err("Invalid burn transaction")?
                     } else if let Some(_mint) = transaction.mint {
@@ -616,12 +457,15 @@ async fn get_transfer_amount_with_get_transactions(
                             Err("Invalid transfer spender")?
                         }
                         let transfer_amount = transfer.amount;
+                        if transfer_amount != *amount {
+                            Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
+                        }
                         let timestamp = transaction.timestamp;
                         if timestamp < min_valid_timestamp {
                             Err("Expired transfer timestamp")?
                         }
 
-                        return Ok(transfer_amount); // success
+                        return Ok(()); // success
                     } else if let Some(_burn) = transaction.burn {
                         // not used
                     } else if let Some(_mint) = transaction.mint {

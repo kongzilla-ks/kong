@@ -2,6 +2,10 @@ use candid::Nat;
 use ic_cdk::update;
 use icrc_ledger_types::icrc1::account::Account;
 
+use super::add_pool_args::AddPoolArgs;
+use super::add_pool_reply::AddPoolReply;
+use super::pool_payment_verifier::{PoolPaymentVerification, PoolPaymentVerifier};
+
 use crate::add_token::add_token::{add_ic_token, add_lp_token};
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::helpers::nat_helpers::{nat_add, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero};
@@ -12,7 +16,7 @@ use crate::ic::{
     icp::is_icp,
     network::ICNetwork,
     transfer::{icrc1_transfer, icrc2_transfer_from},
-    verify_transfer::{verify_and_record_transfer, TokenType, TransferError},
+    verify_transfer::verify_transfer,
 };
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
@@ -33,16 +37,52 @@ use crate::stable_tx::{add_pool_tx::AddPoolTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
 use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
-use super::add_pool_args::AddPoolArgs;
-use super::add_pool_reply::AddPoolReply;
-use super::pool_payment_verifier::{PoolPaymentVerification, PoolPaymentVerifier};
-
 enum TokenIndex {
     Token0,
     Token1,
 }
 
-/// Adds a pool to Kong with automatic amount mismatch handling
+
+/// Token type for transfer verification
+#[derive(Debug, Clone, Copy)]
+enum TokenType {
+    Token0,
+    Token1,
+}
+
+/// Verify and record a transfer
+async fn verify_and_record_transfer(
+    request_id: u64,
+    token_type: TokenType,
+    token: &StableToken,
+    block_id: &Nat,
+    expected_amount: &Nat,
+    ts: u64,
+) -> Result<u64, String> {
+    // First verify the transfer exists
+    match verify_transfer(token, block_id, expected_amount).await {
+        Ok(_) => {
+            // Check for duplicate transaction
+            if transfer_map::contain(token.token_id(), block_id) {
+                return Err(format!("Duplicate block id: #{}", block_id));
+            }
+            // Record the transfer
+            let transfer_id = transfer_map::insert(&StableTransfer {
+                transfer_id: 0,
+                request_id,
+                is_send: true,
+                amount: expected_amount.clone(),
+                token_id: token.token_id(),
+                tx_id: TxId::BlockIndex(block_id.clone()),
+                ts,
+            });
+            Ok(transfer_id)
+        }
+        Err(e) => Err(e)
+    }
+}
+
+/// Adds a pool to Kong
 ///
 /// # Arguments
 ///
@@ -50,21 +90,8 @@ enum TokenIndex {
 ///
 /// # Returns
 ///
-/// * `Ok(AddPoolReply)` - Pool creation details or refund information if amount mismatch occurs
-/// * `Err(String)` - An error message if the operation fails
-/// 
-/// # Amount Mismatch Handling
-/// 
-/// Pool creation requires transferring two tokens. If the actual amounts on the blockchain
-/// differ from the expected amounts (due to fees or token behavior), this function:
-/// 
-/// 1. **Detects** the mismatch by comparing actual vs expected amounts
-/// 2. **Records** all transfers to prevent double-spending
-/// 3. **Returns** tokens to the user (minus gas fees) based on actual amounts
-/// 4. **Reports** the failure with clear error messages
-/// 
-/// The sophisticated error handling ensures partial transfers are properly reversed,
-/// protecting users from losing funds during failed pool creation attempts.
+/// * `Ok(String)` - A success message if the pool is added successfully.
+/// * `Err(String)` - An error message if the operation fails.
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_pool(args: AddPoolArgs) -> Result<AddPoolReply, String> {
     let args_clone = args.clone();
@@ -295,7 +322,6 @@ async fn process_add_pool(
                     ts,
                 )
                 .await
-                .map_err(|e| TransferError::TransferNotFound { error: e })
             }
         }
     };
@@ -324,7 +350,7 @@ async fn process_add_pool(
             None => {
                 //  if transfer_token_0 failed, no need to icrc2_transfer_from token_1
                 if transfer_0.is_err() {
-                    Err(TransferError::TransferNotFound { error: "Token_0 transfer failed".to_string() })
+                    Err("Token_0 transfer failed".to_string())
                 } else {
                     transfer_from_token(
                         request_id,
@@ -345,93 +371,32 @@ async fn process_add_pool(
 
     // both transfers must be successful
     match (&transfer_0, &transfer_1) {
-        (Err(TransferError::AmountMismatch { actual: actual_0, token_id: token_id_0, tx_id: tx_id_0, .. }), 
-         Err(TransferError::AmountMismatch { actual: actual_1, token_id: token_id_1, tx_id: tx_id_1, .. })) => {
-            // Both mismatch - record and return both with actual amounts
-            let tid_0 = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: true,
-                amount: actual_0.clone(),
-                token_id: *token_id_0,
-                tx_id: tx_id_0.clone(),
-                ts,
-            });
-            let tid_1 = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: true,
-                amount: actual_1.clone(),
-                token_id: *token_id_1,
-                tx_id: tx_id_1.clone(),
-                ts,
-            });
-            transfer_ids.push(tid_0);
-            transfer_ids.push(tid_1);
-            return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, actual_0,
-                         &Ok(()), token_1, actual_1, &mut transfer_ids, ts).await;
-            return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
-        }
-        (Err(TransferError::AmountMismatch { actual, token_id, tx_id, .. }), Ok(tid_1)) => {
-            // Token0 mismatch - record and return it with actual amount
-            let tid_0 = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: true,
-                amount: actual.clone(),
-                token_id: *token_id,
-                tx_id: tx_id.clone(),
-                ts,
-            });
-            transfer_ids.push(tid_0);
-            transfer_ids.push(*tid_1);
-            return_tokens(request_id, user_id, &caller_id, &Ok(()), token_0, actual,
-                         &Ok(()), token_1, amount_1, 
-                         &mut transfer_ids, ts).await;
-            return Err(format!("Req #{} failed. {}", request_id, transfer_0.as_ref().unwrap_err().to_string()));
-        }
-        (Ok(tid_0), Err(TransferError::AmountMismatch { actual, token_id, tx_id, .. })) => {
-            // Token1 mismatch - record and return it with actual amount
-            transfer_ids.push(*tid_0);
-            let tid_1 = transfer_map::insert(&StableTransfer {
-                transfer_id: 0,
-                request_id,
-                is_send: true,
-                amount: actual.clone(),
-                token_id: *token_id,
-                tx_id: tx_id.clone(),
-                ts,
-            });
-            transfer_ids.push(tid_1);
-            return_tokens(request_id, user_id, &caller_id, &Ok(()), 
-                         token_0, amount_0, &Ok(()), token_1, actual,
-                         &mut transfer_ids, ts).await;
-            return Err(format!("Req #{} failed. {}", request_id, transfer_1.as_ref().unwrap_err().to_string()));
-        }
-        (Err(e), _) => {
-            // Token0 failed with other error
-            if let Ok(tid_1) = transfer_1 {
-                transfer_ids.push(tid_1);
-            }
-            return_tokens(request_id, user_id, &caller_id, &Err("Transfer failed".to_string()), 
-                         token_0, amount_0, &Err("Not transferred".to_string()), token_1, amount_1,
-                         &mut transfer_ids, ts).await;
-            return Err(format!("Req #{} failed. {}", request_id, e.to_string()));
-        }
-        (_, Err(e)) => {
-            // Token1 failed with other error
-            if let Ok(tid_0) = transfer_0 {
-                transfer_ids.push(tid_0);
-            }
-            return_tokens(request_id, user_id, &caller_id, &Ok(()), 
-                         token_0, amount_0, &Err("Transfer failed".to_string()), token_1, amount_1,
-                         &mut transfer_ids, ts).await;
-            return Err(format!("Req #{} failed. {}", request_id, e.to_string()));
-        }
         (Ok(tid_0), Ok(tid_1)) => {
             // Both successful - continue
             transfer_ids.push(*tid_0);
             transfer_ids.push(*tid_1);
+        }
+        _ => {
+            // At least one failed
+            return_tokens(
+                request_id,
+                user_id,
+                &caller_id,
+                &transfer_0,
+                token_0,
+                amount_0,
+                &transfer_1,
+                token_1,
+                amount_1,
+                &mut transfer_ids,
+                ts,
+            )
+            .await;
+            if transfer_0.is_err() {
+                return Err(format!("Req #{} failed. {}", request_id, transfer_0.unwrap_err()));
+            } else {
+                return Err(format!("Req #{} failed. {}", request_id, transfer_1.unwrap_err()));
+            };
         }
     }
 
@@ -855,7 +820,7 @@ async fn verify_cross_chain_transfer(
     transfer_ids: &mut Vec<u64>,
     ts: u64,
     args: &AddPoolArgs,
-) -> Result<u64, TransferError> {
+) -> Result<u64, String> {
     match token_index {
         TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0, None),
         TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1, None),
@@ -876,7 +841,7 @@ async fn verify_cross_chain_transfer(
                     tx_id, args.tx_id_1
                 ),
             };
-            TransferError::TransferNotFound { error: error_msg }
+            error_msg
         })?
         .clone();
 
@@ -891,7 +856,7 @@ async fn verify_cross_chain_transfer(
                 TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Failed, Some(&error_msg)),
                 TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::VerifyToken1Failed, Some(&error_msg)),
             };
-            TransferError::TransferNotFound { error: error_msg }
+            error_msg
         })?;
 
     // Create transfer record based on verification result
@@ -899,9 +864,7 @@ async fn verify_cross_chain_transfer(
         PoolPaymentVerification::SolanaPayment { tx_signature, .. } => {
             // Check if this Solana transaction has already been used
             if transfer_map::contains_tx_signature(token.token_id(), &tx_signature) {
-                return Err(TransferError::TransferNotFound { 
-                    error: format!("Solana transaction signature already used for {}", token.symbol()) 
-                });
+                return Err(format!("Solana transaction signature already used for {}", token.symbol()));
             }
             TxId::TransactionId(tx_signature)
         }
