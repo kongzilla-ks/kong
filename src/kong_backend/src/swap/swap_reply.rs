@@ -1,6 +1,6 @@
 use candid::{CandidType, Nat};
-use serde::{Deserialize, Serialize};
 use num::{BigRational, Zero};
+use serde::{Deserialize, Serialize};
 
 use crate::helpers::math_helpers::price_rounded;
 use crate::helpers::nat_helpers::nat_zero;
@@ -8,10 +8,10 @@ use crate::stable_pool::pool_map;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_map;
+use crate::stable_transfer::transfer_map;
 use crate::stable_tx::status_tx::StatusTx;
 use crate::stable_tx::swap_tx::SwapTx;
 use crate::transfers::transfer_reply::TransferIdReply;
-use crate::stable_transfer::transfer_map;
 
 use super::swap_calc::SwapCalc;
 
@@ -75,6 +75,7 @@ impl From<(&SwapCalc, u64)> for SwapTxReply {
         let receive_symbol = receive_token.symbol().to_string();
         let price = swap.get_price().unwrap_or(BigRational::zero());
         let price_f64 = price_rounded(&price).unwrap_or(0_f64);
+
         SwapTxReply {
             pool_symbol: pool.symbol(),
             pay_chain,
@@ -119,16 +120,19 @@ fn get_tokens_info(pay_token_id: u32, receive_token_id: u32) -> (String, String,
     (pay_chain, pay_address, pay_symbol, receive_chain, receive_address, receive_symbol)
 }
 
-fn to_txs(txs: &[SwapCalc], ts: u64) -> Vec<SwapTxReply> {
-    txs.iter().filter_map(|tx| {
-        Some(SwapTxReply::from((tx, ts)))
-    }).collect()
+fn to_txs(swap_tx: &SwapTx) -> Vec<SwapTxReply> {
+    swap_tx
+        .txs
+        .iter()
+        .map(|tx| SwapTxReply::from((tx, swap_tx.ts)))
+        .collect()
 }
 
 impl From<&SwapTx> for SwapReply {
     fn from(swap_tx: &SwapTx) -> Self {
         let (pay_chain, pay_address, pay_symbol, receive_chain, receive_address, receive_symbol) =
             get_tokens_info(swap_tx.pay_token_id, swap_tx.receive_token_id);
+
         SwapReply {
             tx_id: swap_tx.tx_id,
             request_id: swap_tx.request_id,
@@ -144,12 +148,16 @@ impl From<&SwapTx> for SwapReply {
             mid_price: swap_tx.mid_price,
             price: swap_tx.price,
             slippage: swap_tx.slippage,
-            txs: to_txs(&swap_tx.txs, swap_tx.ts),
-            transfer_ids: swap_tx.transfer_ids.iter().filter_map(|&transfer_id| {
-                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
-                let token = token_map::get_by_token_id(transfer.token_id)?;
-                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
-            }).collect(),
+            txs: to_txs(swap_tx),
+            transfer_ids: swap_tx
+                .transfer_ids
+                .iter()
+                .filter_map(|&transfer_id| {
+                    let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                    let token = token_map::get_by_token_id(transfer.token_id)?;
+                    TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+                })
+                .collect(),
             claim_ids: swap_tx.claim_ids.clone(),
             ts: swap_tx.ts,
         }
@@ -190,11 +198,14 @@ impl SwapReply {
             price: 0_f64,
             slippage: 0_f64,
             txs: Vec::new(),
-            transfer_ids: transfer_ids.iter().filter_map(|&transfer_id| {
-                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
-                let token = token_map::get_by_token_id(transfer.token_id)?;
-                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
-            }).collect(),
+            transfer_ids: transfer_ids
+                .iter()
+                .filter_map(|&transfer_id| {
+                    let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                    let token = token_map::get_by_token_id(transfer.token_id)?;
+                    TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+                })
+                .collect(),
             claim_ids: claim_ids.to_vec(),
             ts,
         }

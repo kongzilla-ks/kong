@@ -1,14 +1,14 @@
 use candid::{CandidType, Deserialize, Principal};
-use serde::Serialize; // Added Serialize
 use ic_stable_structures::{storable::Bound, Storable};
+use serde::Serialize; // Added Serialize
 use std::borrow::Cow;
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SwapJobStatus {
     PendingVerification, // Payment verification in progress
-    Pending,    // Job created, awaiting processing by kong_rpc
-    Confirmed,  // Confirmed by kong_rpc as successful on Solana
-    Failed,     // Failed (either Solana tx failed, or an internal error)
+    Pending,             // Job created, awaiting processing by kong_rpc
+    Confirmed,           // Confirmed by kong_rpc as successful on Solana
+    Failed,              // Failed (either Solana tx failed, or an internal error)
 }
 
 impl Storable for SwapJobStatus {
@@ -30,9 +30,12 @@ impl Storable for SwapJobStatus {
             _ => panic!("Invalid SwapJobStatus bytes"), // Or handle error appropriately
         }
     }
-    const BOUND: Bound = Bound::Bounded { max_size: 1, is_fixed_size: true };
-}
 
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 1,
+        is_fixed_size: true,
+    };
+}
 
 /// Parameters for creating a new SwapJob
 #[derive(Clone, Debug)]
@@ -58,10 +61,10 @@ pub struct SwapJob {
     pub status: SwapJobStatus,
     pub created_at: u64, // ic_cdk::api::time()
     pub updated_at: u64,
-    pub encoded_signed_solana_tx: String, 
+    pub encoded_signed_solana_tx: String,
     pub solana_tx_signature_of_payout: Option<String>,
     pub error_message: Option<String>,
-    pub attempts: u32, // For kong_rpc retry logic
+    pub attempts: u32,  // For kong_rpc retry logic
     pub tx_sig: String, // Transaction signature computed at signing time
 }
 
@@ -73,7 +76,7 @@ impl Storable for SwapJob {
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
         serde_cbor::from_slice(&bytes).expect("Failed to decode SwapJob")
     }
-    const BOUND: Bound = Bound::Unbounded; 
+    const BOUND: Bound = Bound::Unbounded;
 }
 
 impl SwapJob {
