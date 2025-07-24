@@ -1,12 +1,6 @@
 use candid::Nat;
 use icrc_ledger_types::icrc1::account::Account;
 
-use super::add_liquidity::TokenIndex;
-use super::add_liquidity_args::AddLiquidityArgs;
-use super::liquidity_payment_verifier::{LiquidityPaymentVerifier, LiquidityPaymentVerification};
-use crate::chains::chains::SOL_CHAIN;
-use super::add_liquidity_reply::AddLiquidityReply;
-
 use crate::helpers::nat_helpers::{
     nat_add, nat_divide, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero,
 };
@@ -25,6 +19,12 @@ use crate::stable_token::token::Token;
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{add_liquidity_tx::AddLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
+
+use super::add_liquidity::TokenIndex;
+use super::add_liquidity_args::AddLiquidityArgs;
+use super::add_liquidity_reply::AddLiquidityReply;
+use super::liquidity_payment_verifier::{LiquidityPaymentVerification, LiquidityPaymentVerifier};
+use crate::chains::chains::SOL_CHAIN;
 
 pub async fn add_liquidity_transfer_from(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     let (user_id, pool, add_amount_0, add_amount_1) = check_arguments(&args).await?;
@@ -236,10 +236,12 @@ async fn process_add_liquidity(
         let verifier = LiquidityPaymentVerifier::new(ICNetwork::caller());
         let tx_id_0 = args.tx_id_0.as_ref().ok_or("Token_0: Solana tokens require tx_id")?;
         let signature = args.signature_0.as_ref().ok_or("Token_0: Solana tokens require signature")?;
-        
-        let verification = verifier.verify_liquidity_payment(&args, &token_0, add_amount_0, tx_id_0, signature).await
+
+        let verification = verifier
+            .verify_liquidity_payment(&args, &token_0, add_amount_0, tx_id_0, signature)
+            .await
             .map_err(|e| format!("Token_0 Solana payment verification failed. {}", e))?;
-        
+
         // Check if this Solana transaction has already been used
         match &verification {
             LiquidityPaymentVerification::SolanaPayment { tx_signature, .. } => {
@@ -248,7 +250,7 @@ async fn process_add_liquidity(
                 }
             }
         }
-        
+
         // Record the transfer
         let transfer_id = transfer_map::insert(&StableTransfer {
             transfer_id: 0,
@@ -282,8 +284,11 @@ async fn process_add_liquidity(
         // Verify Solana payment with signature
         let verifier = LiquidityPaymentVerifier::new(ICNetwork::caller());
         let tx_id_1 = args.tx_id_1.as_ref().ok_or("Token_1: Solana tokens require tx_id".to_string());
-        let signature = args.signature_1.as_ref().ok_or("Token_1: Solana tokens require signature".to_string());
-        
+        let signature = args
+            .signature_1
+            .as_ref()
+            .ok_or("Token_1: Solana tokens require signature".to_string());
+
         match (tx_id_1, signature) {
             (Ok(tx_id), Ok(sig)) => {
                 match verifier.verify_liquidity_payment(&args, &token_1, add_amount_1, tx_id, sig).await {
@@ -296,7 +301,7 @@ async fn process_add_liquidity(
                                 }
                             }
                         }
-                        
+
                         // Record the transfer
                         let transfer_id = transfer_map::insert(&StableTransfer {
                             transfer_id: 0,
@@ -310,11 +315,11 @@ async fn process_add_liquidity(
                         transfer_ids.push(transfer_id);
                         request_map::update_status(request_id, StatusCode::SendToken1Success, None);
                         Ok(())
-                    },
-                    Err(e) => Err(format!("Token_1 Solana payment verification failed. {}", e))
+                    }
+                    Err(e) => Err(format!("Token_1 Solana payment verification failed. {}", e)),
                 }
-            },
-            (Err(e), _) | (_, Err(e)) => Err(e)
+            }
+            (Err(e), _) | (_, Err(e)) => Err(e),
         }
     } else {
         // Standard ICRC2 transfer
@@ -330,9 +335,8 @@ async fn process_add_liquidity(
         )
         .await
     };
-    
-    if let Err(e) = token_1_result
-    {
+
+    if let Err(e) = token_1_result {
         return_tokens(
             request_id,
             user_id,
@@ -382,9 +386,8 @@ async fn process_add_liquidity(
     );
     let tx_id = tx_map::insert(&StableTx::AddLiquidity(add_liquidity_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::AddLiquidity(add_liquidity_tx)) => {
-            AddLiquidityReply::try_from(add_liquidity_tx).unwrap_or_else(|_| AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts))
-        },
+        Some(StableTx::AddLiquidity(add_liquidity_tx)) => AddLiquidityReply::try_from(add_liquidity_tx)
+            .unwrap_or_else(|_| AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts)),
         _ => AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts),
     };
     request_map::update_reply(request_id, Reply::AddLiquidity(reply.clone()));

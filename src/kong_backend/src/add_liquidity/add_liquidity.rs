@@ -1,12 +1,12 @@
 use ic_cdk::update;
 
+use crate::ic::guards::not_in_maintenance_mode;
+use crate::stable_token::token::Token;
+
 use super::add_liquidity_args::AddLiquidityArgs;
 use super::add_liquidity_reply::AddLiquidityReply;
 use super::add_liquidity_transfer::{add_liquidity_transfer, add_liquidity_transfer_async};
 use super::add_liquidity_transfer_from::{add_liquidity_transfer_from, add_liquidity_transfer_from_async};
-
-use crate::ic::guards::not_in_maintenance_mode;
-use crate::stable_token::token::Token;
 
 pub enum TokenIndex {
     Token0,
@@ -56,9 +56,9 @@ pub enum TokenIndex {
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_liquidity(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     // Import token_map to check token types
-    use crate::stable_token::token_map;
     use crate::chains::chains::SOL_CHAIN;
-    
+    use crate::stable_token::token_map;
+
     // Check if either token is a Solana token
     let token_0_is_solana = token_map::get_by_token(&args.token_0)
         .map(|t| t.chain() == SOL_CHAIN)
@@ -66,7 +66,7 @@ pub async fn add_liquidity(args: AddLiquidityArgs) -> Result<AddLiquidityReply, 
     let token_1_is_solana = token_map::get_by_token(&args.token_1)
         .map(|t| t.chain() == SOL_CHAIN)
         .unwrap_or(false);
-    
+
     // Route based on token types
     if token_0_is_solana || token_1_is_solana {
         // If either token is Solana, use transfer_from flow (requires signatures)
@@ -92,9 +92,9 @@ pub async fn add_liquidity(args: AddLiquidityArgs) -> Result<AddLiquidityReply, 
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_liquidity_async(args: AddLiquidityArgs) -> Result<u64, String> {
     // Import token_map to check token types
-    use crate::stable_token::token_map;
     use crate::chains::chains::SOL_CHAIN;
-    
+    use crate::stable_token::token_map;
+
     // Check if either token is a Solana token
     let token_0_is_solana = token_map::get_by_token(&args.token_0)
         .map(|t| t.chain() == SOL_CHAIN)
@@ -102,7 +102,7 @@ pub async fn add_liquidity_async(args: AddLiquidityArgs) -> Result<u64, String> 
     let token_1_is_solana = token_map::get_by_token(&args.token_1)
         .map(|t| t.chain() == SOL_CHAIN)
         .unwrap_or(false);
-    
+
     // Route based on token types
     if token_0_is_solana || token_1_is_solana {
         // If either token is Solana, use transfer_from flow (requires signatures)

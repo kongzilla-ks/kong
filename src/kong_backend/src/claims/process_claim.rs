@@ -40,11 +40,14 @@ pub async fn process_claim(
             fee: token.fee(),
             to_address: to_address.to_string(),
             desc: claim.desc.as_ref().map_or_else(String::new, |desc| desc.to_string()),
-            transfer_ids: transfer_ids.iter().filter_map(|&transfer_id| {
-                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
-                let token = crate::stable_token::token_map::get_by_token_id(transfer.token_id)?;
-                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
-            }).collect(),
+            transfer_ids: transfer_ids
+                .iter()
+                .filter_map(|&transfer_id| {
+                    let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                    let token = crate::stable_token::token_map::get_by_token_id(transfer.token_id)?;
+                    TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+                })
+                .collect(),
             ts,
         },
         Err(e) => {
@@ -58,11 +61,14 @@ pub async fn process_claim(
                 fee: token.fee(),
                 to_address: to_address.to_string(),
                 desc: claim.desc.as_ref().map_or_else(String::new, |desc| desc.to_string()),
-                transfer_ids: transfer_ids.iter().filter_map(|&transfer_id| {
-                let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
-                let token = crate::stable_token::token_map::get_by_token_id(transfer.token_id)?;
-                TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
-            }).collect(),
+                transfer_ids: transfer_ids
+                    .iter()
+                    .filter_map(|&transfer_id| {
+                        let transfer = transfer_map::get_by_transfer_id(transfer_id)?;
+                        let token = crate::stable_token::token_map::get_by_token_id(transfer.token_id)?;
+                        TransferIdReply::try_from((transfer_id, &transfer, &token)).ok()
+                    })
+                    .collect(),
                 ts,
             };
             request_map::update_reply(request_id, Reply::Claim(reply.clone()));

@@ -2,12 +2,12 @@ use candid::Nat;
 use ic_cdk::update;
 use icrc_ledger_types::icrc1::account::Account;
 
-use super::remove_liquidity_args::RemoveLiquidityArgs;
-use super::remove_liquidity_reply::RemoveLiquidityReply;
-
+use crate::chains::chains::SOL_CHAIN;
 use crate::helpers::nat_helpers::{nat_add, nat_divide, nat_is_zero, nat_multiply, nat_subtract, nat_zero};
 use crate::ic::network::ICNetwork;
 use crate::ic::{address::Address, guards::not_in_maintenance_mode, transfer::icrc1_transfer};
+use crate::solana::signature_verification::verify_canonical_message;
+use crate::solana::utils::validation;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_lp_token::{lp_token_map, stable_lp_token::StableLPToken};
@@ -15,14 +15,13 @@ use crate::stable_pool::{pool_map, stable_pool::StablePool};
 use crate::stable_request::{reply::Reply, request::Request, request_map, stable_request::StableRequest, status::StatusCode};
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
-use crate::chains::chains::SOL_CHAIN;
-use crate::swap::create_solana_swap_job::create_solana_swap_job;
-use crate::solana::utils::validation;
 use crate::stable_tx::{remove_liquidity_tx::RemoveLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
-use crate::solana::signature_verification::verify_canonical_message;
+use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
 use super::message_builder::CanonicalRemoveLiquidityMessage;
+use super::remove_liquidity_args::RemoveLiquidityArgs;
+use super::remove_liquidity_reply::RemoveLiquidityReply;
 
 enum TokenIndex {
     Token0,
@@ -45,7 +44,7 @@ fn is_spl_requiring_gas_deduction(token: &StableToken) -> bool {
 fn calculate_spl_gas_fee_for_remove_liquidity(other_token: &StableToken) -> Result<Nat, String> {
     // Fixed SPL gas fee: approximately $0.50 worth
     // Convert to other token denomination based on typical rates
-    
+
     match other_token {
         StableToken::IC(ic_token) => {
             match ic_token.symbol.as_str() {
@@ -79,7 +78,7 @@ fn calculate_spl_gas_fee_for_remove_liquidity(other_token: &StableToken) -> Resu
 }
 
 /// remove liquidity from a pool
-/// 
+///
 /// For IC-only operations:
 /// - before calling remove_liquidity(), the user must create an icrc2_approve_transaction for the LP token to
 ///   allow the backend canister to icrc2_transfer_from. Note, the approve transaction will incur
@@ -97,7 +96,7 @@ fn calculate_spl_gas_fee_for_remove_liquidity(other_token: &StableToken) -> Resu
 pub async fn remove_liquidity(args: RemoveLiquidityArgs) -> Result<RemoveLiquidityReply, String> {
     // Route based on presence of signature (cross-chain) vs IC-only
     // If signature is present, verify cross-chain signature
-    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) = 
+    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) =
         if args.signature_0.is_some() || args.signature_1.is_some() {
             // Cross-chain flow with signature verification
             check_arguments_with_signature(&args).await?
@@ -184,7 +183,7 @@ pub async fn remove_liquidity_from_pool(
 #[update]
 pub async fn remove_liquidity_async(args: RemoveLiquidityArgs) -> Result<u64, String> {
     // Route based on presence of signature (cross-chain) vs IC-only
-    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) = 
+    let (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1) =
         if args.signature_0.is_some() || args.signature_1.is_some() {
             // Cross-chain flow with signature verification
             check_arguments_with_signature(&args).await?
@@ -283,18 +282,17 @@ async fn check_arguments_with_user(args: &RemoveLiquidityArgs, user_id: u32) -> 
 /// returns (user_id, pool, remove_lp_token_amount, payout_amount_0, payout_lp_fee_0, payout_amount_1, payout_lp_fee_1)
 #[allow(clippy::type_complexity)]
 async fn check_arguments_with_signature(args: &RemoveLiquidityArgs) -> Result<(u32, StablePool, Nat, Nat, Nat, Nat, Nat), String> {
-    
     // For remove liquidity, we need to determine which signature to use and which address to verify against
-    // Logic: 
+    // Logic:
     // - If payout_address_0 is Solana address and signature_0 present → verify signature_0 against payout_address_0
     // - If payout_address_1 is Solana address and signature_1 present → verify signature_1 against payout_address_1
     // - The signature proves the user controls the payout address
-    
+
     let (signature, payout_address) = if let (Some(sig_0), Some(addr_0)) = (&args.signature_0, &args.payout_address_0) {
         // Use signature_0 with payout_address_0
         (sig_0, addr_0)
     } else if let (Some(sig_1), Some(addr_1)) = (&args.signature_1, &args.payout_address_1) {
-        // Use signature_1 with payout_address_1  
+        // Use signature_1 with payout_address_1
         (sig_1, addr_1)
     } else {
         return Err("Cross-chain remove liquidity requires signature and corresponding payout address".to_string());
@@ -303,9 +301,8 @@ async fn check_arguments_with_signature(args: &RemoveLiquidityArgs) -> Result<(u
     // Verify the canonical message signature
     let canonical_message = CanonicalRemoveLiquidityMessage::from_remove_liquidity_args(args);
     let message_str = canonical_message.to_signing_message();
-    
-    verify_canonical_message(&message_str, payout_address, signature)
-        .map_err(|e| format!("Signature verification failed: {}", e))?;
+
+    verify_canonical_message(&message_str, payout_address, signature).map_err(|e| format!("Signature verification failed: {}", e))?;
 
     // For cross-chain operations, we allow anonymous users (signature is the authentication)
     let user_id = user_map::insert(None)?;
@@ -363,10 +360,12 @@ pub fn calculate_amounts(pool: &StablePool, remove_lp_token_amount: &Nat) -> Res
                 let total_payout_1 = nat_add(&payout_amount_1, &payout_lp_fee_1);
                 if spl_gas_fee <= total_payout_1 {
                     // Deduct proportionally from both amount and lp_fee
-                    let ratio_amount = nat_divide(&nat_multiply(&payout_amount_1, &Nat::from(10000_u32)), &total_payout_1).unwrap_or(nat_zero());
-                    let fee_deduction_amount = nat_divide(&nat_multiply(&spl_gas_fee, &ratio_amount), &Nat::from(10000_u32)).unwrap_or(nat_zero());
+                    let ratio_amount =
+                        nat_divide(&nat_multiply(&payout_amount_1, &Nat::from(10000_u32)), &total_payout_1).unwrap_or(nat_zero());
+                    let fee_deduction_amount =
+                        nat_divide(&nat_multiply(&spl_gas_fee, &ratio_amount), &Nat::from(10000_u32)).unwrap_or(nat_zero());
                     let fee_deduction_lp = nat_subtract(&spl_gas_fee, &fee_deduction_amount).unwrap_or(nat_zero());
-                    
+
                     payout_amount_1 = nat_subtract(&payout_amount_1, &fee_deduction_amount).unwrap_or(nat_zero());
                     payout_lp_fee_1 = nat_subtract(&payout_lp_fee_1, &fee_deduction_lp).unwrap_or(nat_zero());
                 } else {
@@ -391,10 +390,12 @@ pub fn calculate_amounts(pool: &StablePool, remove_lp_token_amount: &Nat) -> Res
                 let total_payout_0 = nat_add(&payout_amount_0, &payout_lp_fee_0);
                 if spl_gas_fee <= total_payout_0 {
                     // Deduct proportionally from both amount and lp_fee
-                    let ratio_amount = nat_divide(&nat_multiply(&payout_amount_0, &Nat::from(10000_u32)), &total_payout_0).unwrap_or(nat_zero());
-                    let fee_deduction_amount = nat_divide(&nat_multiply(&spl_gas_fee, &ratio_amount), &Nat::from(10000_u32)).unwrap_or(nat_zero());
+                    let ratio_amount =
+                        nat_divide(&nat_multiply(&payout_amount_0, &Nat::from(10000_u32)), &total_payout_0).unwrap_or(nat_zero());
+                    let fee_deduction_amount =
+                        nat_divide(&nat_multiply(&spl_gas_fee, &ratio_amount), &Nat::from(10000_u32)).unwrap_or(nat_zero());
                     let fee_deduction_lp = nat_subtract(&spl_gas_fee, &fee_deduction_amount).unwrap_or(nat_zero());
-                    
+
                     payout_amount_0 = nat_subtract(&payout_amount_0, &fee_deduction_amount).unwrap_or(nat_zero());
                     payout_lp_fee_0 = nat_subtract(&payout_lp_fee_0, &fee_deduction_lp).unwrap_or(nat_zero());
                 } else {
@@ -568,7 +569,7 @@ async fn send_payout_tokens(
         &token_0,
         payout_amount_0,
         payout_lp_fee_0,
-        args.payout_address_0.as_ref(),  // Pass Solana address if provided
+        args.payout_address_0.as_ref(), // Pass Solana address if provided
         &mut transfer_ids,
         &mut claim_ids,
         ts,
@@ -584,7 +585,7 @@ async fn send_payout_tokens(
         &token_1,
         payout_amount_1,
         payout_lp_fee_1,
-        args.payout_address_1.as_ref(),  // Pass Solana address if provided
+        args.payout_address_1.as_ref(), // Pass Solana address if provided
         &mut transfer_ids,
         &mut claim_ids,
         ts,
@@ -606,9 +607,8 @@ async fn send_payout_tokens(
     );
     let tx_id = tx_map::insert(&StableTx::RemoveLiquidity(remove_liquidity_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::RemoveLiquidity(remove_liquidity_tx)) => RemoveLiquidityReply::try_from(remove_liquidity_tx).unwrap_or_else(|_| {
-            RemoveLiquidityReply::failed(0, request_id, &[], &[], ts)
-        }),
+        Some(StableTx::RemoveLiquidity(remove_liquidity_tx)) => RemoveLiquidityReply::try_from(remove_liquidity_tx)
+            .unwrap_or_else(|_| RemoveLiquidityReply::failed(0, request_id, &[], &[], ts)),
         _ => RemoveLiquidityReply::failed(0, request_id, &[], &[], ts),
     };
     request_map::update_reply(request_id, Reply::RemoveLiquidity(reply.clone()));
@@ -625,7 +625,7 @@ async fn transfer_token(
     token: &StableToken,
     payout_amount: &Nat,
     payout_lp_fee: &Nat,
-    payout_address: Option<&String>,  // NEW parameter for Solana addresses
+    payout_address: Option<&String>, // NEW parameter for Solana addresses
     transfer_ids: &mut Vec<u64>,
     claim_ids: &mut Vec<u64>,
     ts: u64,
@@ -645,15 +645,13 @@ async fn transfer_token(
     if token.chain() == SOL_CHAIN {
         // Validate Solana address was provided
         let solana_address = match payout_address {
-            Some(addr) => {
-                match validation::validate_address(addr) {
-                    Ok(_) => Ok(addr.to_string()),
-                    Err(e) => Err(format!("Invalid Solana address: {}", e))
-                }
-            }
-            None => Err("Solana token payouts require payout_address".to_string())
+            Some(addr) => match validation::validate_address(addr) {
+                Ok(_) => Ok(addr.to_string()),
+                Err(e) => Err(format!("Invalid Solana address: {}", e)),
+            },
+            None => Err("Solana token payouts require payout_address".to_string()),
         };
-            
+
         match solana_address {
             Ok(address) => {
                 // Create Solana swap job for payout
@@ -661,25 +659,33 @@ async fn transfer_token(
                     request_id,
                     user_id,
                     token,
-                    &amount,  // Use full amount, not amount_with_gas
-                    &Address::SolanaAddress(address.to_string())
-                ).await {
+                    &amount, // Use full amount, not amount_with_gas
+                    &Address::SolanaAddress(address.to_string()),
+                )
+                .await
+                {
                     Ok(job_id) => {
                         let transfer_id = transfer_map::insert(&StableTransfer {
                             transfer_id: 0,
                             request_id,
                             is_send: false,
-                            amount: amount.clone(),  // Use full amount for Solana
+                            amount: amount.clone(), // Use full amount for Solana
                             token_id,
                             tx_id: TxId::TransactionId(format!("job_{}", job_id)),
                             ts,
                         });
                         transfer_ids.push(transfer_id);
                         match token_index {
-                            TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::ReceiveToken0Success, 
-                                Some(&format!("Solana swap job #{} created", job_id))),
-                            TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::ReceiveToken1Success, 
-                                Some(&format!("Solana swap job #{} created", job_id))),
+                            TokenIndex::Token0 => request_map::update_status(
+                                request_id,
+                                StatusCode::ReceiveToken0Success,
+                                Some(&format!("Solana swap job #{} created", job_id)),
+                            ),
+                            TokenIndex::Token1 => request_map::update_status(
+                                request_id,
+                                StatusCode::ReceiveToken1Success,
+                                Some(&format!("Solana swap job #{} created", job_id)),
+                            ),
                         };
                     }
                     Err(e) => {
@@ -707,7 +713,7 @@ async fn transfer_token(
                     token_id,
                     &amount,
                     Some(request_id),
-                    Some(Address::PrincipalId(*to_principal_id)),  // Fallback to principal
+                    Some(Address::PrincipalId(*to_principal_id)), // Fallback to principal
                     ts,
                 );
                 let claim_id = claim_map::insert(&claim);

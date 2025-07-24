@@ -1,8 +1,9 @@
-use super::status_tx::StatusTx;
 use candid::{CandidType, Nat};
 use serde::{Deserialize, Serialize};
 
 use crate::swap::swap_calc::SwapCalc;
+
+use super::status_tx::StatusTx;
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct SwapTx {

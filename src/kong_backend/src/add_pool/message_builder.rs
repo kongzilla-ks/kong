@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::helpers::nat_helpers::serialize_amount_as_string;
 
 use super::add_pool_args::AddPoolArgs;
+
 /// A structure representing the canonical message format for signing pool additions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CanonicalAddPoolMessage {
