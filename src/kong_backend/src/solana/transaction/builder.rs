@@ -495,8 +495,3 @@ impl TransactionBuilder {
     }
 }
 
-impl Default for TransactionBuilder {
-    fn default() -> Self {
-        TransactionBuilder
-    }
-}
