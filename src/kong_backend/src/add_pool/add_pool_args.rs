@@ -19,24 +19,6 @@ pub struct AddPoolArgs {
     pub tx_id_1: Option<TxId>,
     pub lp_fee_bps: Option<u8>,
     // Cross-chain fields (if signature exists, it's cross-chain)
-    #[serde(default)]
     pub signature_0: Option<String>,     // Ed25519 signature for token_0 transfer
-    #[serde(default)]
     pub signature_1: Option<String>,     // Ed25519 signature for token_1 transfer
-}
-
-impl Default for AddPoolArgs {
-    fn default() -> Self {
-        Self {
-            token_0: String::new(),
-            amount_0: Nat::from(0u64),
-            tx_id_0: None,
-            token_1: String::new(),
-            amount_1: Nat::from(0u64),
-            tx_id_1: None,
-            lp_fee_bps: None,
-            signature_0: None,
-            signature_1: None,
-        }
-    }
 }
