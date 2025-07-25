@@ -6,23 +6,12 @@ use anyhow::Result;
 use curve25519_dalek::edwards::CompressedEdwardsY;
 use sha2::{Digest, Sha256};
 
-use crate::ic::network::ICNetwork;
 use crate::solana::error::SolanaError;
 use crate::solana::network::{ASSOCIATED_TOKEN_PROGRAM_ID, COMPUTE_BUDGET_PROGRAM_ID, MEMO_PROGRAM_ID, SYSVAR_RENT_PROGRAM_ID, SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
 use crate::solana::sdk::account_meta::AccountMeta;
 use crate::solana::sdk::instruction::Instruction;
 use crate::solana::utils::validation;
-use crate::stable_memory::with_solana_latest_blockhash;
 
-/// Transaction instructions ready for signing
-#[derive(Debug, Clone)]
-pub struct TransactionInstructions {
-    /// Array of instructions to include in the transaction
-    pub instructions: Vec<Instruction>,
-
-    /// Recent blockhash to use for the transaction
-    pub blockhash: String,
-}
 
 /// Transaction builder for creating Solana transactions
 pub struct TransactionBuilder;
@@ -61,11 +50,6 @@ pub struct SplTransferWithAtaParams<'a> {
 
 impl TransactionBuilder {
 
-    /// Get the latest blockhash, using the one in stable memory if recent
-    async fn get_recent_blockhash() -> Result<String> {
-        let latest_blockhash = with_solana_latest_blockhash(|cell| cell.get().clone());
-        Ok(latest_blockhash.blockhash)
-    }
 
     /// Build a SOL transfer transaction
     ///
@@ -84,7 +68,7 @@ impl TransactionBuilder {
         to_address: &str,
         lamports: u64,
         memo: Option<String>,
-    ) -> Result<TransactionInstructions> {
+    ) -> Result<Vec<Instruction>> {
         // Validate addresses
         validation::validate_addresses(&[from_address, to_address])?;
 
@@ -104,11 +88,7 @@ impl TransactionBuilder {
             instructions.push(memo_instruction);
         }
 
-        let recent_blockhash = Self::get_recent_blockhash().await?;
-        Ok(TransactionInstructions {
-            instructions,
-            blockhash: recent_blockhash,
-        })
+        Ok(instructions)
     }
 
     /// Create a transfer instruction
@@ -159,7 +139,7 @@ impl TransactionBuilder {
         to_token_account: &str,
         amount: u64,
         memo: Option<String>,
-    ) -> Result<TransactionInstructions> {
+    ) -> Result<Vec<Instruction>> {
         // Validate addresses
         validation::validate_addresses(&[owner_address, from_token_account, to_token_account])?;
 
@@ -180,11 +160,7 @@ impl TransactionBuilder {
             instructions.push(memo_instrument);
         }
 
-        let recent_blockhash = Self::get_recent_blockhash().await?;
-        Ok(TransactionInstructions {
-            instructions,
-            blockhash: recent_blockhash,
-        })
+        Ok(instructions)
     }
 
     /// Create a token transfer instruction
@@ -433,7 +409,7 @@ impl TransactionBuilder {
     /// Build a SPL token transfer transaction with ATA creation if needed
     pub async fn build_transfer_spl_with_ata_transaction(
         params: SplTransferWithAtaParams<'_>,
-    ) -> Result<TransactionInstructions> {
+    ) -> Result<Vec<Instruction>> {
         // Validate addresses
         if params.from_address.is_empty()
             || params.from_token_account.is_empty()
@@ -476,11 +452,7 @@ impl TransactionBuilder {
             instructions.push(memo_instruction);
         }
 
-        let recent_blockhash = Self::get_recent_blockhash().await?;
-        Ok(TransactionInstructions {
-            instructions,
-            blockhash: recent_blockhash,
-        })
+        Ok(instructions)
     }
 }
 
