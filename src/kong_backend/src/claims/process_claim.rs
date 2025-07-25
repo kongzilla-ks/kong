@@ -165,6 +165,7 @@ async fn send_claim(
                 token,
                 amount, // Use full amount for Solana
                 &Address::SolanaAddress(solana_address.clone()),
+                ts,
             )
             .await
             {

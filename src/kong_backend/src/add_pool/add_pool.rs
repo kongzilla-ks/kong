@@ -517,7 +517,7 @@ async fn verify_cross_chain_transfer(
     let tx_id_value = tx_id.as_ref().ok_or("Transaction ID is required for cross-chain transfers")?.clone();
 
     // Use the pool payment verifier
-    let verifier = PoolPaymentVerifier::new(ICNetwork::caller());
+    let verifier = PoolPaymentVerifier::new();
     let verification = verifier
         .verify_pool_payment(args, token, amount, &tx_id_value, signature)
         .await
@@ -739,7 +739,7 @@ async fn return_token(
     if token.chain() == SOL_CHAIN {
         // For Solana tokens, create a swap job for the return
         let to_address = Address::PrincipalId(*to_principal_id);
-        match create_solana_swap_job(request_id, user_id, token, amount, &to_address).await {
+        match create_solana_swap_job(request_id, user_id, token, amount, &to_address, ts).await {
             Ok(job_id) => {
                 let transfer_id = transfer_map::insert(&StableTransfer {
                     transfer_id: 0,

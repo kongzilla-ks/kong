@@ -19,12 +19,10 @@ use super::swap_calc::SwapCalc;
 pub struct SwapTxReply {
     pub pool_symbol: String,
     pub pay_chain: String,
-    #[serde(default = "empty_string")]
     pub pay_address: String,
     pub pay_symbol: String,
     pub pay_amount: Nat,
     pub receive_chain: String,
-    #[serde(default = "empty_string")]
     pub receive_address: String,
     pub receive_symbol: String,
     pub receive_amount: Nat, // including fees
@@ -40,12 +38,10 @@ pub struct SwapReply {
     pub request_id: u64,
     pub status: String,
     pub pay_chain: String,
-    #[serde(default = "empty_string")]
     pub pay_address: String,
     pub pay_symbol: String,
     pub pay_amount: Nat,
     pub receive_chain: String,
-    #[serde(default = "empty_string")]
     pub receive_address: String,
     pub receive_symbol: String,
     pub receive_amount: Nat,
@@ -56,10 +52,6 @@ pub struct SwapReply {
     pub transfer_ids: Vec<TransferIdReply>,
     pub claim_ids: Vec<u64>,
     pub ts: u64,
-}
-
-fn empty_string() -> String {
-    String::new()
 }
 
 impl From<(&SwapCalc, u64)> for SwapTxReply {

@@ -1,7 +1,5 @@
 use anyhow::Result;
-use candid::{CandidType, Deserialize, Principal};
-use serde::Serialize;
-use std::fmt;
+use candid::Principal;
 
 use crate::ic::management_canister::ManagementCanister;
 
@@ -16,20 +14,7 @@ pub const ASSOCIATED_TOKEN_PROGRAM_ID: &str = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25e
 pub const SYSVAR_RENT_PROGRAM_ID: &str = "SysvarRent111111111111111111111111111111111";
 pub const COMPUTE_BUDGET_PROGRAM_ID: &str = "ComputeBudget111111111111111111111111111111";
 
-#[derive(CandidType, Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum SolanaNetwork {
-    Mainnet,
-    Devnet,
-}
-
-impl fmt::Display for SolanaNetwork {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SolanaNetwork::Mainnet => write!(f, "Mainnet"),
-            SolanaNetwork::Devnet => write!(f, "Devnet"),
-        }
-    }
-}
+pub struct SolanaNetwork;
 
 impl SolanaNetwork {
     pub fn bs58_encode_public_key(public_key: &[u8]) -> String {
@@ -60,11 +45,4 @@ impl SolanaNetwork {
         }
     }
 
-    pub fn validate_tx_signature(tx_signature: &[u8]) -> Result<Vec<u8>> {
-        if tx_signature.len() == 64 {
-            Ok(tx_signature.to_vec())
-        } else {
-            Err(SolanaError::InvalidSignature("Transaction signature must be 64 bytes long.".to_string()).into())
-        }
-    }
 }

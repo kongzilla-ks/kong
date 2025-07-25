@@ -2,7 +2,7 @@ use candid::{Nat, Principal};
 use ic_cdk::update;
 
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
-use crate::ic::guards::{caller_is_proxy, not_in_maintenance_mode};
+use crate::ic::guards::{caller_is_kong_rpc, not_in_maintenance_mode};
 use crate::stable_token::ic_token::ICToken;
 use crate::stable_token::lp_token::LPToken;
 use crate::stable_token::solana_token::SolanaToken;
@@ -109,8 +109,8 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
 ///
 /// # Security
 ///
-/// Only callable by the kong_rpc proxy via caller_is_proxy guard.
-#[update(hidden = true, guard = "caller_is_proxy")]
+/// Only callable by the kong_rpc proxy via caller_is_kong_rpc guard.
+#[update(hidden = true, guard = "caller_is_kong_rpc")]
 async fn add_spl_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
     
     // Use get_by_address to check if token exists and get chain info

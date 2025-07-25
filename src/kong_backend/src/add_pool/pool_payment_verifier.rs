@@ -27,13 +27,12 @@ pub enum PoolPaymentVerification {
 
 /// Pool payment verifier that handles cross-chain pool creation payments
 pub struct PoolPaymentVerifier {
-    _caller: Principal,
 }
 
 impl PoolPaymentVerifier {
     /// Create a new PoolPaymentVerifier instance
-    pub fn new(caller: Principal) -> Self {
-        Self { _caller: caller }
+    pub fn new() -> Self {
+        Self {}
     }
 
     /// Verify payment for pool creation with signature

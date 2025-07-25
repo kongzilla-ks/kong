@@ -662,6 +662,7 @@ async fn transfer_token(
                     token,
                     &amount, // Use full amount, not amount_with_gas
                     &Address::SolanaAddress(address.to_string()),
+                    ts,
                 )
                 .await
                 {

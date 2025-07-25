@@ -20,17 +20,3 @@ pub struct AddLiquidityArgs {
     pub signature_1: Option<String>,     // Ed25519 signature for token_1 transfer
 }
 
-impl Default for AddLiquidityArgs {
-    fn default() -> Self {
-        Self {
-            token_0: String::new(),
-            amount_0: Nat::from(0u64),
-            tx_id_0: None,
-            token_1: String::new(),
-            amount_1: Nat::from(0u64),
-            tx_id_1: None,
-            signature_0: None,
-            signature_1: None,
-        }
-    }
-}

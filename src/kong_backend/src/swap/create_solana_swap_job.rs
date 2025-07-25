@@ -23,6 +23,7 @@ pub async fn create_solana_swap_job(
     receive_token: &StableToken,
     receive_amount: &Nat,
     to_address: &Address,
+    ts: u64,
 ) -> Result<u64, String> {
     // Validate that this is a Solana token
     if let StableToken::Solana(sol_token) = receive_token {
@@ -104,8 +105,7 @@ pub async fn create_solana_swap_job(
         let encoded_tx = signed_tx.encode()
             .map_err(|e| format!("Failed to encode transaction: {}", e))?;
 
-        // Create the swap job
-        let current_time = ICNetwork::get_time();
+        // Create the swap job using passed timestamp
         
         // Create a simplified args structure for the job
         let job_args = serde_json::json!({
@@ -123,8 +123,8 @@ pub async fn create_solana_swap_job(
             caller: ICNetwork::caller(),
             original_args_json: job_args.to_string(),
             status: SwapJobStatus::Pending,
-            created_at: current_time,
-            updated_at: current_time,
+            created_at: ts,
+            updated_at: ts,
             encoded_signed_solana_tx: encoded_tx,
             solana_tx_signature_of_payout: None,
             error_message: None,

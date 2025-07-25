@@ -1,7 +1,7 @@
 use ic_cdk::{query, update};
 use std::ops::Bound::{Excluded, Unbounded};
 
-use crate::ic::guards::caller_is_proxy;
+use crate::ic::guards::caller_is_kong_rpc;
 use crate::ic::network::ICNetwork;
 use crate::solana::latest_blockhash::LatestBlockhash;
 use crate::stable_memory::{
@@ -12,7 +12,7 @@ use crate::swap::swap_job::{SwapJob, SwapJobStatus};
 use super::types::TransactionNotification;
 
 /// Update the latest Solana blockhash (called by proxy)
-#[update(guard = "caller_is_proxy")]
+#[update(hidden = true, guard = "caller_is_kong_rpc")]
 pub fn update_solana_latest_blockhash(blockhash: String) -> Result<(), String> {
     let timestamp_nanos = ICNetwork::get_time();
 
@@ -27,7 +27,7 @@ pub fn update_solana_latest_blockhash(blockhash: String) -> Result<(), String> {
 }
 
 /// Get pending Solana swap jobs for proxy processing
-#[query]
+#[query(hidden = true, guard = "caller_is_kong_rpc")]
 pub fn get_pending_solana_swaps(after_job_id: Option<u64>) -> Result<Vec<SwapJob>, String> {
     const MAX_BATCH_SIZE: usize = 100;
 
@@ -41,7 +41,7 @@ pub fn get_pending_solana_swaps(after_job_id: Option<u64>) -> Result<Vec<SwapJob
 }
 
 /// Update a Solana swap job status (called by proxy after transaction execution)
-#[update(guard = "caller_is_proxy")]
+#[update(hidden = true, guard = "caller_is_kong_rpc")]
 pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successful: bool, error_msg: Option<String>) -> Result<(), String> {
     with_swap_job_queue_mut(|queue| {
         if let Some(mut job) = queue.get(&job_id) {
@@ -104,7 +104,7 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
 }
 
 /// Notify about a Solana transfer (called by proxy)
-#[update(guard = "caller_is_proxy")]
+#[update(hidden = true, guard = "caller_is_kong_rpc")]
 pub fn notify_solana_transfer(signature: String, metadata: Option<String>) -> Result<(), String> {
     let notification = TransactionNotification {
         signature: signature.clone(),

@@ -7,8 +7,8 @@ use anyhow::Result;
 use crate::kong_backend::KongBackend;
 use crate::solana::error::SolanaError;
 
-use super::builder::TransactionInstructions;
 use super::serialize::serialize_message;
+use crate::solana::sdk::instruction::Instruction;
 
 /// Signed transaction ready for submission
 #[derive(Debug, Clone)]
@@ -67,15 +67,14 @@ impl SignedTransaction {
 
 /// Sign transaction instructions
 pub async fn sign_transaction(
-    instructions: TransactionInstructions,
+    instructions: Vec<Instruction>,
     payer: &str,
 ) -> Result<SignedTransaction> {
     // Serialize the message
     let message_bytes = serialize_message(
-        instructions.instructions,
+        instructions,
         payer,
-        &instructions.blockhash,
-    )?;
+    ).await?;
     
     // Sign with Schnorr
     let signature = KongBackend::sign_with_schnorr(&message_bytes)

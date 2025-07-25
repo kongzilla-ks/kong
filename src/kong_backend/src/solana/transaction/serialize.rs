@@ -120,8 +120,10 @@ impl Message {
     }
 }
 
-/// Serialize a message from instructions and blockhash
-pub fn serialize_message(instructions: Vec<Instruction>, payer: &str, blockhash: &str) -> Result<Vec<u8>> {
-    let message = Message::new(instructions, payer)?.with_blockhash(blockhash.to_string());
+/// Serialize a message from instructions, getting blockhash internally
+pub async fn serialize_message(instructions: Vec<Instruction>, payer: &str) -> Result<Vec<u8>> {
+    use crate::stable_memory::with_solana_latest_blockhash;
+    let blockhash = with_solana_latest_blockhash(|cell| cell.get().blockhash.clone());
+    let message = Message::new(instructions, payer)?.with_blockhash(blockhash);
     message.serialize()
 }
