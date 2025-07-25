@@ -38,11 +38,6 @@ pub const APP_VERSION: &str = "v0.0.26";
 
 // Custom getrandom implementation for IC canisters
 use getrandom::{register_custom_getrandom, Error};
-use std::cell::RefCell;
-
-thread_local! {
-    static RANDOM_SEED: RefCell<[u8; 32]> = RefCell::new([0u8; 32]);
-}
 
 fn custom_getrandom(buf: &mut [u8]) -> Result<(), Error> {
     // Use IC's time-based entropy as a simple fallback
