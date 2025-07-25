@@ -27,8 +27,6 @@ pub struct TransactionInstructions {
 /// Transaction builder for creating Solana transactions
 pub struct TransactionBuilder;
 
-// Define a constant for the blockhash freshness threshold (45 seconds in nanoseconds)
-const BLOCKHASH_FRESHNESS_THRESHOLD_NANOS: u64 = 45 * 1_000_000_000;
 
 // Compute unit constants for different transaction types
 const COMPUTE_UNITS_SOL_TRANSFER: u32 = 50_000;
@@ -66,15 +64,6 @@ impl TransactionBuilder {
     /// Get the latest blockhash, using the one in stable memory if recent
     async fn get_recent_blockhash() -> Result<String> {
         let latest_blockhash = with_solana_latest_blockhash(|cell| cell.get().clone());
-        if latest_blockhash.blockhash.is_empty() {
-            return Err(SolanaError::BlockhashError("No blockhash found in stable memory".to_string()))?;
-        }
-
-        let current_time = ICNetwork::get_time();
-        if current_time.saturating_sub(latest_blockhash.timestamp_nanos) > BLOCKHASH_FRESHNESS_THRESHOLD_NANOS {
-            return Err(SolanaError::BlockhashError("Recent blockhash is too old".to_string()))?;
-        }
-
         Ok(latest_blockhash.blockhash)
     }
 
