@@ -30,12 +30,12 @@ pub fn caller_is_kingkong() -> Result<(), String> {
     Ok(())
 }
 
-/// Guard that checks if the caller is the proxy
-pub fn caller_is_proxy() -> Result<(), String> {
+/// Guard that checks if the caller is kong_rpc
+pub fn caller_is_kong_rpc() -> Result<(), String> {
     let caller = ICNetwork::caller();
     if caller == Principal::from_text(PROXY_PRINCIPAL_ONE).unwrap() || caller == Principal::from_text(PROXY_PRINCIPAL_TWO).unwrap() {
         Ok(())
     } else {
-        Err("Caller is not the proxy".to_string())
+        Err("Caller is not kong_rpc".to_string())
     }
 }
