@@ -16,17 +16,14 @@ pub struct AddPoolReply {
     pub pool_id: u32,
     pub request_id: u64,
     pub status: String,
-    #[serde(default = "empty_string")]
     pub name: String,
     pub symbol: String,
     pub chain_0: String,
-    #[serde(default = "empty_string")]
     pub address_0: String,
     pub symbol_0: String,
     pub amount_0: Nat,
     pub balance_0: Nat,
     pub chain_1: String,
-    #[serde(default = "empty_string")]
     pub address_1: String,
     pub symbol_1: String,
     pub amount_1: Nat,
@@ -38,10 +35,6 @@ pub struct AddPoolReply {
     pub claim_ids: Vec<u64>,
     pub is_removed: bool,
     pub ts: u64,
-}
-
-fn empty_string() -> String {
-    String::new()
 }
 
 impl From<&AddPoolTx> for AddPoolReply {
