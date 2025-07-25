@@ -1,4 +1,5 @@
 use candid::Nat;
+use ic_cdk::futures::spawn;
 use icrc_ledger_types::icrc1::account::Account;
 
 use super::add_liquidity::TokenIndex;
@@ -71,7 +72,7 @@ pub async fn add_liquidity_transfer_async(args: AddLiquidityArgs) -> Result<u64,
             _ = archive_to_kong_data(request_id);
         })?;
 
-    ic_cdk::spawn(async move {
+    spawn(async move {
         match process_add_liquidity(
             request_id,
             user_id,

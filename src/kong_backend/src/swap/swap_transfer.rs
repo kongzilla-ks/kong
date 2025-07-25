@@ -1,4 +1,5 @@
 use candid::Nat;
+use ic_cdk::futures::spawn;
 
 use super::archive_to_kong_data::archive_to_kong_data;
 use super::return_pay_token::return_pay_token;
@@ -81,7 +82,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
         let _ = archive_to_kong_data(request_id);
     })?;
 
-    ic_cdk::spawn(async move {
+    spawn(async move {
         let mut transfer_ids = Vec::new();
 
         let Ok((receive_token, receive_amount_with_fees_and_gas, to_address, mid_price, price, slippage, swaps)) = process_swap(
@@ -101,7 +102,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
             return;
         };
 
-        ic_cdk::spawn(async move {
+        spawn(async move {
             send_receive_token(
                 request_id,
                 user_id,
