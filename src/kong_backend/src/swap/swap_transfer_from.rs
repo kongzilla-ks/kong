@@ -9,6 +9,7 @@ use crate::ic::network::ICNetwork;
 use crate::ic::transfer::icrc2_transfer_from;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
+use crate::stable_token::token_management::handle_failed_transfer;
 use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_user::suspended_user_map::{increase_consecutive_error, is_suspended_user, reset_consecutive_error};
@@ -262,8 +263,10 @@ async fn transfer_from_token(
             Ok(())
         }
         Err(e) => {
-            request_map::update_status(request_id, StatusCode::SendPayTokenFailed, Some(&e));
-            Err(e)
+            let err_str = e.to_string();
+            request_map::update_status(request_id, StatusCode::SendPayTokenFailed, Some(&err_str));
+            handle_failed_transfer(&token, e.clone());
+            Err(err_str)
         }
     }
 }

@@ -18,7 +18,7 @@ pub struct CanisterWithdrawArgs {
 #[update(hidden = true, guard = "caller_is_kingkong")]
 async fn canister_withdraw(args: CanisterWithdrawArgs) -> Result<String, String> {
     let token = token_map::get_by_token(&args.token)?;
-    let tx_id = icrc1_transfer(&args.amount, &ICNetwork::caller_id(), &token, None).await?;
+    let tx_id = icrc1_transfer(&args.amount, &ICNetwork::caller_id(), &token, None).await.map_err(|e| e.to_string())?;
 
     let response = json! {
         {

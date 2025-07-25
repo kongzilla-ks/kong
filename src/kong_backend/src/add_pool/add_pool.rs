@@ -25,6 +25,7 @@ use crate::stable_token::lp_token::LP_DECIMALS;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token;
 use crate::stable_token::token::Token;
+use crate::stable_token::token_management::handle_failed_transfer;
 use crate::stable_token::token_map;
 use crate::stable_transfer::stable_transfer::StableTransfer;
 use crate::stable_transfer::transfer_map;
@@ -572,11 +573,13 @@ async fn transfer_from_token(
             Ok(transfer_id)
         }
         Err(e) => {
+            let err_str = e.to_string();
             match token_index {
-                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::SendToken0Failed, Some(&e)),
-                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::SendToken1Failed, Some(&e)),
+                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::SendToken0Failed, Some(&err_str)),
+                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::SendToken1Failed, Some(&err_str)),
             };
-            Err(e)
+            handle_failed_transfer(&token, e.clone());
+            Err(err_str)
         }
     }
 }

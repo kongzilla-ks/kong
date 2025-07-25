@@ -8,6 +8,7 @@ use crate::ic::{
 use crate::stable_claim::claim_map;
 use crate::stable_claim::stable_claim::{ClaimStatus, StableClaim};
 use crate::stable_request::{reply::Reply, request_map, status::StatusCode};
+use crate::stable_token::token_management::handle_failed_transfer;
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::transfers::transfer_reply::TransferIdReply;
@@ -121,7 +122,7 @@ async fn send_claim(
                         ClaimStatus::Claimable => claim_map::update_claimable_status(claim.claim_id, request_id),
                         _ => claim_map::update_unclaimed_status(claim.claim_id, request_id),
                     };
-                    request_map::update_status(request_id, StatusCode::ClaimTokenFailed, Some(&e));
+                    request_map::update_status(request_id, StatusCode::ClaimTokenFailed, Some(&e.to_string()));
                     Err(format!("Failed to send claim_id #{}. {}", claim.claim_id, e))
                 }
             }
@@ -150,7 +151,8 @@ async fn send_claim(
                         ClaimStatus::Claimable => claim_map::update_claimable_status(claim.claim_id, request_id),
                         _ => claim_map::update_unclaimed_status(claim.claim_id, request_id),
                     };
-                    request_map::update_status(request_id, StatusCode::ClaimTokenFailed, Some(&e));
+                    request_map::update_status(request_id, StatusCode::ClaimTokenFailed, Some(&e.to_string()));
+                    handle_failed_transfer(&token, e.clone());
                     Err(format!("Failed to send claim_id #{}. {}", claim.claim_id, e))
                 }
             }

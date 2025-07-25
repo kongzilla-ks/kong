@@ -27,6 +27,7 @@ use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_memory::cleanup_old_notifications;
 use crate::stable_request::request_archive::archive_request_map;
 use crate::stable_token::token::Token;
+use crate::stable_token::token_management::check_disabled_tokens;
 use crate::stable_token::token_map;
 use crate::stable_transfer::transfer_archive::archive_transfer_map;
 use crate::stable_tx::tx_archive::archive_tx_map;
@@ -117,6 +118,13 @@ async fn set_timer_processes() {
     let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().txs_archive_interval_secs), || {
         ic_cdk::futures::spawn(async {
             archive_tx_map();
+        });
+    });
+
+    // start the background timer to check for disabled tokens
+    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().check_disabled_token_interval_secs), || {
+        ic_cdk::futures::spawn(async {
+            check_disabled_tokens().await;
         });
     });
 

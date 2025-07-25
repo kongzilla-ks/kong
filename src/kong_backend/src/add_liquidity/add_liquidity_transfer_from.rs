@@ -1,6 +1,13 @@
 use candid::Nat;
 use icrc_ledger_types::icrc1::account::Account;
 
+use super::add_liquidity::TokenIndex;
+use super::add_liquidity_args::AddLiquidityArgs;
+use super::liquidity_payment_verifier::{LiquidityPaymentVerifier, LiquidityPaymentVerification};
+use crate::chains::chains::SOL_CHAIN;
+use crate::stable_token::token_management::handle_failed_transfer;
+use super::add_liquidity_reply::AddLiquidityReply;
+
 use crate::helpers::nat_helpers::{
     nat_add, nat_divide, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero,
 };
@@ -19,12 +26,6 @@ use crate::stable_token::token::Token;
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{add_liquidity_tx::AddLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
-
-use super::add_liquidity::TokenIndex;
-use super::add_liquidity_args::AddLiquidityArgs;
-use super::add_liquidity_reply::AddLiquidityReply;
-use super::liquidity_payment_verifier::{LiquidityPaymentVerification, LiquidityPaymentVerifier};
-use crate::chains::chains::SOL_CHAIN;
 
 pub async fn add_liquidity_transfer_from(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     let (user_id, pool, add_amount_0, add_amount_1) = check_arguments(&args).await?;
@@ -434,11 +435,13 @@ pub async fn transfer_from_token(
             Ok(())
         }
         Err(e) => {
+            let err_str = e.to_string();
             match token_index {
-                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::SendToken0Failed, Some(&e)),
-                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::SendToken1Failed, Some(&e)),
+                TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::SendToken0Failed, Some(&err_str)),
+                TokenIndex::Token1 => request_map::update_status(request_id, StatusCode::SendToken1Failed, Some(&err_str)),
             };
-            Err(e)
+            handle_failed_transfer(&token, e.clone());
+            Err(err_str)
         }
     }
 }

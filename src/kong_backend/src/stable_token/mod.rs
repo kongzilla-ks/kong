@@ -4,4 +4,5 @@ pub mod solana_token;
 #[allow(clippy::module_inception)]
 pub mod stable_token;
 pub mod token;
+pub mod token_management;
 pub mod token_map;

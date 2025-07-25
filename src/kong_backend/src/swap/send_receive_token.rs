@@ -87,7 +87,7 @@ pub async fn send_receive_token(
             Address::PrincipalId(to_principal_id) => icrc1_transfer(receive_amount, to_principal_id, receive_token, None).await,
             Address::SolanaAddress(_) => {
                 // This should not happen as Solana tokens are handled above
-                Err("Solana addresses should be handled by Solana swap job creation".to_string())
+                Err(crate::ic::transfer::InternalTransferError::General("Solana addresses should be handled by Solana swap job creation".to_string()))
             }
         } {
             Ok(tx_id) => {

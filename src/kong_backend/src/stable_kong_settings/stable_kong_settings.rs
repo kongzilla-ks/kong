@@ -47,6 +47,7 @@ pub struct StableKongSettings {
     pub requests_archive_interval_secs: u64,
     pub txs_archive_interval_secs: u64,
     pub transfers_archive_interval_secs: u64,
+    pub check_disabled_token_interval_secs: u64,
     pub archive_to_kong_data: bool,
 }
 
@@ -95,12 +96,13 @@ impl Default for StableKongSettings {
             transfer_map_idx,
             claim_map_idx,
             lp_token_map_idx,
-            claims_interval_secs: 300,                   // claims every 5 minutes
-            transfer_expiry_nanosecs: 3_600_000_000_000, // 1 hour (nano seconds)
-            requests_archive_interval_secs: 3600,        // archive requests every hour
-            txs_archive_interval_secs: 3600,             // archive txs every hour
-            transfers_archive_interval_secs: 3600,       // archive transfers every hour
-            archive_to_kong_data: false,                 // replicate to kong_data
+            claims_interval_secs: 300,                    // claims every 5 minutes
+            transfer_expiry_nanosecs: 3_600_000_000_000,  // 1 hour (nano seconds)
+            requests_archive_interval_secs: 3600,         // archive requests every hour
+            txs_archive_interval_secs: 3600,              // archive txs every hour
+            transfers_archive_interval_secs: 3600,        // archive transfers every hour
+            check_disabled_token_interval_secs: 3600 * 3, // check if disabled tokens became alive each 3 hours
+            archive_to_kong_data: false,                  // replicate to kong_data
         }
     }
 }
