@@ -41,7 +41,7 @@ pub async fn send_receive_token(
     // Check if receive token is Solana - if so, create a swap job instead of direct transfer
     if receive_token.chain() == SOL_CHAIN {
         // For Solana tokens, we need to create a swap job that will be processed by kong_rpc
-        match create_solana_swap_job(request_id, user_id, receive_token, receive_amount, to_address).await {
+        match create_solana_swap_job(request_id, user_id, receive_token, receive_amount, to_address, ts).await {
             Ok(job_id) => {
                 request_map::update_status(
                     request_id,
