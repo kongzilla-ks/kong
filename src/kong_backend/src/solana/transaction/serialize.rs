@@ -9,6 +9,7 @@ use crate::solana::error::SolanaError;
 use crate::solana::network::SolanaNetwork;
 use crate::solana::sdk::compiled_instruction::CompiledInstruction;
 use crate::solana::sdk::instruction::Instruction;
+use crate::stable_memory::with_solana_latest_blockhash;
 
 /// Message header for Solana transactions
 #[derive(Debug, Clone)]
@@ -122,7 +123,6 @@ impl Message {
 
 /// Serialize a message from instructions, getting blockhash internally
 pub async fn serialize_message(instructions: Vec<Instruction>, payer: &str) -> Result<Vec<u8>> {
-    use crate::stable_memory::with_solana_latest_blockhash;
     let blockhash = with_solana_latest_blockhash(|cell| cell.get().blockhash.clone());
     let message = Message::new(instructions, payer)?.with_blockhash(blockhash);
     message.serialize()

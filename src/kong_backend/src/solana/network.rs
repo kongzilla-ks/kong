@@ -37,12 +37,11 @@ impl SolanaNetwork {
         Ok(SolanaNetwork::bs58_encode_public_key(&validated_public_key))
     }
 
-    pub fn validate_public_key(public_key: &[u8]) -> Result<Vec<u8>> {
+    fn validate_public_key(public_key: &[u8]) -> Result<Vec<u8>> {
         if public_key.len() == 32 {
             Ok(public_key.to_vec())
         } else {
             Err(SolanaError::InvalidPublicKeyFormat("Public key must be 32 bytes long.".to_string()).into())
         }
     }
-
 }

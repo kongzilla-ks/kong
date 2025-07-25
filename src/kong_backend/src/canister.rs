@@ -122,11 +122,14 @@ async fn set_timer_processes() {
     });
 
     // start the background timer to check for disabled tokens
-    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().check_disabled_token_interval_secs), || {
-        ic_cdk::futures::spawn(async {
-            check_disabled_tokens().await;
-        });
-    });
+    let _ = set_timer_interval(
+        Duration::from_secs(kong_settings_map::get().check_disabled_token_interval_secs),
+        || {
+            ic_cdk::futures::spawn(async {
+                check_disabled_tokens().await;
+            });
+        },
+    );
 
     // start the background timer to cleanup old Solana notifications
     let _ = set_timer_interval(Duration::from_secs(3600), || {
@@ -160,7 +163,6 @@ fn inspect_message() {
             ic_cdk::trap(&e);
         }
     }
-
 
     ic_cdk::api::accept_message();
 }

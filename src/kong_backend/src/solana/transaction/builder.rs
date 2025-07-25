@@ -7,15 +7,15 @@ use curve25519_dalek::edwards::CompressedEdwardsY;
 use sha2::{Digest, Sha256};
 
 use crate::solana::error::SolanaError;
-use crate::solana::network::{ASSOCIATED_TOKEN_PROGRAM_ID, COMPUTE_BUDGET_PROGRAM_ID, MEMO_PROGRAM_ID, SYSVAR_RENT_PROGRAM_ID, SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
+use crate::solana::network::{
+    ASSOCIATED_TOKEN_PROGRAM_ID, COMPUTE_BUDGET_PROGRAM_ID, MEMO_PROGRAM_ID, SYSTEM_PROGRAM_ID, SYSVAR_RENT_PROGRAM_ID, TOKEN_PROGRAM_ID,
+};
 use crate::solana::sdk::account_meta::AccountMeta;
 use crate::solana::sdk::instruction::Instruction;
 use crate::solana::utils::validation;
 
-
 /// Transaction builder for creating Solana transactions
 pub struct TransactionBuilder;
-
 
 // Compute unit constants for different transaction types
 const COMPUTE_UNITS_SOL_TRANSFER: u32 = 50_000;
@@ -49,8 +49,6 @@ pub struct SplTransferWithAtaParams<'a> {
 }
 
 impl TransactionBuilder {
-
-
     /// Build a SOL transfer transaction
     ///
     /// # Arguments
@@ -73,15 +71,12 @@ impl TransactionBuilder {
         validation::validate_addresses(&[from_address, to_address])?;
 
         // Start with compute budget instructions
-        let mut instructions = Self::create_compute_budget_instructions(
-            COMPUTE_UNITS_SOL_TRANSFER,
-            PRIORITY_FEE_SOL,
-        )?;
+        let mut instructions = Self::create_compute_budget_instructions(COMPUTE_UNITS_SOL_TRANSFER, PRIORITY_FEE_SOL)?;
 
         // Add the transfer instruction
         let transfer_instruction = Self::create_transfer_sol_instruction(from_address, to_address, lamports)?;
         instructions.push(transfer_instruction);
-        
+
         // Add memo instruction if provided
         if let Some(memo_text) = memo {
             let memo_instruction = Self::create_memo_instruction(from_address, &memo_text)?;
@@ -144,16 +139,13 @@ impl TransactionBuilder {
         validation::validate_addresses(&[owner_address, from_token_account, to_token_account])?;
 
         // Start with compute budget instructions
-        let mut instructions = Self::create_compute_budget_instructions(
-            COMPUTE_UNITS_SPL_TRANSFER,
-            PRIORITY_FEE_SPL,
-        )?;
+        let mut instructions = Self::create_compute_budget_instructions(COMPUTE_UNITS_SPL_TRANSFER, PRIORITY_FEE_SPL)?;
 
         // Add the transfer instruction
         let token_transfer_instruction =
             Self::create_transfer_spl_instruction(owner_address, from_token_account, to_token_account, amount)?;
         instructions.push(token_transfer_instruction);
-        
+
         // Add memo instruction if provided
         if let Some(memo_text) = memo {
             let memo_instrument = Self::create_memo_instruction(owner_address, &memo_text)?;
@@ -259,14 +251,9 @@ impl TransactionBuilder {
     }
 
     /// Derive the associated token account address for a wallet and mint
-    pub fn derive_associated_token_account(
-        wallet_address: &str,
-        mint_address: &str,
-    ) -> Result<String> {
+    pub fn derive_associated_token_account(wallet_address: &str, mint_address: &str) -> Result<String> {
         if wallet_address.is_empty() || mint_address.is_empty() {
-            return Err(SolanaError::InvalidPublicKeyFormat(
-                "Wallet address or mint address is empty".to_string(),
-            ).into());
+            return Err(SolanaError::InvalidPublicKeyFormat("Wallet address or mint address is empty".to_string()).into());
         }
 
         // Decode wallet and mint to 32-byte arrays
@@ -274,7 +261,7 @@ impl TransactionBuilder {
         let mint_address_bytes = crate::solana::network::SolanaNetwork::bs58_decode_public_key(mint_address)?;
         let token_program_bytes = crate::solana::network::SolanaNetwork::bs58_decode_public_key(TOKEN_PROGRAM_ID)?;
         let ata_program_bytes = crate::solana::network::SolanaNetwork::bs58_decode_public_key(ASSOCIATED_TOKEN_PROGRAM_ID)?;
-        
+
         // Seeds: [wallet, token_program, mint]. Exact order specified in the Solana docs
         let seeds: [&[u8]; 3] = [
             wallet_address_bytes.as_ref(),
@@ -286,7 +273,7 @@ impl TransactionBuilder {
         const PDA_MARKER: &[u8] = b"ProgramDerivedAddress";
         let mut derived_address = [0u8; 32];
         let mut found = false;
-        
+
         // Try each bump seed starting from 255 and going down to 0
         for bump_seed in (0u8..=255).rev() {
             // Create a new seed array that includes the bump seed
@@ -325,9 +312,7 @@ impl TransactionBuilder {
             return Ok(bs58::encode(derived_address).into_string());
         }
 
-        Err(SolanaError::InvalidPublicKeyFormat(
-            "Could not find a valid off-curve ATA PDA (bump 0..=255 exhausted)".to_string(),
-        ).into())
+        Err(SolanaError::InvalidPublicKeyFormat("Could not find a valid off-curve ATA PDA (bump 0..=255 exhausted)".to_string()).into())
     }
 
     /// Proper "is_on_curve" check using curve25519-dalek.
@@ -341,14 +326,9 @@ impl TransactionBuilder {
     }
 
     /// Create instruction to create an associated token account (idempotent version)
-    pub fn create_associated_token_account_instruction(
-        fee_payer: &str,
-        wallet_address: &str,
-        mint_address: &str,
-    ) -> Result<Instruction> {
+    pub fn create_associated_token_account_instruction(fee_payer: &str, wallet_address: &str, mint_address: &str) -> Result<Instruction> {
         // Derive the associated token account address
-        let associated_token_account =
-            Self::derive_associated_token_account(wallet_address, mint_address)?;
+        let associated_token_account = Self::derive_associated_token_account(wallet_address, mint_address)?;
 
         // Create the accounts for the instruction
         let accounts = vec![
@@ -407,9 +387,7 @@ impl TransactionBuilder {
     }
 
     /// Build a SPL token transfer transaction with ATA creation if needed
-    pub async fn build_transfer_spl_with_ata_transaction(
-        params: SplTransferWithAtaParams<'_>,
-    ) -> Result<Vec<Instruction>> {
+    pub async fn build_transfer_spl_with_ata_transaction(params: SplTransferWithAtaParams<'_>) -> Result<Vec<Instruction>> {
         // Validate addresses
         if params.from_address.is_empty()
             || params.from_token_account.is_empty()
@@ -418,23 +396,15 @@ impl TransactionBuilder {
             || params.mint_address.is_empty()
             || params.fee_payer.is_empty()
         {
-            return Err(SolanaError::InvalidPublicKeyFormat(
-                "Invalid address for SPL transfer with ATA".to_string(),
-            ).into());
+            return Err(SolanaError::InvalidPublicKeyFormat("Invalid address for SPL transfer with ATA".to_string()).into());
         }
 
         // Start with compute budget instructions
-        let mut instructions = Self::create_compute_budget_instructions(
-            COMPUTE_UNITS_SPL_WITH_ATA,
-            PRIORITY_FEE_SPL_WITH_ATA,
-        )?;
+        let mut instructions = Self::create_compute_budget_instructions(COMPUTE_UNITS_SPL_WITH_ATA, PRIORITY_FEE_SPL_WITH_ATA)?;
 
         // 1. Create ATA instruction (idempotent - no error if ATA exists)
-        let create_ata_instruction = Self::create_associated_token_account_instruction(
-            params.fee_payer,
-            params.to_wallet_address,
-            params.mint_address,
-        )?;
+        let create_ata_instruction =
+            Self::create_associated_token_account_instruction(params.fee_payer, params.to_wallet_address, params.mint_address)?;
         instructions.push(create_ata_instruction);
 
         // 2. Create transfer instruction
@@ -455,4 +425,3 @@ impl TransactionBuilder {
         Ok(instructions)
     }
 }
-

@@ -1,14 +1,10 @@
 use anyhow::Result;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use std::str::FromStr;
 
 use super::error::SolanaError;
-use super::network::SolanaNetwork;
 use super::sdk::offchain_message::OffchainMessage;
 use super::sdk::pubkey::Pubkey;
 use super::sdk::signature::Signature as SolanaSignature;
-
-
 
 fn verify_raw_message(message: &str, pubkey: &Pubkey, signature: &SolanaSignature) -> Result<()> {
     let verify_key = ed25519_dalek::VerifyingKey::from_bytes(&pubkey.to_bytes())?;

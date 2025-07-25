@@ -6,9 +6,9 @@ use anyhow::Result;
 
 use crate::kong_backend::KongBackend;
 use crate::solana::error::SolanaError;
+use crate::solana::sdk::instruction::Instruction;
 
 use super::serialize::serialize_message;
-use crate::solana::sdk::instruction::Instruction;
 
 /// Signed transaction ready for submission
 #[derive(Debug, Clone)]
@@ -19,7 +19,7 @@ pub struct SignedTransaction {
 
 impl SignedTransaction {
     /// Encode the signed transaction for Solana network submission
-    /// 
+    ///
     /// Returns a base58-encoded transaction in the format expected by Solana RPC:
     /// - signature count (1 byte)
     /// - signature (64 bytes, padded/truncated as needed)  
@@ -35,7 +35,7 @@ impl SignedTransaction {
         if self.signatures.is_empty() {
             return Err(SolanaError::SigningError("No signatures found".to_string()).into());
         }
-        
+
         let signature = &self.signatures[0];
         let signature_bytes = match signature.len().cmp(&64) {
             std::cmp::Ordering::Less => {
@@ -66,16 +66,10 @@ impl SignedTransaction {
 }
 
 /// Sign transaction instructions
-pub async fn sign_transaction(
-    instructions: Vec<Instruction>,
-    payer: &str,
-) -> Result<SignedTransaction> {
+pub async fn sign_transaction(instructions: Vec<Instruction>, payer: &str) -> Result<SignedTransaction> {
     // Serialize the message
-    let message_bytes = serialize_message(
-        instructions,
-        payer,
-    ).await?;
-    
+    let message_bytes = serialize_message(instructions, payer).await?;
+
     // Sign with Schnorr
     let signature = KongBackend::sign_with_schnorr(&message_bytes)
         .await
@@ -88,17 +82,12 @@ pub async fn sign_transaction(
 }
 
 /// Build and sign a simple SOL transfer transaction
-pub async fn build_and_sign_sol_transfer(
-    from_address: &str,
-    to_address: &str,
-    lamports: u64,
-) -> Result<SignedTransaction> {
+pub async fn build_and_sign_sol_transfer(from_address: &str, to_address: &str, lamports: u64) -> Result<SignedTransaction> {
     use super::builder::TransactionBuilder;
-    
+
     // Build transaction
-    let instructions = TransactionBuilder::build_transfer_sol_transaction(from_address, to_address, lamports, None)
-        .await?;
-    
+    let instructions = TransactionBuilder::build_transfer_sol_transaction(from_address, to_address, lamports, None).await?;
+
     // Sign transaction
     sign_transaction(instructions, from_address).await
 }
@@ -111,11 +100,11 @@ pub async fn build_and_sign_spl_transfer(
     amount: u64,
 ) -> Result<SignedTransaction> {
     use super::builder::TransactionBuilder;
-    
+
     // Build transaction
-    let instructions = TransactionBuilder::build_transfer_spl_transaction(owner_address, from_token_account, to_token_account, amount, None)
-        .await?;
-    
+    let instructions =
+        TransactionBuilder::build_transfer_spl_transaction(owner_address, from_token_account, to_token_account, amount, None).await?;
+
     // Sign transaction
     sign_transaction(instructions, owner_address).await
 }
