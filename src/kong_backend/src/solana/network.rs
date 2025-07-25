@@ -45,11 +45,4 @@ impl SolanaNetwork {
         }
     }
 
-    pub fn validate_tx_signature(tx_signature: &[u8]) -> Result<Vec<u8>> {
-        if tx_signature.len() == 64 {
-            Ok(tx_signature.to_vec())
-        } else {
-            Err(SolanaError::InvalidSignature("Transaction signature must be 64 bytes long.".to_string()).into())
-        }
-    }
 }
