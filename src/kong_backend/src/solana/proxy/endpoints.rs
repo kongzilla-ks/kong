@@ -27,7 +27,7 @@ pub fn update_solana_latest_blockhash(blockhash: String) -> Result<(), String> {
 }
 
 /// Get pending Solana swap jobs for proxy processing
-#[query]
+#[query(hidden = true, guard = "caller_is_proxy")]
 pub fn get_pending_solana_swaps(after_job_id: Option<u64>) -> Result<Vec<SwapJob>, String> {
     const MAX_BATCH_SIZE: usize = 100;
 
