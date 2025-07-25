@@ -39,28 +39,6 @@ pub fn get_by_principal_id(principal_id: &str) -> Result<Option<StableUser>, Str
     })
 }
 
-/// return StableUser by principal_id with optional anonymous support
-///
-/// # Arguments
-///
-/// * `principal_id` - principal_id of the user
-/// * `allow_anonymous` - if true, allow anonymous principals for cross-chain operations
-///
-/// # Returns
-///
-/// * `Ok(Some(StableUser))` if user exists, None if user is not registered
-/// * `Err(String)` if user is anonymous and allow_anonymous is false
-pub fn get_by_principal_id_with_anonymous_option(principal_id: &str, allow_anonymous: bool) -> Result<Option<StableUser>, String> {
-    // Only check for anonymous if not allowed
-    if !allow_anonymous {
-        ICNetwork::principal_id_is_not_anonymous(principal_id)?;
-    }
-
-    Ok(match principal_id_map::get_user_id(principal_id) {
-        Some(user_id) => get_by_user_id(user_id),
-        None => None,
-    })
-}
 
 /// return StableUser of the caller
 ///
@@ -72,20 +50,6 @@ pub fn get_by_caller() -> Result<Option<StableUser>, String> {
     get_by_principal_id(&ICNetwork::caller().to_text())
 }
 
-/// return StableUser of the caller with optional anonymous support
-///
-/// # Arguments
-///
-/// * `allow_anonymous` - if true, allow anonymous principals for cross-chain operations
-///
-/// # Returns
-///
-/// * `Ok(Some(StableUser))` if user exists, None if user is not registered
-/// * `Err(String)` if user is anonymous and allow_anonymous is false
-pub fn get_by_caller_with_anonymous_option(allow_anonymous: bool) -> Result<Option<StableUser>, String> {
-    let principal_id = ICNetwork::caller().to_text();
-    get_by_principal_id_with_anonymous_option(&principal_id, allow_anonymous)
-}
 
 /// return StableUser by referral code
 ///
@@ -106,12 +70,8 @@ pub fn get_user_by_referral_code(referral_code: &str) -> Option<StableUser> {
 }
 
 pub fn insert(referred_by: Option<&str>) -> Result<u32, String> {
-    insert_with_anonymous_option(referred_by, false)
-}
-
-pub fn insert_with_anonymous_option(referred_by: Option<&str>, allow_anonymous: bool) -> Result<u32, String> {
     let mut update = false;
-    let user = match get_by_caller_with_anonymous_option(allow_anonymous) {
+    let user = match get_by_caller() {
         // if user already exists, return user profile without updating referrer code
         // once a user is created, the referrer code cannot be updated
         Ok(Some(mut user)) => {
@@ -160,7 +120,7 @@ pub fn insert_with_anonymous_option(referred_by: Option<&str>, allow_anonymous: 
             update = true;
             user
         }
-        Err(e) => Err(e)?, // anonymous user not allowed when allow_anonymous=false
+        Err(e) => Err(e)?, // do not allow anonymous user
     };
 
     if update {
