@@ -19,6 +19,7 @@ use crate::stable_request::{request::Request, request_map, stable_request::Stabl
 use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_user::user_map;
+use crate::swap::payment_verifier::{PaymentVerifier, PaymentVerification};
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
@@ -133,22 +134,60 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
 async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(StableToken, Nat, u64), String> {
     request_map::update_status(request_id, StatusCode::Start, None);
 
-    // check pay_token is a valid token. We need to know the canister id so return here if token is not valid
     let pay_token = token_map::get_by_token(&args.pay_token).inspect_err(|e| {
         request_map::update_status(request_id, StatusCode::PayTokenNotFound, Some(e));
     })?;
 
     let pay_amount = args.pay_amount.clone();
 
-    // check pay_tx_id is valid block index
     let transfer_id = match &args.pay_tx_id {
-        Some(pay_tx_id) => match pay_tx_id {
-            TxId::BlockIndex(pay_tx_id) => verify_transfer_token(request_id, &pay_token, pay_tx_id, &pay_amount, ts).await?,
-            _ => {
+        Some(pay_tx_id) => {
+            if pay_token.chain() == "IC" {
+                match pay_tx_id {
+                    TxId::BlockIndex(pay_tx_id) => verify_transfer_token(request_id, &pay_token, pay_tx_id, &pay_amount, ts).await?,
+                    _ => {
+                        request_map::update_status(request_id, StatusCode::PayTxIdNotSupported, None);
+                        Err("IC tokens require BlockIndex".to_string())?
+                    }
+                }
+            } else if pay_token.chain() == "SOL" {
+                match pay_tx_id {
+                    TxId::TransactionId(_) => {
+                        let verifier = PaymentVerifier::new(ICNetwork::caller_id().owner);
+                        match verifier.verify_payment(args, &pay_token, &pay_amount).await {
+                            Ok(PaymentVerification::SolanaPayment { tx_signature, from_address: _, amount }) => {
+                                let transfer_id = transfer_map::insert(&StableTransfer {
+                                    transfer_id: 0,
+                                    request_id,
+                                    is_send: true,
+                                    amount: amount.clone(),
+                                    token_id: pay_token.token_id(),
+                                    tx_id: TxId::TransactionId(tx_signature),
+                                    ts,
+                                });
+                                request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);
+                                transfer_id
+                            }
+                            Ok(PaymentVerification::IcpPayment { .. }) => {
+                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Unexpected ICP payment for Solana token"));
+                                Err("Unexpected ICP payment for Solana token".to_string())?
+                            }
+                            Err(e) => {
+                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
+                                Err(e)?
+                            }
+                        }
+                    }
+                    _ => {
+                        request_map::update_status(request_id, StatusCode::PayTxIdNotSupported, None);
+                        Err("Solana tokens require TransactionId".to_string())?
+                    }
+                }
+            } else {
                 request_map::update_status(request_id, StatusCode::PayTxIdNotSupported, None);
-                Err("Pay tx_id not supported".to_string())?
+                Err("Unsupported chain".to_string())?
             }
-        },
+        }
         None => {
             request_map::update_status(request_id, StatusCode::PayTxIdNotFound, None);
             Err("Pay tx_id required".to_string())?

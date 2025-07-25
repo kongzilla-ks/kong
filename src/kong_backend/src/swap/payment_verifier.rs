@@ -111,6 +111,7 @@ async fn verify_solana_payment(
     let sender_pubkey = extract_solana_sender_from_transaction(&tx_signature_str, is_spl_token).await?;
 
     // Create canonical message with extracted sender and verify signature
+    
     // TODO: Important integration note for Solana swaps:
     // The canonical message uses token symbols from SwapArgs (e.g., "SOL", "ksUSDT")
     // NOT the full chain-prefixed format (e.g., "SOL.11111111...", "IC.zdzgz-siaaa...")
