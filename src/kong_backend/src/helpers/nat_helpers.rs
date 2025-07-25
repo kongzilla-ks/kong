@@ -81,7 +81,6 @@ pub fn nat_multiply(n1: &Nat, n2: &Nat) -> Nat {
     n1.clone() * n2.clone()
 }
 
-#[allow(dead_code)]
 pub fn nat_multiply_rational(n1: &Nat, n2: &BigRational) -> Option<Nat> {
     let numerator = nat_multiply(n1, &Nat::from(n2.numer().to_biguint()?));
     nat_divide(&numerator, &Nat::from(n2.denom().to_biguint()?))
@@ -93,7 +92,6 @@ pub fn nat_multiply_f64(n1: &Nat, n2: f64) -> Option<Nat> {
 }
 
 // integer division
-#[allow(dead_code)]
 pub fn nat_divide(numerator: &Nat, denominator: &Nat) -> Option<Nat> {
     if nat_is_zero(numerator) {
         return Some(nat_zero());
@@ -121,11 +119,11 @@ pub fn nat_sqrt(n: &Nat) -> Nat {
 }
 
 /// Custom serializer to convert Nat to string (matching frontend format)
-/// 
+///
 /// This serializer is used to ensure that large numeric values are sent to the frontend
 /// as strings to avoid JavaScript precision issues and to match the exact format
 /// expected for signature verification.
-/// 
+///
 /// The serializer also removes any underscores from the Nat string representation
 /// to ensure a clean numeric string output.
 pub fn serialize_amount_as_string<S>(amount: &Nat, serializer: S) -> Result<S::Ok, S::Error>
