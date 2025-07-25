@@ -9,11 +9,11 @@ pub struct StableClaimId(pub u64);
 
 impl Storable for StableClaimId {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
-        serde_cbor::to_vec(self).expect("Failed to encodeStableClaimId").into()
+        serde_cbor::to_vec(self).expect("Failed to encode StableClaimId").into()
     }
 
     fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
-        serde_cbor::from_slice(&bytes).expect("Failed to decodeStableClaimId")
+        serde_cbor::from_slice(&bytes).expect("Failed to decode StableClaimId")
     }
 
     const BOUND: Bound = Bound::Unbounded;

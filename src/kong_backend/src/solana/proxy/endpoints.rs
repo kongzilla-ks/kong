@@ -9,6 +9,8 @@ use crate::stable_memory::{
 };
 use crate::swap::swap_job::{SwapJob, SwapJobStatus};
 
+use super::types::TransactionNotification;
+
 /// Update the latest Solana blockhash (called by proxy)
 #[update(guard = "caller_is_proxy")]
 pub fn update_solana_latest_blockhash(blockhash: String) -> Result<(), String> {
@@ -104,8 +106,6 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
 /// Notify about a Solana transfer (called by proxy)
 #[update(guard = "caller_is_proxy")]
 pub fn notify_solana_transfer(signature: String, metadata: Option<String>) -> Result<(), String> {
-    use crate::solana::proxy::types::TransactionNotification;
-
     let notification = TransactionNotification {
         signature: signature.clone(),
         status: "confirmed".to_string(), // Incoming payments are always confirmed
