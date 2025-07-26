@@ -99,26 +99,46 @@ echo "Message to sign: $MESSAGE_JSON"
 SIGNATURE=$(solana sign-offchain-message "$MESSAGE_JSON")
 echo "Signature generated"
 
-# 5. Remove liquidity
+# 5. Remove liquidity with retry logic
 echo ""
 echo "=== Removing Liquidity ==="
-REMOVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} remove_liquidity "(record {
-    token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\";
-    token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\";
-    remove_lp_token_amount = $REMOVE_AMOUNT;
-    payout_address_0 = opt \"${SOLANA_ADDRESS}\";
-    payout_address_1 = null;
-    signature_0 = opt \"${SIGNATURE}\";
-    signature_1 = null;
-})" --output json)
-check_ok "$REMOVE_RESULT" "Remove liquidity failed"
+MAX_RETRIES=5
+RETRY_DELAY=2
+
+for i in $(seq 1 $MAX_RETRIES); do
+    echo "Remove liquidity attempt $i/$MAX_RETRIES"
+    REMOVE_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} remove_liquidity "(record {
+        token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\";
+        token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\";
+        remove_lp_token_amount = $REMOVE_AMOUNT;
+        payout_address_0 = opt \"${SOLANA_ADDRESS}\";
+        payout_address_1 = null;
+        signature_0 = opt \"${SIGNATURE}\";
+        signature_1 = null;
+    })" --output json 2>&1 || true)
+    
+    if echo "$REMOVE_RESULT" | grep -q -e "Ok" -e "ok"; then
+        break
+    fi
+    
+    if echo "$REMOVE_RESULT" | grep -q "TRANSACTION_NOT_READY"; then
+        echo "Transaction not ready, waiting..."
+        if [ $i -lt $MAX_RETRIES ]; then
+            echo "Retrying in $RETRY_DELAY seconds..."
+            sleep $RETRY_DELAY
+        fi
+    else
+        echo "Remove liquidity failed with error: $REMOVE_RESULT"
+        break
+    fi
+done
+
+check_ok "$REMOVE_RESULT" "Remove liquidity failed after $MAX_RETRIES attempts"
 
 REQUEST_ID=$(echo "$REMOVE_RESULT" | jq -r '.Ok.request_id // .request_id // empty')
 echo "Remove liquidity request submitted: $REQUEST_ID"
 
-# Wait for processing
-echo "Waiting for transaction to process..."
-sleep 5
+# Transaction submitted
 
 # 6. Check final balance
 echo ""

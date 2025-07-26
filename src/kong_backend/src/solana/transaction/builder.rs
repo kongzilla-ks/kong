@@ -13,6 +13,7 @@ use crate::solana::network::{
 use crate::solana::sdk::account_meta::AccountMeta;
 use crate::solana::sdk::instruction::Instruction;
 use crate::solana::utils::validation;
+use crate::solana::utils::base58;
 
 /// Transaction builder for creating Solana transactions
 pub struct TransactionBuilder;
@@ -257,10 +258,10 @@ impl TransactionBuilder {
         }
 
         // Decode wallet and mint to 32-byte arrays
-        let wallet_address_bytes = crate::solana::network::SolanaNetwork::bs58_decode_public_key(wallet_address)?;
-        let mint_address_bytes = crate::solana::network::SolanaNetwork::bs58_decode_public_key(mint_address)?;
-        let token_program_bytes = crate::solana::network::SolanaNetwork::bs58_decode_public_key(TOKEN_PROGRAM_ID)?;
-        let ata_program_bytes = crate::solana::network::SolanaNetwork::bs58_decode_public_key(ASSOCIATED_TOKEN_PROGRAM_ID)?;
+        let wallet_address_bytes = base58::decode_public_key(wallet_address)?;
+        let mint_address_bytes = base58::decode_public_key(mint_address)?;
+        let token_program_bytes = base58::decode_public_key(TOKEN_PROGRAM_ID)?;
+        let ata_program_bytes = base58::decode_public_key(ASSOCIATED_TOKEN_PROGRAM_ID)?;
 
         // Seeds: [wallet, token_program, mint]. Exact order specified in the Solana docs
         let seeds: [&[u8]; 3] = [

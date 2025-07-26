@@ -17,13 +17,6 @@ pub const COMPUTE_BUDGET_PROGRAM_ID: &str = "ComputeBudget1111111111111111111111
 pub struct SolanaNetwork;
 
 impl SolanaNetwork {
-    pub fn bs58_encode_public_key(public_key: &[u8]) -> String {
-        base58::encode(public_key)
-    }
-
-    pub fn bs58_decode_public_key(public_key: &str) -> Result<[u8; 32]> {
-        base58::decode_public_key(public_key).map_err(Into::into)
-    }
 
     pub async fn get_public_key(canister: &Principal) -> Result<String> {
         let derivation_path = ManagementCanister::get_canister_derivation_path(canister);
@@ -33,15 +26,7 @@ impl SolanaNetwork {
             .await
             .map_err(|e| SolanaError::PublicKeyRetrievalError(e.to_string()))?;
 
-        let validated_public_key = SolanaNetwork::validate_public_key(&public_key_bytes)?;
-        Ok(SolanaNetwork::bs58_encode_public_key(&validated_public_key))
+        Ok(base58::encode(&public_key_bytes))
     }
 
-    fn validate_public_key(public_key: &[u8]) -> Result<Vec<u8>> {
-        if public_key.len() == 32 {
-            Ok(public_key.to_vec())
-        } else {
-            Err(SolanaError::InvalidPublicKeyFormat("Public key must be 32 bytes long.".to_string()).into())
-        }
-    }
 }

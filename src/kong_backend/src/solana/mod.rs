@@ -1,11 +1,9 @@
 pub mod error;
 pub mod get_solana_address;
-pub mod latest_blockhash;
 pub mod network;
 pub mod payment_verification;
 pub mod proxy;
 pub mod sdk;
 pub mod signature_verification;
 pub mod transaction;
-pub mod transaction_types;
 pub mod utils;

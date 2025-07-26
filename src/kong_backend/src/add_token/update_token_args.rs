@@ -6,10 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct UpdateTokenArgs {
     pub token: String,
     // Optional fields for updating Solana token metadata
-    #[serde(default)]
     pub name: Option<String>,
-    #[serde(default)]
     pub symbol: Option<String>,
-    #[serde(default)]
     pub decimals: Option<u8>,
 }

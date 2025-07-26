@@ -6,9 +6,9 @@
 use anyhow::Result;
 
 use crate::solana::error::SolanaError;
-use crate::solana::network::SolanaNetwork;
 use crate::solana::sdk::compiled_instruction::CompiledInstruction;
 use crate::solana::sdk::instruction::Instruction;
+use crate::solana::utils::base58;
 use crate::stable_memory::with_solana_latest_blockhash;
 
 /// Message header for Solana transactions
@@ -97,13 +97,13 @@ impl Message {
         // Account keys
         data.push(self.account_keys.len() as u8);
         for key in &self.account_keys {
-            let key_bytes = SolanaNetwork::bs58_decode_public_key(key)
+            let key_bytes = base58::decode_public_key(key)
                 .map_err(|e| SolanaError::InvalidPublicKeyFormat(format!("Invalid pubkey {}: {}", key, e)))?;
             data.extend_from_slice(&key_bytes);
         }
 
         // Recent blockhash (32 bytes)
-        let blockhash_bytes = SolanaNetwork::bs58_decode_public_key(&self.recent_blockhash)
+        let blockhash_bytes = base58::decode_public_key(&self.recent_blockhash)
             .map_err(|e| SolanaError::InvalidBlockhash(format!("Invalid blockhash: {}", e)))?;
         data.extend_from_slice(&blockhash_bytes);
 
@@ -123,7 +123,7 @@ impl Message {
 
 /// Serialize a message from instructions, getting blockhash internally
 pub async fn serialize_message(instructions: Vec<Instruction>, payer: &str) -> Result<Vec<u8>> {
-    let blockhash = with_solana_latest_blockhash(|cell| cell.get().blockhash.clone());
+    let blockhash = with_solana_latest_blockhash(|cell| cell.get().clone());
     let message = Message::new(instructions, payer)?.with_blockhash(blockhash);
     message.serialize()
 }

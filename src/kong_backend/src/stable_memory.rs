@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use crate::ic::network::ICNetwork;
-use crate::solana::latest_blockhash::LatestBlockhash;
 use crate::solana::proxy::types::{TransactionNotification, TransactionNotificationId};
 use crate::stable_claim::stable_claim::{StableClaim, StableClaimId};
 use crate::stable_kong_settings::stable_kong_settings::StableKongSettings;
@@ -103,8 +102,8 @@ thread_local! {
     });
 
     // stableCell for the latest blockhash and timestamp (persisted)
-    pub static SOLANA_LATEST_BLOCKHASH: RefCell<StableCell<LatestBlockhash, Memory>> =  with_memory_manager(|memory_manager| {
-        RefCell::new(StableCell::init(memory_manager.get(SOLANA_LATEST_BLOCKHASH_ID), LatestBlockhash::default()).expect("Failed to initialize SOLANA_LATEST_BLOCKHASH cell"))
+    pub static SOLANA_LATEST_BLOCKHASH: RefCell<StableCell<String, Memory>> =  with_memory_manager(|memory_manager| {
+        RefCell::new(StableCell::init(memory_manager.get(SOLANA_LATEST_BLOCKHASH_ID), String::default()).expect("Failed to initialize SOLANA_LATEST_BLOCKHASH cell"))
     });
 
     // Counter for Solana swap job IDs (persisted)
@@ -173,12 +172,12 @@ pub fn set_cached_solana_address(address: String) {
 }
 
 /// Helper function to access the latest blockhash cell
-pub fn with_solana_latest_blockhash<R>(f: impl FnOnce(&StableCell<LatestBlockhash, Memory>) -> R) -> R {
+pub fn with_solana_latest_blockhash<R>(f: impl FnOnce(&StableCell<String, Memory>) -> R) -> R {
     SOLANA_LATEST_BLOCKHASH.with(|cell| f(&cell.borrow()))
 }
 
 /// Helper function to mutate the latest blockhash cell
-pub fn with_solana_latest_blockhash_mut<R>(f: impl FnOnce(&mut StableCell<LatestBlockhash, Memory>) -> R) -> R {
+pub fn with_solana_latest_blockhash_mut<R>(f: impl FnOnce(&mut StableCell<String, Memory>) -> R) -> R {
     SOLANA_LATEST_BLOCKHASH.with(|cell| f(&mut cell.borrow_mut()))
 }
 

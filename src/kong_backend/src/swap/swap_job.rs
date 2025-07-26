@@ -37,21 +37,6 @@ impl Storable for SwapJobStatus {
     };
 }
 
-/// Parameters for creating a new SwapJob
-#[derive(Clone, Debug)]
-pub struct SwapJobParams {
-    pub id: u64,
-    pub caller: Principal,
-    pub original_args_json: String,
-    pub status: SwapJobStatus,
-    pub created_at: u64,
-    pub updated_at: u64,
-    pub encoded_signed_solana_tx: String,
-    pub solana_tx_signature_of_payout: Option<String>,
-    pub error_message: Option<String>,
-    pub attempts: u32,
-    pub tx_sig: String,
-}
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug)]
 pub struct SwapJob {
@@ -80,26 +65,31 @@ impl Storable for SwapJob {
 }
 
 impl SwapJob {
-    pub fn new(params: SwapJobParams) -> Self {
+    pub fn new(
+        id: u64,
+        caller: Principal,
+        original_args_json: String,
+        status: SwapJobStatus,
+        created_at: u64,
+        updated_at: u64,
+        encoded_signed_solana_tx: String,
+        solana_tx_signature_of_payout: Option<String>,
+        error_message: Option<String>,
+        attempts: u32,
+        tx_sig: String,
+    ) -> Self {
         Self {
-            id: params.id,
-            caller: params.caller,
-            original_args_json: params.original_args_json,
-            status: params.status,
-            created_at: params.created_at,
-            updated_at: params.updated_at,
-            encoded_signed_solana_tx: params.encoded_signed_solana_tx,
-            solana_tx_signature_of_payout: params.solana_tx_signature_of_payout,
-            error_message: params.error_message,
-            attempts: params.attempts,
-            tx_sig: params.tx_sig,
+            id,
+            caller,
+            original_args_json,
+            status,
+            created_at,
+            updated_at,
+            encoded_signed_solana_tx,
+            solana_tx_signature_of_payout,
+            error_message,
+            attempts,
+            tx_sig,
         }
     }
-}
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone)]
-pub struct QueuedSwapReply {
-    pub job_id: u64,
-    pub status: String, // e.g., "Queued", "Pending", "Completed", "Failed"
-    pub message: String,
 }

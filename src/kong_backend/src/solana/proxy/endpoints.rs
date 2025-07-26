@@ -3,7 +3,6 @@ use std::ops::Bound::{Excluded, Unbounded};
 
 use crate::ic::guards::caller_is_kong_rpc;
 use crate::ic::network::ICNetwork;
-use crate::solana::latest_blockhash::LatestBlockhash;
 use crate::stable_memory::{
     store_transaction_notification, with_solana_latest_blockhash_mut, with_swap_job_queue, with_swap_job_queue_mut,
 };
@@ -14,13 +13,8 @@ use super::types::TransactionNotification;
 /// Update the latest Solana blockhash (called by proxy)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
 pub fn update_solana_latest_blockhash(blockhash: String) -> Result<(), String> {
-    let timestamp_nanos = ICNetwork::get_time();
-
     with_solana_latest_blockhash_mut(|cell| {
-        cell.set(LatestBlockhash {
-            blockhash,
-            timestamp_nanos,
-        })
+        cell.set(blockhash)
         .map_err(|_| "Failed to update latest blockhash".to_string())?;
         Ok(())
     })
