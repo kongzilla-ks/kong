@@ -14,7 +14,7 @@ use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::solana::transaction::builder::{TransactionBuilder, SplTransferWithAtaParams};
 use crate::solana::transaction::sign::sign_transaction;
 
-use super::swap_job::{SwapJob, SwapJobParams, SwapJobStatus};
+use super::swap_job::{SwapJob, SwapJobStatus};
 
 /// Creates a Solana swap job for processing an outgoing transfer
 pub async fn create_solana_swap_job(
@@ -118,21 +118,19 @@ pub async fn create_solana_swap_job(
             "program_id": sol_token.program_id,
         });
 
-        let swap_job_params = SwapJobParams {
-            id: job_id,
-            caller: ICNetwork::caller(),
-            original_args_json: job_args.to_string(),
-            status: SwapJobStatus::Pending,
-            created_at: ts,
-            updated_at: ts,
-            encoded_signed_solana_tx: encoded_tx,
-            solana_tx_signature_of_payout: None,
-            error_message: None,
-            attempts: 0,
+        let swap_job = SwapJob::new(
+            job_id,
+            ICNetwork::caller(),
+            job_args.to_string(),
+            SwapJobStatus::Pending,
+            ts,
+            ts,
+            encoded_tx,
+            None,
+            None,
+            0,
             tx_sig,
-        };
-
-        let swap_job = SwapJob::new(swap_job_params);
+        );
 
         // Store the job in the queue
         with_swap_job_queue_mut(|queue| {
