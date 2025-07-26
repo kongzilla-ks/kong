@@ -9,7 +9,7 @@ use crate::stable_token::solana_token::SolanaToken;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token_map;
 
-use super::add_token_args::{AddTokenArgs, AddSplTokenArgs};
+use super::add_token_args::{AddSplTokenArgs, AddTokenArgs};
 use super::add_token_reply::AddTokenReply;
 
 /// Adds a token to Kong
@@ -39,8 +39,7 @@ async fn add_token(args: AddTokenArgs) -> Result<AddTokenReply, String> {
         Err(_) => {
             // Token doesn't exist, determine chain for new token
             // get_by_address handles all formats and defaults to IC for backward compatibility
-            let chain = token_map::get_chain(&args.token)
-                .unwrap_or_else(|| IC_CHAIN.to_string());
+            let chain = token_map::get_chain(&args.token).unwrap_or_else(|| IC_CHAIN.to_string());
 
             // Route based on chain type
             match chain.as_str() {
@@ -50,7 +49,7 @@ async fn add_token(args: AddTokenArgs) -> Result<AddTokenReply, String> {
                 }
                 SOL_CHAIN => {
                     // Solana tokens are added automatically via ATA discovery
-                    Err("Solana tokens are added automatically. Use add_spl_token endpoint for proxy calls.".to_string())?
+                    Err("Solana SPL tokens are added automatically.".to_string())?
                 }
                 _ => Err("Chain not supported")?,
             }
@@ -112,7 +111,6 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
 /// Only callable by the kong_rpc proxy via caller_is_kong_rpc guard.
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
 async fn add_spl_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
-    
     // Use get_by_address to check if token exists and get chain info
     match token_map::get_by_address(&args.token) {
         Ok(_existing_token) => {
@@ -121,15 +119,12 @@ async fn add_spl_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
         }
         Err(_) => {
             // Token doesn't exist, determine chain for new token
-            let chain = token_map::get_chain(&args.token)
-                .unwrap_or_else(|| IC_CHAIN.to_string());
+            let chain = token_map::get_chain(&args.token).unwrap_or_else(|| IC_CHAIN.to_string());
 
             // Ensure it's a Solana token
             match chain.as_str() {
-                SOL_CHAIN => {
-                    Ok(AddTokenReply::try_from(&add_solana_token_internal(&args).await?)?)
-                }
-                _ => Err("This endpoint is only for Solana tokens".to_string())?
+                SOL_CHAIN => Ok(AddTokenReply::try_from(&add_solana_token_internal(&args).await?)?),
+                _ => Err("This endpoint is only for Solana tokens".to_string())?,
             }
         }
     }
@@ -167,4 +162,3 @@ pub fn add_lp_token(token_0: &StableToken, token_1: &StableToken) -> Result<Stab
     // Retrieves the inserted token by its token_id
     token_map::get_by_token_id(token_id).ok_or_else(|| "Failed to add LP token".to_string())
 }
-

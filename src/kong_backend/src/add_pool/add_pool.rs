@@ -2,11 +2,6 @@ use candid::Nat;
 use ic_cdk::update;
 use icrc_ledger_types::icrc1::account::Account;
 
-use super::add_pool_args::AddPoolArgs;
-use super::add_pool_reply::AddPoolReply;
-use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
-use super::message_builder::CanonicalAddPoolMessage;
-
 use crate::add_token::add_token::{add_ic_token, add_lp_token};
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::helpers::nat_helpers::{nat_add, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero};
@@ -19,6 +14,7 @@ use crate::ic::{
     transfer::{icrc1_transfer, icrc2_transfer_from},
     verify_transfer::verify_transfer,
 };
+use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_lp_token::lp_token_map;
@@ -39,35 +35,9 @@ use crate::stable_tx::{add_pool_tx::AddPoolTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
 use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
-fn to_add_pool_reply(tx: &AddPoolTx) -> AddPoolReply {
-    AddPoolReply::from(tx)
-}
-
-fn to_add_pool_reply_failed(
-    request_id: u64,
-    chain_0: &str,
-    address_0: &str,
-    symbol_0: &str,
-    chain_1: &str,
-    address_1: &str,
-    symbol_1: &str,
-    transfer_ids: &[u64],
-    claim_ids: &[u64],
-    ts: u64,
-) -> AddPoolReply {
-    AddPoolReply::failed(
-        request_id,
-        chain_0,
-        address_0,
-        symbol_0,
-        chain_1,
-        address_1,
-        symbol_1,
-        transfer_ids,
-        claim_ids,
-        ts,
-    )
-}
+use super::add_pool_args::AddPoolArgs;
+use super::add_pool_reply::AddPoolReply;
+use super::message_builder::CanonicalAddPoolMessage;
 
 enum TokenIndex {
     Token0,
@@ -177,15 +147,14 @@ async fn check_arguments(
     // token_0, check if it exists already or needs to be added
     let token_0 = match token_map::get_by_token(&args.token_0) {
         Ok(token) => token,
-        Err(_) => {
-            match token_map::get_chain(&args.token_0) {
-                Some(chain) if chain == IC_CHAIN => add_ic_token(&args.token_0).await?,
-                Some(chain) if chain == SOL_CHAIN => {
-                    Err("Solana tokens are added automatically via ATA discovery. Manual pool creation with Solana tokens not supported.".to_string())?
-                }
-                Some(_) | None => Err("Token_0 chain not supported")?,
-            }
-        }
+        Err(_) => match token_map::get_chain(&args.token_0) {
+            Some(chain) if chain == IC_CHAIN => add_ic_token(&args.token_0).await?,
+            Some(chain) if chain == SOL_CHAIN => Err(
+                "Solana tokens are added automatically via ATA discovery. Manual pool creation with Solana tokens not supported."
+                    .to_string(),
+            )?,
+            Some(_) | None => Err("Token_0 chain not supported")?,
+        },
     };
 
     // make sure LP token does not already exist
@@ -201,7 +170,11 @@ async fn check_arguments(
 
     // prevent creating pools with identical token pairs
     if token_0.token_id() == token_1.token_id() {
-        Err(format!("Cannot create pool with identical tokens: {} and {}", token_0.symbol(), token_1.symbol()))?
+        Err(format!(
+            "Cannot create pool with identical tokens: {} and {}",
+            token_0.symbol(),
+            token_1.symbol()
+        ))?
     }
 
     let (add_amount_0, add_amount_1, add_lp_token_amount) = calculate_amounts(&token_0, &args.amount_0, &token_1, &args.amount_1)?;
@@ -426,8 +399,8 @@ async fn process_add_pool(
     );
     let tx_id = tx_map::insert(&StableTx::AddPool(add_pool_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::AddPool(add_pool_tx)) => to_add_pool_reply(add_pool_tx),
-        _ => to_add_pool_reply_failed(
+        Some(StableTx::AddPool(add_pool_tx)) => AddPoolReply::from(add_pool_tx),
+        _ => AddPoolReply::failed(
             request_id,
             &token_0.chain(),
             &token_0.address(),
@@ -498,6 +471,7 @@ async fn verify_transfer_token(
 }
 
 /// Verify cross-chain transfer using signature verification
+#[allow(clippy::too_many_arguments)]
 async fn verify_cross_chain_transfer(
     args: &AddPoolArgs,
     request_id: u64,
@@ -515,24 +489,26 @@ async fn verify_cross_chain_transfer(
     };
 
     // Extract the transaction ID
-    let tx_id_value = tx_id.as_ref().ok_or("Transaction ID is required for cross-chain transfers")?.clone();
+    let tx_id_value = tx_id
+        .as_ref()
+        .ok_or("Transaction ID is required for cross-chain transfers")?
+        .clone();
 
     // Extract transaction signature
     let tx_signature_str = match &tx_id_value {
         TxId::TransactionId(hash) => hash.clone(),
         TxId::BlockIndex(_) => return Err("BlockIndex not supported for Solana transactions".to_string()),
     };
-    
+
     // Get Solana token details
     let sol_token = match token {
         StableToken::Solana(token) => token,
         _ => return Err("Cross-chain transfers only supported for Solana tokens".to_string()),
     };
-    
+
     // Create canonical message for verification
-    let canonical_message = CanonicalAddPoolMessage::from_add_pool_args(args)
-        .to_signing_message();
-    
+    let canonical_message = CanonicalAddPoolMessage::from_add_pool_args(args).to_signing_message();
+
     // Verify the Solana transfer
     let verification = verify_transfer_solana(&tx_signature_str, signature, amount, &canonical_message, sol_token.is_spl_token)
         .await
@@ -544,12 +520,12 @@ async fn verify_cross_chain_transfer(
             };
             error_msg
         })?;
-    
+
     // Check if this Solana transaction has already been used
     if transfer_map::contains_tx_signature(token.token_id(), &verification.tx_signature) {
         return Err(format!("Solana transaction signature already used for {}", token.symbol()));
     }
-    
+
     let final_tx_id = TxId::TransactionId(verification.tx_signature);
 
     let transfer_id = transfer_map::insert(&StableTransfer {
@@ -714,7 +690,7 @@ async fn return_tokens(
         .await;
     }
 
-    let reply = to_add_pool_reply_failed(
+    let reply = AddPoolReply::failed(
         request_id,
         &token_0.chain(),
         &token_0.address(),

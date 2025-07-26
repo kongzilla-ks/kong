@@ -17,12 +17,10 @@ use super::update_token_reply::UpdateTokenReply;
 #[update(guard = "not_in_maintenance_mode")]
 async fn update_token(args: UpdateTokenArgs) -> Result<UpdateTokenReply, String> {
     let stable_token = token_map::get_by_token(&args.token)?;
-    
+
     match stable_token {
         StableToken::IC(ic_token) => UpdateTokenReply::try_from(&update_ic_token(ic_token).await?),
-        StableToken::Solana(solana_token) => {
-            UpdateTokenReply::try_from(&update_solana_token(solana_token, &args).await?)
-        }
+        StableToken::Solana(solana_token) => UpdateTokenReply::try_from(&update_solana_token(solana_token, &args).await?),
         StableToken::LP(_) => Err("Cannot update LP tokens directly".to_string()),
     }
 }
@@ -61,10 +59,10 @@ pub async fn update_ic_token(existing_ic_token: ICToken) -> Result<StableToken, 
 pub async fn update_solana_token(mut solana_token: SolanaToken, args: &UpdateTokenArgs) -> Result<StableToken, String> {
     // Solana token updates are only allowed from King Kong
     caller_is_kingkong()?;
-    
+
     // Store the old symbol before updating (needed to find existing LP tokens)
     let old_symbol = solana_token.symbol.clone();
-    
+
     // Update metadata fields if provided
     if let Some(name) = &args.name {
         solana_token.name = name.clone();
@@ -75,13 +73,13 @@ pub async fn update_solana_token(mut solana_token: SolanaToken, args: &UpdateTok
     if args.decimals.is_some() {
         return Err("Token decimals cannot be changed after creation".to_string());
     }
-    
+
     // Update the token in storage
     token_map::update(&StableToken::Solana(solana_token.clone()));
-    
+
     // Update LP token symbols if they exist (using old symbol to find them)
     update_lp_token_symbols(&solana_token, &old_symbol)?;
-    
+
     token_map::get_by_token_id(solana_token.token_id)
         .ok_or_else(|| format!("Failed to update Solana token with id {}", solana_token.token_id))
 }
@@ -94,13 +92,13 @@ fn update_lp_token_symbols(solana_token: &SolanaToken, old_symbol: &str) -> Resu
         lp_token.symbol = token::symbol(&StableToken::Solana(solana_token.clone()), &ckusdt);
         token_map::update(&StableToken::LP(lp_token));
     }
-    
+
     // Update _ICP pool for symbol
     let icp = token_map::get_icp()?;
     if let Ok(StableToken::LP(mut lp_token)) = token_map::get_by_token(&format!("LP.{}_{}", old_symbol, icp.symbol())) {
         lp_token.symbol = token::symbol(&StableToken::Solana(solana_token.clone()), &icp);
         token_map::update(&StableToken::LP(lp_token));
     }
-    
+
     Ok(())
 }

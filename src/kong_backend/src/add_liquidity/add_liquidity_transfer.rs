@@ -2,12 +2,6 @@ use candid::Nat;
 use ic_cdk::futures::spawn;
 use icrc_ledger_types::icrc1::account::Account;
 
-use super::add_liquidity::TokenIndex;
-use super::add_liquidity_args::AddLiquidityArgs;
-use super::add_liquidity_reply::AddLiquidityReply;
-use super::add_liquidity_transfer_from::archive_to_kong_data;
-use super::add_liquidity_transfer_from::{transfer_from_token, update_liquidity_pool};
-
 use crate::helpers::nat_helpers::{nat_subtract, nat_zero};
 use crate::ic::{address::Address, network::ICNetwork, transfer::icrc1_transfer, verify_transfer::verify_transfer};
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
@@ -19,6 +13,12 @@ use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{add_liquidity_tx::AddLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
+
+use super::add_liquidity::TokenIndex;
+use super::add_liquidity_args::AddLiquidityArgs;
+use super::add_liquidity_reply::AddLiquidityReply;
+use super::add_liquidity_transfer_from::archive_to_kong_data;
+use super::add_liquidity_transfer_from::{transfer_from_token, update_liquidity_pool};
 
 pub async fn add_liquidity_transfer(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     // user has transferred one of the tokens, we need to log the request immediately and verify the transfer
@@ -367,7 +367,8 @@ async fn process_add_liquidity(
     );
     let tx_id = tx_map::insert(&StableTx::AddLiquidity(add_liquidity_tx.clone()));
     let reply = match tx_map::get_by_user_and_token_id(Some(tx_id), None, None, None).first() {
-        Some(StableTx::AddLiquidity(add_liquidity_tx)) => AddLiquidityReply::try_from(add_liquidity_tx).unwrap_or_else(|_| AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts)),
+        Some(StableTx::AddLiquidity(add_liquidity_tx)) => AddLiquidityReply::try_from(add_liquidity_tx)
+            .unwrap_or_else(|_| AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts)),
         _ => AddLiquidityReply::failed(pool.pool_id, request_id, &transfer_ids, &Vec::new(), ts),
     };
     request_map::update_reply(request_id, Reply::AddLiquidity(reply.clone()));

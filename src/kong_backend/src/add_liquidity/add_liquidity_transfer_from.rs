@@ -1,14 +1,7 @@
 use candid::Nat;
 use icrc_ledger_types::icrc1::account::Account;
 
-use super::add_liquidity::TokenIndex;
-use super::add_liquidity_args::AddLiquidityArgs;
-use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
-use super::message_builder::CanonicalAddLiquidityMessage;
 use crate::chains::chains::SOL_CHAIN;
-use crate::stable_token::token_management::handle_failed_transfer;
-use super::add_liquidity_reply::AddLiquidityReply;
-
 use crate::helpers::nat_helpers::{
     nat_add, nat_divide, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero,
 };
@@ -17,6 +10,7 @@ use crate::ic::{
     network::ICNetwork,
     transfer::{icrc1_transfer, icrc2_transfer_from},
 };
+use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_lp_token::{lp_token_map, stable_lp_token::StableLPToken};
@@ -24,9 +18,15 @@ use crate::stable_pool::{pool_map, stable_pool::StablePool};
 use crate::stable_request::{reply::Reply, request::Request, request_map, stable_request::StableRequest, status::StatusCode};
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token::Token;
+use crate::stable_token::token_management::handle_failed_transfer;
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{add_liquidity_tx::AddLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
+
+use super::add_liquidity::TokenIndex;
+use super::add_liquidity_args::AddLiquidityArgs;
+use super::add_liquidity_reply::AddLiquidityReply;
+use super::message_builder::CanonicalAddLiquidityMessage;
 
 pub async fn add_liquidity_transfer_from(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     let (user_id, pool, add_amount_0, add_amount_1) = check_arguments(&args).await?;
@@ -243,21 +243,26 @@ async fn process_add_liquidity(
             TxId::TransactionId(hash) => hash.clone(),
             TxId::BlockIndex(_) => return Err("Token_0: BlockIndex not supported for Solana transactions".to_string()),
         };
-        
+
         // Get Solana token details
         let sol_token = match &token_0 {
             StableToken::Solana(token) => token,
             _ => return Err("Token_0: Invalid token type for Solana verification".to_string()),
         };
-        
+
         // Create canonical message for verification
-        let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args)
-            .to_signing_message();
-        
+        let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args).to_signing_message();
+
         // Verify the Solana transfer
-        let verification = verify_transfer_solana(&tx_signature_str, signature, add_amount_0, &canonical_message, sol_token.is_spl_token)
-            .await
-            .map_err(|e| format!("Token_0 Solana payment verification failed. {}", e))?;
+        let verification = verify_transfer_solana(
+            &tx_signature_str,
+            signature,
+            add_amount_0,
+            &canonical_message,
+            sol_token.is_spl_token,
+        )
+        .await
+        .map_err(|e| format!("Token_0 Solana payment verification failed. {}", e))?;
 
         // Check if this Solana transaction has already been used
         if transfer_map::contains_tx_signature(token_0.token_id(), &verification.tx_signature) {
@@ -308,17 +313,16 @@ async fn process_add_liquidity(
                     TxId::TransactionId(hash) => hash.clone(),
                     TxId::BlockIndex(_) => return Err("Token_1: BlockIndex not supported for Solana transactions".to_string()),
                 };
-                
+
                 // Get Solana token details
                 let sol_token = match &token_1 {
                     StableToken::Solana(token) => token,
                     _ => return Err("Token_1: Invalid token type for Solana verification".to_string()),
                 };
-                
+
                 // Create canonical message for verification
-                let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args)
-                    .to_signing_message();
-                
+                let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args).to_signing_message();
+
                 // Verify the Solana transfer
                 match verify_transfer_solana(&tx_signature_str, sig, add_amount_1, &canonical_message, sol_token.is_spl_token).await {
                     Ok(verification) => {
