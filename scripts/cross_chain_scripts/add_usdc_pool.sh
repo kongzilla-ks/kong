@@ -68,7 +68,7 @@ USDC_DEC=$(bc <<< "scale=6; ${USDC_AMOUNT} / 1000000")
 echo "Transferring ${USDC_DEC} USDC to Kong..."
 TRANSFER_OUTPUT=$(spl-token transfer --allow-unfunded-recipient "${USDC_ADDRESS}" "${USDC_DEC}" "${KONG_SOLANA_ADDRESS}" --fund-recipient)
 USDC_TX_SIG=$(echo "${TRANSFER_OUTPUT}" | grep -o 'Signature: .*' | awk '{print $2}')
-echo "USDC transferred. Tx: ${USDC_TX_SIG}"; sleep 30
+echo "USDC transferred. Tx: ${USDC_TX_SIG}"
 
 # --- 2. Approve USDT spending ---
 APPROVE_AMOUNT=$((USDT_AMOUNT + USDT_FEE))
@@ -81,17 +81,39 @@ MESSAGE_JSON=$(printf '{"token_0":"%s.%s","amount_0":"%s","token_1":"%s.%s","amo
     "${USDT_CHAIN}" "${USDT_LEDGER}" "${USDT_AMOUNT}")
 SIGNATURE=$(solana sign-offchain-message "${MESSAGE_JSON}")
 
-# --- 4. Create pool ---
+# --- 4. Create pool with retry logic ---
 echo "Creating USDC/${USDT_SYMBOL} pool..."
-POOL_RESULT_RAW=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_pool --output json "(record {
-    token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\";
-    amount_0 = ${USDC_AMOUNT};
-    tx_id_0 = opt variant { TransactionId = \"${USDC_TX_SIG}\" };
-    token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\";
-    amount_1 = ${USDT_AMOUNT};
-    signature_0 = opt \"${SIGNATURE}\";
-})")
-check_ok "${POOL_RESULT_RAW}" "Pool creation failed"
+MAX_RETRIES=5
+RETRY_DELAY=2
+
+for i in $(seq 1 $MAX_RETRIES); do
+    echo "Pool creation attempt $i/$MAX_RETRIES"
+    POOL_RESULT_RAW=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_pool --output json "(record {
+        token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\";
+        amount_0 = ${USDC_AMOUNT};
+        tx_id_0 = opt variant { TransactionId = \"${USDC_TX_SIG}\" };
+        token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\";
+        amount_1 = ${USDT_AMOUNT};
+        signature_0 = opt \"${SIGNATURE}\";
+    })" 2>&1 || true)
+    
+    if echo "$POOL_RESULT_RAW" | grep -q -e "Ok" -e "ok"; then
+        break
+    fi
+    
+    if echo "$POOL_RESULT_RAW" | grep -q "TRANSACTION_NOT_READY"; then
+        echo "Transaction not ready, waiting..."
+        if [ $i -lt $MAX_RETRIES ]; then
+            echo "Retrying in $RETRY_DELAY seconds..."
+            sleep $RETRY_DELAY
+        fi
+    else
+        echo "Pool creation failed with error: $POOL_RESULT_RAW"
+        break
+    fi
+done
+
+check_ok "${POOL_RESULT_RAW}" "Pool creation failed after $MAX_RETRIES attempts"
 POOL_ID=$(echo "${POOL_RESULT_RAW}" | jq -r '.Ok.pool_id // .pool_id // empty')
 [[ -z "${POOL_ID}" || "${POOL_ID}" == "0" ]] && echo "Warning: could not parse pool_id" || echo "Pool created! ID: ${POOL_ID}"
 

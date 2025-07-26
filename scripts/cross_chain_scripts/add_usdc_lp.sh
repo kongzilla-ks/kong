@@ -49,7 +49,7 @@ USDC_DEC=$(bc <<< "scale=6; ${USDC_AMOUNT}/1000000")
 TX_OUT=$(spl-token transfer --allow-unfunded-recipient "${USDC_ADDRESS}" "${USDC_DEC}" "${KONG_SOL_ADDR}" --fund-recipient)
 USDC_TX_SIG=$(echo "$TX_OUT" | grep -o 'Signature: .*' | awk '{print $2}')
 
-echo "Transferred $USDC_DEC USDC (tx $USDC_TX_SIG)"; sleep 30
+echo "Transferred $USDC_DEC USDC (tx $USDC_TX_SIG)"
 echo "hi"
 
 # 2. Approve USDT
@@ -63,9 +63,31 @@ MSG=$(printf '{"token_0":"%s.%s","amount_0":"%s","token_1":"%s.%s","amount_1":"%
  "$USDT_CHAIN" "$USDT_LEDGER" "$USDT_AMOUNT")
 SIG=$(solana sign-offchain-message "$MSG")
 
-# 4. Add liquidity
+# 4. Add liquidity with retry logic
 CALL="(record { token_0 = \"${USDC_CHAIN}.${USDC_ADDRESS}\"; amount_0=${USDC_AMOUNT}; tx_id_0=opt variant { TransactionId = \"${USDC_TX_SIG}\" }; token_1 = \"${USDT_CHAIN}.${USDT_LEDGER}\"; amount_1=${USDT_AMOUNT}; tx_id_1 = null; signature_0 = opt \"${SIG}\"; signature_1 = null; })"
-RES=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_liquidity --output json "$CALL")
-check_ok "$RES" "add_liquidity failed"
+MAX_RETRIES=5
+RETRY_DELAY=2
+
+for i in $(seq 1 $MAX_RETRIES); do
+    echo "Add liquidity attempt $i/$MAX_RETRIES"
+    RES=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} add_liquidity --output json "$CALL" 2>&1 || true)
+    
+    if echo "$RES" | grep -q -e "Ok" -e "ok"; then
+        break
+    fi
+    
+    if echo "$RES" | grep -q "TRANSACTION_NOT_READY"; then
+        echo "Transaction not ready, waiting..."
+        if [ $i -lt $MAX_RETRIES ]; then
+            echo "Retrying in $RETRY_DELAY seconds..."
+            sleep $RETRY_DELAY
+        fi
+    else
+        echo "Add liquidity failed with error: $RES"
+        break
+    fi
+done
+
+check_ok "$RES" "add_liquidity failed after $MAX_RETRIES attempts"
 RID=$(echo "$RES" | jq -r '.Ok.request_id // .request_id // empty')
 [[ -n "$RID" ]] && echo "Liquidity add request submitted: $RID" || echo "$RES"

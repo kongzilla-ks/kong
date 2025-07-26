@@ -22,7 +22,8 @@ use crate::helpers::nat_helpers::{nat_to_decimals_f64, nat_to_f64};
 use crate::ic::network::ICNetwork;
 use crate::remove_liquidity::remove_liquidity_args::RemoveLiquidityArgs;
 use crate::stable_kong_settings::kong_settings_map;
-use crate::stable_memory::cleanup_old_notifications;
+use crate::stable_memory::{cleanup_old_notifications, get_solana_transaction};
+use crate::stable_transfer::tx_id::TxId;
 use crate::stable_request::request_archive::archive_request_map;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_management::check_disabled_tokens;
@@ -178,6 +179,17 @@ fn inspect_message() {
     ic_cdk::api::accept_message();
 }
 
+fn check_transaction_ready(signature: &Option<String>, tx_id: &Option<TxId>) -> Result<(), String> {
+    if let (Some(_signature), Some(tx_id)) = (signature, tx_id) {
+        if let TxId::TransactionId(tx_sig) = tx_id {
+            if get_solana_transaction(tx_sig.clone()).is_none() {
+                return Err("TRANSACTION_NOT_READY".to_string());
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_add_liquidity_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
     
@@ -186,9 +198,8 @@ fn validate_add_liquidity_request() -> Result<(), String> {
     }
     
     if let Ok(add_liquidity_args) = decode_one::<AddLiquidityArgs>(&args_bytes) {
-        if add_liquidity_args.signature_0.is_some() || add_liquidity_args.signature_1.is_some() {
-            return Err("TRANSACTION_NOT_READY".to_string());
-        }
+        check_transaction_ready(&add_liquidity_args.signature_0, &add_liquidity_args.tx_id_0)?;
+        check_transaction_ready(&add_liquidity_args.signature_1, &add_liquidity_args.tx_id_1)?;
     }
     
     Ok(())
@@ -202,9 +213,8 @@ fn validate_add_pool_request() -> Result<(), String> {
     }
     
     if let Ok(add_pool_args) = decode_one::<AddPoolArgs>(&args_bytes) {
-        if add_pool_args.signature_0.is_some() || add_pool_args.signature_1.is_some() {
-            return Err("TRANSACTION_NOT_READY".to_string());
-        }
+        check_transaction_ready(&add_pool_args.signature_0, &add_pool_args.tx_id_0)?;
+        check_transaction_ready(&add_pool_args.signature_1, &add_pool_args.tx_id_1)?;
     }
     
     Ok(())
@@ -218,9 +228,7 @@ fn validate_swap_request() -> Result<(), String> {
     }
     
     if let Ok(swap_args) = decode_one::<SwapArgs>(&args_bytes) {
-        if swap_args.pay_signature.is_some() {
-            return Err("TRANSACTION_NOT_READY".to_string());
-        }
+        check_transaction_ready(&swap_args.pay_signature, &swap_args.pay_tx_id)?;
     }
     
     Ok(())

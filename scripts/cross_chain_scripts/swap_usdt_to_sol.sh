@@ -78,18 +78,40 @@ echo "--- 3. Getting Solana address ---"
 SOLANA_ADDRESS=$(solana address)
 echo "Solana address: ${SOLANA_ADDRESS}"
 
-# --- 4. Execute swap ---
+# --- 4. Execute swap with retry logic ---
 echo
 echo "--- 4. Executing swap ---"
-SWAP_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap "(record {
-    pay_token = \"${PAY_TOKEN}\";
-    pay_amount = ${PAY_AMOUNT};
-    receive_token = \"${RECEIVE_TOKEN}\";
-    receive_amount = opt ${RECEIVE_AMOUNT};
-    max_slippage = opt ${MAX_SLIPPAGE};
-    receive_address = opt \"${SOLANA_ADDRESS}\";
-})")
-check_ok "${SWAP_RESULT}" "Swap failed"
+MAX_RETRIES=5
+RETRY_DELAY=2
+
+for i in $(seq 1 $MAX_RETRIES); do
+    echo "Swap attempt $i/$MAX_RETRIES"
+    SWAP_RESULT=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap "(record {
+        pay_token = \"${PAY_TOKEN}\";
+        pay_amount = ${PAY_AMOUNT};
+        receive_token = \"${RECEIVE_TOKEN}\";
+        receive_amount = opt ${RECEIVE_AMOUNT};
+        max_slippage = opt ${MAX_SLIPPAGE};
+        receive_address = opt \"${SOLANA_ADDRESS}\";
+    })" 2>&1 || true)
+    
+    if echo "$SWAP_RESULT" | grep -q -e "Ok" -e "ok"; then
+        break
+    fi
+    
+    if echo "$SWAP_RESULT" | grep -q "TRANSACTION_NOT_READY"; then
+        echo "Transaction not ready, waiting..."
+        if [ $i -lt $MAX_RETRIES ]; then
+            echo "Retrying in $RETRY_DELAY seconds..."
+            sleep $RETRY_DELAY
+        fi
+    else
+        echo "Swap failed with error: $SWAP_RESULT"
+        break
+    fi
+done
+
+check_ok "${SWAP_RESULT}" "Swap failed after $MAX_RETRIES attempts"
 
 echo "Swap completed successfully!"
 echo "${SWAP_RESULT}"
