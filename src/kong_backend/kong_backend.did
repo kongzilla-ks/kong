@@ -347,6 +347,9 @@ type AddTokenResult = variant { Ok : AddTokenReply; Err : text };
 
 type UpdateTokenArgs = record {
     token : text;
+    name : opt text;
+    symbol : opt text;
+    decimals : opt nat8;
 };
 type UpdateTokenReply = variant {
     IC : ICTokenReply;

@@ -36,7 +36,6 @@ pub struct SolanaTransferReply {
     pub amount: Nat,
     pub mint_address: String,
     pub signature: String,
-    pub slot: Option<u64>,
 }
 
 impl From<ICTransferReply> for TransferReply {
@@ -82,7 +81,6 @@ impl TryFrom<(u64, &StableTransfer, &StableToken)> for TransferIdReply {
                         amount: transfer.amount.clone(),
                         mint_address: token.mint_address.clone(),
                         signature: signature.clone(),
-                        slot: None, // This can be populated later if the slot info is stored
                     }.into(),
                 }),
                 _ => Err("A TransactionId is expected for Solana tokens".to_string()),
