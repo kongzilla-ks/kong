@@ -8,6 +8,7 @@ use crate::kong_backend::KongBackend;
 use crate::solana::error::SolanaError;
 use crate::solana::sdk::instruction::Instruction;
 
+use super::builder::TransactionBuilder;
 use super::serialize::serialize_message;
 
 /// Signed transaction ready for submission
@@ -83,8 +84,6 @@ pub async fn sign_transaction(instructions: Vec<Instruction>, payer: &str) -> Re
 
 /// Build and sign a simple SOL transfer transaction
 pub async fn build_and_sign_sol_transfer(from_address: &str, to_address: &str, lamports: u64) -> Result<SignedTransaction> {
-    use super::builder::TransactionBuilder;
-
     // Build transaction
     let instructions = TransactionBuilder::build_transfer_sol_transaction(from_address, to_address, lamports, None).await?;
 
@@ -99,8 +98,6 @@ pub async fn build_and_sign_spl_transfer(
     to_token_account: &str,
     amount: u64,
 ) -> Result<SignedTransaction> {
-    use super::builder::TransactionBuilder;
-
     // Build transaction
     let instructions =
         TransactionBuilder::build_transfer_spl_transaction(owner_address, from_token_account, to_token_account, amount, None).await?;
