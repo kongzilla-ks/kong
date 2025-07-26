@@ -20,22 +20,6 @@ pub struct SwapArgs {
     pub max_slippage: Option<f64>,
     pub referred_by: Option<String>,
     // Cross-chain fields
-    #[serde(default)]
     pub pay_signature: Option<String>,   // Ed25519 signature of canonical message for payment verification
 }
 
-impl Default for SwapArgs {
-    fn default() -> Self {
-        Self {
-            pay_token: String::new(),
-            pay_amount: Nat::from(0u64),
-            pay_tx_id: None,
-            receive_token: String::new(),
-            receive_amount: None,
-            receive_address: None,
-            max_slippage: None,
-            referred_by: None,
-            pay_signature: None,
-        }
-    }
-}

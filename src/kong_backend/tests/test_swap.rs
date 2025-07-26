@@ -102,7 +102,7 @@ fn test_swap_approve_transfer_from_a_to_b() {
         receive_address: Some(user_principal.to_text()),             // Explicitly set receive address
         max_slippage: Some(50.0),                                    // Explicitly allow up to 50% slippage for this test
         referred_by: None,
-        ..Default::default()
+        pay_signature: None
     };
     let swap_payload_approve = encode_one(&swap_args_approve).expect("Failed to encode swap_args_approve ");
 
@@ -247,7 +247,7 @@ fn test_swap_direct_transfer_a_to_b() {
         receive_address: Some(user_principal.to_text()),           // Explicitly set receive address
         max_slippage: Some(50.0),                                  // Explicitly allow up to 50% slippage
         referred_by: None,
-        ..Default::default()
+        pay_signature: None
     };
     let swap_payload_direct_a = encode_one(&swap_args_direct_a).expect("Failed to encode swap_args_direct_a ");
 
@@ -485,7 +485,7 @@ fn test_swap_with_transfer_fee_token() {
         receive_address: Some(user_principal.to_text()),
         max_slippage: Some(50.0),
         referred_by: None,
-        ..Default::default()
+        pay_signature: None
     };
     
     let user_b_balance_before_swap = get_icrc1_balance(&ic, token_b_ledger_id, user_account);
@@ -583,7 +583,7 @@ fn test_swap_direct_transfer_b_to_a() {
         receive_address: Some(user_principal.to_text()),        // Explicitly set receive address
         max_slippage: Some(50.0),                               // Explicitly allow up to 50% slippage
         referred_by: None,
-        ..Default::default()
+        pay_signature: None
     };
     let swap_payload_direct_b = encode_one(&swap_args_direct_b).expect("Failed to encode swap_args_direct_b ");
 
