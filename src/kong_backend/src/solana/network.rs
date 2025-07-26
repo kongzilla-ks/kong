@@ -26,15 +26,7 @@ impl SolanaNetwork {
             .await
             .map_err(|e| SolanaError::PublicKeyRetrievalError(e.to_string()))?;
 
-        let validated_public_key = SolanaNetwork::validate_public_key(&public_key_bytes)?;
-        Ok(base58::encode(&validated_public_key))
+        Ok(base58::encode(&public_key_bytes))
     }
 
-    fn validate_public_key(public_key: &[u8]) -> Result<Vec<u8>> {
-        if public_key.len() == 32 {
-            Ok(public_key.to_vec())
-        } else {
-            Err(SolanaError::InvalidPublicKeyFormat("Public key must be 32 bytes long.".to_string()).into())
-        }
-    }
 }
