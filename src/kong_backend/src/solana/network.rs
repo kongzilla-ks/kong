@@ -17,7 +17,6 @@ pub const COMPUTE_BUDGET_PROGRAM_ID: &str = "ComputeBudget1111111111111111111111
 pub struct SolanaNetwork;
 
 impl SolanaNetwork {
-
     pub async fn get_public_key(canister: &Principal) -> Result<String> {
         let derivation_path = ManagementCanister::get_canister_derivation_path(canister);
 
@@ -28,5 +27,4 @@ impl SolanaNetwork {
 
         Ok(base58::encode(&public_key_bytes))
     }
-
 }
