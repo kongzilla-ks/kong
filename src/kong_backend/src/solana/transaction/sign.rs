@@ -8,7 +8,6 @@ use crate::kong_backend::KongBackend;
 use crate::solana::error::SolanaError;
 use crate::solana::sdk::instruction::Instruction;
 
-use super::builder::TransactionBuilder;
 use super::serialize::serialize_message;
 
 /// Signed transaction ready for submission

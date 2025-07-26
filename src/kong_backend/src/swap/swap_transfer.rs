@@ -19,7 +19,8 @@ use crate::stable_request::{request::Request, request_map, stable_request::Stabl
 use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_user::user_map;
-use crate::swap::payment_verifier::{PaymentVerifier, PaymentVerification};
+use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
+use crate::swap::message_builder::CanonicalSwapMessage;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
@@ -152,25 +153,41 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                 }
             } else if pay_token.chain() == "SOL" {
                 match pay_tx_id {
-                    TxId::TransactionId(_) => {
-                        let verifier = PaymentVerifier::new(ICNetwork::caller_id().owner);
-                        match verifier.verify_payment(args, &pay_token, &pay_amount).await {
-                            Ok(PaymentVerification::SolanaPayment { tx_signature, from_address: _, amount }) => {
+                    TxId::TransactionId(tx_signature_str) => {
+                        // Get the signature from args
+                        let signature = args.pay_signature.as_ref()
+                            .ok_or_else(|| {
+                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Payment signature is required for Solana/SPL tokens"));
+                                "Payment signature is required for Solana/SPL tokens".to_string()
+                            })?;
+                        
+                        // Get Solana token details
+                        let sol_token = match &pay_token {
+                            StableToken::Solana(token) => token,
+                            _ => {
+                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Invalid token type"));
+                                return Err("Invalid token type".to_string());
+                            }
+                        };
+                        
+                        // Create canonical message for verification
+                        let canonical_message = CanonicalSwapMessage::from_swap_args(args)
+                            .to_signing_message();
+                        
+                        // Verify the Solana transfer
+                        match verify_transfer_solana(tx_signature_str, signature, &pay_amount, &canonical_message, sol_token.is_spl_token).await {
+                            Ok(verification) => {
                                 let transfer_id = transfer_map::insert(&StableTransfer {
                                     transfer_id: 0,
                                     request_id,
                                     is_send: true,
-                                    amount: amount.clone(),
+                                    amount: verification.amount,
                                     token_id: pay_token.token_id(),
-                                    tx_id: TxId::TransactionId(tx_signature),
+                                    tx_id: TxId::TransactionId(verification.tx_signature),
                                     ts,
                                 });
                                 request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);
                                 transfer_id
-                            }
-                            Ok(PaymentVerification::IcpPayment { .. }) => {
-                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Unexpected ICP payment for Solana token"));
-                                Err("Unexpected ICP payment for Solana token".to_string())?
                             }
                             Err(e) => {
                                 request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
