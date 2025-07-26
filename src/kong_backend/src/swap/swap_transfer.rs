@@ -20,6 +20,7 @@ use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_user::user_map;
 use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
+use crate::solana::payment_verification::extract_solana_sender_from_transaction;
 use crate::swap::message_builder::CanonicalSwapMessage;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
@@ -170,8 +171,12 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                             }
                         };
                         
-                        // Create canonical message for verification
+                        // Extract sender from the transaction first
+                        let sender_pubkey = extract_solana_sender_from_transaction(tx_signature_str, sol_token.is_spl_token).await?;
+                        
+                        // Create canonical message with the sender for verification
                         let canonical_message = CanonicalSwapMessage::from_swap_args(args)
+                            .with_sender(sender_pubkey.clone())
                             .to_signing_message();
                         
                         // Verify the Solana transfer

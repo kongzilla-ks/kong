@@ -20,7 +20,7 @@ pub struct SolanaVerificationResult {
 /// * `tx_id` - The transaction signature/ID
 /// * `signature` - The Ed25519 signature on the canonical message
 /// * `amount` - The expected transfer amount
-/// * `canonical_message` - The message that was signed
+/// * `canonical_message` - The message that was signed (without sender, as it will be extracted)
 /// * `is_spl_token` - Whether this is an SPL token (true) or native SOL (false)
 ///
 /// # Returns
@@ -33,10 +33,11 @@ pub async fn verify_transfer(
     canonical_message: &str,
     is_spl_token: bool,
 ) -> Result<SolanaVerificationResult, String> {
-    // Extract sender from the Solana transaction
+    // Extract sender from the Solana transaction (for security, we trust only the blockchain)
     let sender_pubkey = extract_solana_sender_from_transaction(tx_id, is_spl_token).await?;
     
     // Verify the signature on the canonical message
+    // The message should already contain the pay_address that matches the sender
     verify_canonical_message(canonical_message, &sender_pubkey, signature)
         .map_err(|e| format!("Signature verification failed: {}", e))?;
     
