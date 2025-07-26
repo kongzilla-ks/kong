@@ -5,6 +5,7 @@ use icrc_ledger_types::icrc::generic_value::ICRC3Value;
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc3::blocks::{GetBlocksRequest as ICRC3GetBlocksRequest, GetBlocksResult as ICRC3GetBlocksResult};
 use icrc_ledger_types::icrc3::transactions::{GetTransactionsRequest, GetTransactionsResponse};
+use num_traits::cast::ToPrimitive;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -13,7 +14,6 @@ use crate::ic::network::ICNetwork;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_token::token::Token;
-use num_traits::cast::ToPrimitive;
 
 use super::wumbo::Transaction1;
 
@@ -392,9 +392,7 @@ async fn verify_transfer_with_get_transactions(
             .with_arg((block_id.clone(),))
             .await
         {
-            Ok(response) => match response.candid::<(Option<Transaction1>,)>()
-                .map_err(|e| format!("{:?}", e))?
-                .0 {
+            Ok(response) => match response.candid::<(Option<Transaction1>,)>().map_err(|e| format!("{:?}", e))?.0 {
                 Some(transaction) => {
                     if let Some(transfer) = transaction.transfer {
                         let from = transfer.from;
@@ -438,8 +436,7 @@ async fn verify_transfer_with_get_transactions(
             .await
         {
             Ok(response) => {
-                let get_transactions_response = response.candid::<GetTransactionsResponse>()
-                    .map_err(|e| format!("{:?}", e))?;
+                let get_transactions_response = response.candid::<GetTransactionsResponse>().map_err(|e| format!("{:?}", e))?;
                 let transactions = get_transactions_response.transactions;
                 for transaction in transactions.into_iter() {
                     if let Some(transfer) = transaction.transfer {

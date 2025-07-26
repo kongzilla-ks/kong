@@ -185,7 +185,7 @@ fn validate_swap_request() -> Result<(), String> {
                 return Err("Invalid token parameters".to_string());
             }
 
-            // Amount validation - prevent zero or extremely large amounts
+            // Amount validation
             if nat_is_zero(&args.pay_amount) {
                 return Err("Pay amount cannot be zero".to_string());
             }
