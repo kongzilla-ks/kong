@@ -2,7 +2,7 @@
 //! Handles verification of incoming payments for pool creation
 
 use anyhow::Result;
-use candid::{Nat, Principal};
+use candid::Nat;
 
 use crate::stable_token::stable_token::StableToken;
 use crate::stable_transfer::tx_id::TxId;

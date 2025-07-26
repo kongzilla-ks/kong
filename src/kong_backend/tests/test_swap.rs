@@ -426,7 +426,8 @@ fn test_swap_with_transfer_fee_token() {
         amount_1: liquidity_b_amount.clone(),
         tx_id_1: Some(TxId::BlockIndex(b_tx_id)),
         lp_fee_bps: Some(30),
-        ..Default::default()
+        signature_0: None,
+        signature_1: None
     };
     let add_pool_response = ic
         .update_call(kong_backend, user_principal, "add_pool", encode_one(&add_pool_args).expect("Failed to encode"))

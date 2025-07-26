@@ -31,14 +31,6 @@ pub struct TaggrGetBlocksArgs {
     pub length: u64,
 }
 
-/// Represents the type of a transaction being verified.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum TransactionType {
-    Approve,
-    Transfer,
-    TransferFrom,
-}
-
 /// Verifies a transfer by checking the ledger.
 /// For ICRC3 tokens, it tries ICRC3 methods first, falling back to traditional methods.
 /// For non-ICRC3 tokens, it uses the traditional verification methods.

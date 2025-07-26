@@ -96,10 +96,3 @@ impl SwapJob {
         }
     }
 }
-
-#[derive(CandidType, Deserialize, Serialize, Debug, Clone)]
-pub struct QueuedSwapReply {
-    pub job_id: u64,
-    pub status: String, // e.g., "Queued", "Pending", "Completed", "Failed"
-    pub message: String,
-}
