@@ -31,5 +31,4 @@ pub struct SolanaTransferReply {
     pub amount: Nat,
     pub mint_address: String,
     pub signature: String,
-    pub slot: Option<u64>,
 }
