@@ -4,7 +4,8 @@ use icrc_ledger_types::icrc1::account::Account;
 
 use super::add_pool_args::AddPoolArgs;
 use super::add_pool_reply::AddPoolReply;
-use super::pool_payment_verifier::{PoolPaymentVerification, PoolPaymentVerifier};
+use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
+use super::message_builder::CanonicalAddPoolMessage;
 
 use crate::add_token::add_token::{add_ic_token, add_lp_token};
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
@@ -516,10 +517,24 @@ async fn verify_cross_chain_transfer(
     // Extract the transaction ID
     let tx_id_value = tx_id.as_ref().ok_or("Transaction ID is required for cross-chain transfers")?.clone();
 
-    // Use the pool payment verifier
-    let verifier = PoolPaymentVerifier::new();
-    let verification = verifier
-        .verify_pool_payment(args, token, amount, &tx_id_value, signature)
+    // Extract transaction signature
+    let tx_signature_str = match &tx_id_value {
+        TxId::TransactionId(hash) => hash.clone(),
+        TxId::BlockIndex(_) => return Err("BlockIndex not supported for Solana transactions".to_string()),
+    };
+    
+    // Get Solana token details
+    let sol_token = match token {
+        StableToken::Solana(token) => token,
+        _ => return Err("Cross-chain transfers only supported for Solana tokens".to_string()),
+    };
+    
+    // Create canonical message for verification
+    let canonical_message = CanonicalAddPoolMessage::from_add_pool_args(args)
+        .to_signing_message();
+    
+    // Verify the Solana transfer
+    let verification = verify_transfer_solana(&tx_signature_str, signature, amount, &canonical_message, sol_token.is_spl_token)
         .await
         .map_err(|e| {
             let error_msg = format!("Cross-chain pool verification failed: {}", e);
@@ -529,17 +544,13 @@ async fn verify_cross_chain_transfer(
             };
             error_msg
         })?;
-
-    // Create transfer record based on verification result
-    let final_tx_id = match verification {
-        PoolPaymentVerification::SolanaPayment { tx_signature, .. } => {
-            // Check if this Solana transaction has already been used
-            if transfer_map::contains_tx_signature(token.token_id(), &tx_signature) {
-                return Err(format!("Solana transaction signature already used for {}", token.symbol()));
-            }
-            TxId::TransactionId(tx_signature)
-        }
-    };
+    
+    // Check if this Solana transaction has already been used
+    if transfer_map::contains_tx_signature(token.token_id(), &verification.tx_signature) {
+        return Err(format!("Solana transaction signature already used for {}", token.symbol()));
+    }
+    
+    let final_tx_id = TxId::TransactionId(verification.tx_signature);
 
     let transfer_id = transfer_map::insert(&StableTransfer {
         transfer_id: 0,

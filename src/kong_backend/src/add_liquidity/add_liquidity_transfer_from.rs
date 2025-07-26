@@ -3,7 +3,8 @@ use icrc_ledger_types::icrc1::account::Account;
 
 use super::add_liquidity::TokenIndex;
 use super::add_liquidity_args::AddLiquidityArgs;
-use super::liquidity_payment_verifier::{LiquidityPaymentVerifier, LiquidityPaymentVerification};
+use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
+use super::message_builder::CanonicalAddLiquidityMessage;
 use crate::chains::chains::SOL_CHAIN;
 use crate::stable_token::token_management::handle_failed_transfer;
 use super::add_liquidity_reply::AddLiquidityReply;
@@ -234,22 +235,33 @@ async fn process_add_liquidity(
     // Handle token_0 transfer (IC or Solana)
     if token_0.chain() == SOL_CHAIN {
         // Verify Solana payment with signature
-        let verifier = LiquidityPaymentVerifier::new(ICNetwork::caller());
         let tx_id_0 = args.tx_id_0.as_ref().ok_or("Token_0: Solana tokens require tx_id")?;
         let signature = args.signature_0.as_ref().ok_or("Token_0: Solana tokens require signature")?;
 
-        let verification = verifier
-            .verify_liquidity_payment(args, &token_0, add_amount_0, tx_id_0, signature)
+        // Extract transaction signature
+        let tx_signature_str = match tx_id_0 {
+            TxId::TransactionId(hash) => hash.clone(),
+            TxId::BlockIndex(_) => return Err("Token_0: BlockIndex not supported for Solana transactions".to_string()),
+        };
+        
+        // Get Solana token details
+        let sol_token = match &token_0 {
+            StableToken::Solana(token) => token,
+            _ => return Err("Token_0: Invalid token type for Solana verification".to_string()),
+        };
+        
+        // Create canonical message for verification
+        let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args)
+            .to_signing_message();
+        
+        // Verify the Solana transfer
+        let verification = verify_transfer_solana(&tx_signature_str, signature, add_amount_0, &canonical_message, sol_token.is_spl_token)
             .await
             .map_err(|e| format!("Token_0 Solana payment verification failed. {}", e))?;
 
         // Check if this Solana transaction has already been used
-        match &verification {
-            LiquidityPaymentVerification::SolanaPayment { tx_signature, .. } => {
-                if transfer_map::contains_tx_signature(token_0.token_id(), tx_signature) {
-                    return Err("Token_0 Solana transaction signature already used".to_string());
-                }
-            }
+        if transfer_map::contains_tx_signature(token_0.token_id(), &verification.tx_signature) {
+            return Err("Token_0 Solana transaction signature already used".to_string());
         }
 
         // Record the transfer
@@ -257,9 +269,9 @@ async fn process_add_liquidity(
             transfer_id: 0,
             request_id,
             is_send: true,
-            amount: add_amount_0.clone(),
+            amount: verification.amount.clone(),
             token_id: token_0.token_id(),
-            tx_id: tx_id_0.clone(),
+            tx_id: TxId::TransactionId(verification.tx_signature),
             ts,
         });
         transfer_ids.push(transfer_id);
@@ -283,7 +295,6 @@ async fn process_add_liquidity(
     // Handle token_1 transfer (IC or Solana)
     let token_1_result = if token_1.chain() == SOL_CHAIN {
         // Verify Solana payment with signature
-        let verifier = LiquidityPaymentVerifier::new(ICNetwork::caller());
         let tx_id_1 = args.tx_id_1.as_ref().ok_or("Token_1: Solana tokens require tx_id".to_string());
         let signature = args
             .signature_1
@@ -292,15 +303,28 @@ async fn process_add_liquidity(
 
         match (tx_id_1, signature) {
             (Ok(tx_id), Ok(sig)) => {
-                match verifier.verify_liquidity_payment(args, &token_1, add_amount_1, tx_id, sig).await {
+                // Extract transaction signature
+                let tx_signature_str = match tx_id {
+                    TxId::TransactionId(hash) => hash.clone(),
+                    TxId::BlockIndex(_) => return Err("Token_1: BlockIndex not supported for Solana transactions".to_string()),
+                };
+                
+                // Get Solana token details
+                let sol_token = match &token_1 {
+                    StableToken::Solana(token) => token,
+                    _ => return Err("Token_1: Invalid token type for Solana verification".to_string()),
+                };
+                
+                // Create canonical message for verification
+                let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args)
+                    .to_signing_message();
+                
+                // Verify the Solana transfer
+                match verify_transfer_solana(&tx_signature_str, sig, add_amount_1, &canonical_message, sol_token.is_spl_token).await {
                     Ok(verification) => {
                         // Check if this Solana transaction has already been used
-                        match &verification {
-                            LiquidityPaymentVerification::SolanaPayment { tx_signature, .. } => {
-                                if transfer_map::contains_tx_signature(token_1.token_id(), tx_signature) {
-                                    return Err("Token_1 Solana transaction signature already used".to_string());
-                                }
-                            }
+                        if transfer_map::contains_tx_signature(token_1.token_id(), &verification.tx_signature) {
+                            return Err("Token_1 Solana transaction signature already used".to_string());
                         }
 
                         // Record the transfer
@@ -308,9 +332,9 @@ async fn process_add_liquidity(
                             transfer_id: 0,
                             request_id,
                             is_send: true,
-                            amount: add_amount_1.clone(),
+                            amount: verification.amount.clone(),
                             token_id: token_1.token_id(),
-                            tx_id: tx_id.clone(),
+                            tx_id: TxId::TransactionId(verification.tx_signature),
                             ts,
                         });
                         transfer_ids.push(transfer_id);
