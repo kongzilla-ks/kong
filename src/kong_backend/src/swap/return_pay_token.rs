@@ -4,6 +4,7 @@ use icrc_ledger_types::icrc1::account::Account;
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::helpers::nat_helpers::{nat_subtract, nat_zero};
 use crate::ic::{address::Address, transfer::icrc1_transfer};
+use crate::solana::stable_memory::get_solana_transaction;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_request::reply::Reply;
 use crate::stable_request::request_map;
@@ -11,7 +12,6 @@ use crate::stable_request::status::StatusCode;
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::swap::create_solana_swap_job::create_solana_swap_job;
-use crate::stable_memory::get_solana_transaction;
 
 use super::swap_reply::SwapReply;
 
@@ -34,7 +34,7 @@ pub async fn return_pay_token(
     request_map::update_status(request_id, StatusCode::ReturnPayToken, None);
 
     let pay_amount_with_gas = nat_subtract(pay_amount, &fee).unwrap_or(nat_zero());
-    
+
     if pay_token.chain() == SOL_CHAIN {
         let sender_address = match get_solana_sender_from_transfers(transfer_ids) {
             Ok(addr) => addr,
@@ -42,15 +42,18 @@ pub async fn return_pay_token(
                 // this should however not happen since the tx is already in the DB with metadata
                 request_map::update_status(
                     request_id,
-                    StatusCode::ReturnPayTokenFailed, 
-                    Some(&format!("Cannot return Solana tokens: sender address not found in metadata. Need to implement metadata fetching: {}", e)),
+                    StatusCode::ReturnPayTokenFailed,
+                    Some(&format!(
+                        "Cannot return Solana tokens: sender address not found in metadata. Need to implement metadata fetching: {}",
+                        e
+                    )),
                 );
                 let reply = SwapReply::failed(request_id, pay_token, pay_amount, receive_token, transfer_ids, &claim_ids, ts);
                 request_map::update_reply(request_id, Reply::Swap(reply));
                 return;
             }
         };
-        
+
         let to_address = Address::SolanaAddress(sender_address.clone());
         match create_solana_swap_job(request_id, user_id, pay_token, &pay_amount_with_gas, &to_address, ts).await {
             Ok(job_id) => {
@@ -65,9 +68,9 @@ pub async fn return_pay_token(
                 });
                 transfer_ids.push(transfer_id);
                 request_map::update_status(
-                    request_id, 
-                    StatusCode::ReturnPayTokenSuccess, 
-                    Some(&format!("Solana swap job #{} created", job_id))
+                    request_id,
+                    StatusCode::ReturnPayTokenSuccess,
+                    Some(&format!("Solana swap job #{} created", job_id)),
                 );
             }
             Err(e) => {
@@ -122,7 +125,7 @@ pub async fn return_pay_token(
             }
         }
     } else {
-        // Unsupported chain TODO, we should never get here 
+        // Unsupported chain TODO, we should never get here
         let claim = StableClaim::new(
             user_id,
             token_id,
@@ -144,7 +147,6 @@ pub async fn return_pay_token(
     request_map::update_reply(request_id, Reply::Swap(reply));
 }
 
-
 fn get_solana_sender_from_transfers(transfer_ids: &[u64]) -> Result<String, String> {
     for transfer_id in transfer_ids {
         if let Some(transfer) = transfer_map::get_by_transfer_id(*transfer_id) {
@@ -152,13 +154,15 @@ fn get_solana_sender_from_transfers(transfer_ids: &[u64]) -> Result<String, Stri
                 if let Some(notification) = get_solana_transaction(tx_signature.clone()) {
                     // parse metadata to get sender, can be in different fields due to the different types of transactions
                     if let Some(metadata_json) = notification.metadata {
-                        let metadata: serde_json::Value = serde_json::from_str(&metadata_json)
-                            .map_err(|e| format!("Failed to parse transaction metadata: {}", e))?;
-                        
-                        if let Some(sender) = metadata.get("sender")
+                        let metadata: serde_json::Value =
+                            serde_json::from_str(&metadata_json).map_err(|e| format!("Failed to parse transaction metadata: {}", e))?;
+
+                        if let Some(sender) = metadata
+                            .get("sender")
                             .or_else(|| metadata.get("authority"))
                             .or_else(|| metadata.get("sender_wallet"))
-                            .and_then(|v| v.as_str()) {
+                            .and_then(|v| v.as_str())
+                        {
                             return Ok(sender.to_string());
                         }
                     }
@@ -166,6 +170,6 @@ fn get_solana_sender_from_transfers(transfer_ids: &[u64]) -> Result<String, Stri
             }
         }
     }
-    
+
     Err("No Solana sender address found in transfers".to_string())
 }

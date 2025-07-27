@@ -1,8 +1,9 @@
 use ic_cdk::update;
 
+use crate::ic::guards::caller_is_kong_rpc;
 use crate::ic::network::ICNetwork;
-use crate::{ic::guards::caller_is_kong_rpc, stable_memory::with_solana_tx_notifications_mut};
 
+use super::super::stable_memory::with_solana_tx_notifications_mut;
 use super::transaction_notification::{TransactionNotification, TransactionNotificationId};
 
 /// Notify about a Solana transfer (called by kong_rpc)

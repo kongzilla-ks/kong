@@ -2,7 +2,7 @@ use ic_cdk::update;
 
 use crate::ic::guards::caller_is_kingkong;
 use crate::kong_backend::KongBackend;
-use crate::stable_memory::{get_cached_solana_address, set_cached_solana_address};
+use crate::solana::stable_memory::{get_cached_solana_address, set_cached_solana_address};
 
 /// Cache the canister's Solana address (One-time initialization)
 /// This method derives the Solana address from the canister's Ed25519 key

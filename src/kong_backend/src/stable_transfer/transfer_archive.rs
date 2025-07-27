@@ -3,8 +3,9 @@ use icrc_ledger_types::icrc1::account::Account;
 use crate::chains::chains::SOL_CHAIN;
 use crate::ic::guards::not_in_maintenance_mode;
 use crate::ic::network::ICNetwork;
+use crate::solana::stable_memory::get_solana_transaction;
 use crate::stable_kong_settings::kong_settings_map;
-use crate::stable_memory::{get_solana_transaction, TRANSFER_ARCHIVE_MAP, TRANSFER_MAP};
+use crate::stable_memory::{TRANSFER_ARCHIVE_MAP, TRANSFER_MAP};
 use crate::stable_request::{request_map, status::StatusCode};
 use crate::stable_token::{token::Token, token_map};
 use crate::stable_transfer::tx_id::TxId;
@@ -36,13 +37,13 @@ pub async fn archive_transfer_map() {
     let one_hour_ago = ICNetwork::get_time() - 3_600_000_000_000;
     let mut remove_list = Vec::new();
     let mut unclaimed_solana_transfers = Vec::new();
-    
+
     // First pass: collect transfers to process
     TRANSFER_MAP.with(|transfer_map| {
         transfer_map.borrow().iter().for_each(|(transfer_id, transfer)| {
             if transfer.ts < one_hour_ago {
                 remove_list.push(transfer_id);
-                
+
                 // Check if this is an unclaimed incoming Solana transfer
                 if transfer.is_send && matches!(transfer.tx_id, TxId::TransactionId(_)) {
                     // This is an incoming transfer (is_send = true from user perspective)
@@ -62,7 +63,6 @@ pub async fn archive_transfer_map() {
     for (transfer, signature) in unclaimed_solana_transfers {
         // Check if we should return this transfer
         if should_return_transfer(&transfer, &signature).await {
-            
             // Get token information
             if let Some(token) = token_map::get_by_token_id(transfer.token_id) {
                 if token.chain() == SOL_CHAIN {
@@ -70,7 +70,7 @@ pub async fn archive_transfer_map() {
                     if let Some(_sender_address) = get_solana_sender_address(&signature) {
                         // Create a synthetic request for tracking
                         let request_id = kong_settings_map::inc_request_map_idx();
-                        
+
                         // Create initial request entry
                         request_map::update_status(
                             request_id,
@@ -96,18 +96,16 @@ pub async fn archive_transfer_map() {
                             None, // No receive token for timeout returns
                             &mut transfer_ids,
                             transfer.ts,
-                        ).await;
+                        )
+                        .await;
 
                         // Log the return attempt
                         if let Some(request) = request_map::get_by_request_id(request_id) {
                             if let Some(latest_status) = request.statuses.last() {
                                 match latest_status.status_code {
-                                    StatusCode::ReturnPayTokenSuccess => {
-                                    }
-                                    StatusCode::ReturnPayTokenFailed => {
-                                    }
-                                    _ => {
-                                    }
+                                    StatusCode::ReturnPayTokenSuccess => {}
+                                    StatusCode::ReturnPayTokenFailed => {}
+                                    _ => {}
                                 }
                             }
                         }
@@ -132,7 +130,7 @@ async fn should_return_transfer(transfer: &StableTransfer, signature: &str) -> b
     // 2. It's a Solana transfer
     // 3. We have the transaction metadata
     // 4. It wasn't used in any successful operation
-    
+
     if !transfer.is_send {
         return false; // This is an outgoing transfer, not incoming
     }
@@ -153,10 +151,12 @@ fn get_solana_sender_address(signature: &str) -> Option<String> {
         if let Some(metadata_json) = notification.metadata {
             if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&metadata_json) {
                 // Try different fields where sender might be stored
-                if let Some(sender) = metadata.get("sender")
+                if let Some(sender) = metadata
+                    .get("sender")
                     .or_else(|| metadata.get("authority"))
                     .or_else(|| metadata.get("sender_wallet"))
-                    .and_then(|v| v.as_str()) {
+                    .and_then(|v| v.as_str())
+                {
                     return Some(sender.to_string());
                 }
             }

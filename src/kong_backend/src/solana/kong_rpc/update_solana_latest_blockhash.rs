@@ -1,7 +1,8 @@
 use ic_cdk::update;
 
 use crate::ic::guards::caller_is_kong_rpc;
-use crate::stable_memory::with_solana_latest_blockhash_mut;
+
+use super::super::stable_memory::with_solana_latest_blockhash_mut;
 
 /// Update the latest Solana blockhash (called by kong_rpc)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]

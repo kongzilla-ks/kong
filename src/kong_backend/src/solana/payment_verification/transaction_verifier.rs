@@ -2,7 +2,8 @@ use candid::Nat;
 use num_traits::ToPrimitive;
 
 use crate::ic::network::ICNetwork;
-use crate::stable_memory::get_solana_transaction;
+
+use super::super::stable_memory::get_solana_transaction;
 
 /// Extract sender from a Solana transaction based on token type
 pub async fn extract_solana_sender_from_transaction(tx_signature: &str, is_spl_token: bool) -> Result<String, String> {
