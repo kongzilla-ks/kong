@@ -270,6 +270,12 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                             }
                         };
                         
+                        // Check if this Solana transaction signature has already been used
+                        if transfer_map::contains_tx_signature(pay_token.token_id(), tx_signature_str) {
+                            request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Solana transaction signature already used"));
+                            return Err("Solana transaction signature already used".to_string());
+                        }
+                        
                         // For async swaps, skip immediate sender extraction and verification
                         // The spawn task will handle sender extraction with retry logic
                         // Create a placeholder transfer record

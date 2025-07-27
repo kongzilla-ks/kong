@@ -16,7 +16,7 @@ LOCAL_KONG_BACKEND="kong_backend"  # Will use dfx canister id locally
 PAY_TOKEN="SOL"
 SOL_CHAIN="SOL"
 SOL_ADDRESS="11111111111111111111111111111111"  # Native SOL
-PAY_AMOUNT=100000          # 0.005 SOL (9 decimals)
+PAY_AMOUNT=1000000         # 0.001 SOL (9 decimals)
 
 # Receive Token (USDC on Solana)
 # Use the actual token symbol from the Kong backend
