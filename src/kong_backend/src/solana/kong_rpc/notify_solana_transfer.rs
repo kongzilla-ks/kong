@@ -14,6 +14,7 @@ pub fn notify_solana_transfer(tx_signature: String, metadata: Option<String>) ->
         metadata,
         timestamp: ICNetwork::get_time(),
     };
+    // insert the notification into the stable memory map for further processing when user calls swap(), add_liquidity() or add_pool()
     with_solana_tx_notifications_mut(|notification| {
         notification.insert(key, value);
         Ok(())

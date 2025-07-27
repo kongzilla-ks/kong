@@ -1,5 +1,4 @@
 pub mod error;
-pub mod get_solana_address;
 pub mod kong_rpc;
 pub mod network;
 pub mod payment_verification;
