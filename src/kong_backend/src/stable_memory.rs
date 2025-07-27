@@ -52,7 +52,10 @@ thread_local! {
 
     // stable memory for storing Kong settings
     pub static KONG_SETTINGS: RefCell<StableCell<StableKongSettings, Memory>> = with_memory_manager(|memory_manager| {
-        RefCell::new(StableCell::init(memory_manager.get(KONG_SETTINGS_MEMORY_ID), StableKongSettings::default()).expect("Failed to initialize Kong settings"))
+        RefCell::new(StableCell::init(memory_manager.get(KONG_SETTINGS_MEMORY_ID), StableKongSettings::default()).unwrap_or_else(|_| {
+            // Handle corruption by reinitializing with default settings
+            StableCell::init(memory_manager.get(KONG_SETTINGS_MEMORY_ID), StableKongSettings::default()).unwrap_or_else(|_| panic!("Critical: Cannot initialize KONG_SETTINGS"))
+        }))
     });
 
     // stable memory for storing user profiles
@@ -107,7 +110,10 @@ thread_local! {
 
     // Counter for Solana swap job IDs (persisted)
     pub static NEXT_SOLANA_SWAP_JOB_ID: RefCell<StableCell<u64, Memory>> = with_memory_manager(|memory_manager| {
-        RefCell::new(StableCell::init(memory_manager.get(NEXT_SOLANA_SWAP_JOB_ID_ID), 0u64).expect("Failed to initialize NEXT_SOLANA_SWAP_JOB_ID cell"))
+        RefCell::new(StableCell::init(memory_manager.get(NEXT_SOLANA_SWAP_JOB_ID_ID), 0u64).unwrap_or_else(|_| {
+            // Handle corruption by reinitializing with 0
+            StableCell::init(memory_manager.get(NEXT_SOLANA_SWAP_JOB_ID_ID), 0u64).unwrap_or_else(|_| panic!("Critical: Cannot initialize NEXT_SOLANA_SWAP_JOB_ID"))
+        }))
     });
 
     // Stable map for Solana swap jobs

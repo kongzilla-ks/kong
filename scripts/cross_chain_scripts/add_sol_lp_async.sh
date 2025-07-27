@@ -114,7 +114,7 @@ echo "Async add liquidity request submitted!"
 echo "Request ID: ${REQUEST_ID}"
 REQUEST_ID_NUM=$(echo "${REQUEST_ID}" | grep -o '[0-9]\+' | head -1)
 
-for i in {1..10}; do
+for i in {1..20}; do
     REQUEST_STATUS=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} requests "(opt ${REQUEST_ID_NUM})")
     STATUSES=$(echo "${REQUEST_STATUS}" | grep -A 10 'statuses = vec' | sed '/statuses = vec/,/}/!d')
     echo "Poll #${i}:"
@@ -123,5 +123,5 @@ for i in {1..10}; do
     if echo "${STATUSES}" | grep -q "LP token sent"; then
         break
     fi
-    sleep 1
+    sleep 3
 done

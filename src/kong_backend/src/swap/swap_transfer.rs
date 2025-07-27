@@ -86,6 +86,105 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
     })?;
 
     spawn(async move {
+        // For Solana tokens, perform verification with simple retry mechanism
+        if pay_token.chain() == "SOL" {
+            if let Some(TxId::TransactionId(tx_signature_str)) = &args.pay_tx_id {
+                if let Some(signature) = &args.pay_signature {
+                    // Get Solana token details
+                    if let StableToken::Solana(sol_token) = &pay_token {
+                        // Simple retry loop - delay until transaction found
+                        let mut verification_result = None;
+                        for attempt in 0..10 {
+                            // Try to extract sender first (will fail if tx not found)
+                            let sender_pubkey = match extract_solana_sender_from_transaction(tx_signature_str, sol_token.is_spl_token).await {
+                                Ok(pubkey) => pubkey,
+                                Err(e) if e.contains("not found") || e.contains("Make sure kong_rpc has processed") => {
+                                    if attempt < 9 {
+                                        // Wait 2 seconds before retry
+                                        use std::time::Duration;
+                                        let (sender, receiver) = futures::channel::oneshot::channel();
+                                        ic_cdk_timers::set_timer(Duration::from_millis(2000), move || {
+                                            let _ = sender.send(());
+                                        });
+                                        let _ = receiver.await;
+                                        continue; // Retry sender extraction
+                                    } else {
+                                        // Max retries reached
+                                        request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Transaction not found after retries"));
+                                        let _ = archive_to_kong_data(request_id);
+                                        return;
+                                    }
+                                }
+                                Err(e) => {
+                                    // Real error, don't retry
+                                    request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
+                                    let _ = archive_to_kong_data(request_id);
+                                    return;
+                                }
+                            };
+                            
+                            // Create canonical message for verification
+                            let canonical_message = CanonicalSwapMessage::from_swap_args(&args)
+                                .with_sender(sender_pubkey.clone())
+                                .to_signing_message();
+                            
+                            // Now try verification
+                            match verify_transfer_solana(tx_signature_str, signature, &pay_amount, &canonical_message, sol_token.is_spl_token).await {
+                                Ok(result) => {
+                                    verification_result = Some(result);
+                                    break;
+                                }
+                                Err(e) if e.contains("not found") || e.contains("Make sure kong_rpc has processed") => {
+                                    if attempt < 9 {
+                                        // Wait 2 seconds before retry
+                                        use std::time::Duration;
+                                        let (sender, receiver) = futures::channel::oneshot::channel();
+                                        ic_cdk_timers::set_timer(Duration::from_millis(2000), move || {
+                                            let _ = sender.send(());
+                                        });
+                                        let _ = receiver.await;
+                                        continue; // Retry verification
+                                    } else {
+                                        // Max retries reached
+                                        request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Transaction verification failed after retries"));
+                                        let _ = archive_to_kong_data(request_id);
+                                        return;
+                                    }
+                                }
+                                Err(e) => {
+                                    // Real error, don't retry
+                                    request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
+                                    let _ = archive_to_kong_data(request_id);
+                                    return;
+                                }
+                            }
+                        }
+                        
+                        let verification = match verification_result {
+                            Some(result) => result,
+                            None => {
+                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Transaction not found after retries"));
+                                let _ = archive_to_kong_data(request_id);
+                                return;
+                            }
+                        };
+                        
+                        // Update transfer record with verified data
+                        let _transfer_id = transfer_map::insert(&StableTransfer {
+                            transfer_id: 0,
+                            request_id,
+                            is_send: true,
+                            amount: verification.amount,
+                            token_id: pay_token.token_id(),
+                            tx_id: TxId::TransactionId(verification.tx_signature),
+                            ts: ICNetwork::get_time(),
+                        });
+                        request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);
+                    }
+                }
+            }
+        }
+
         let mut transfer_ids = Vec::new();
 
         let Ok((receive_token, receive_amount_with_fees_and_gas, to_address, mid_price, price, slippage, swaps)) = process_swap(
@@ -156,14 +255,14 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                 match pay_tx_id {
                     TxId::TransactionId(tx_signature_str) => {
                         // Get the signature from args
-                        let signature = args.pay_signature.as_ref()
+                        let _signature = args.pay_signature.as_ref()
                             .ok_or_else(|| {
                                 request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Payment signature is required for Solana/SPL tokens"));
                                 "Payment signature is required for Solana/SPL tokens".to_string()
                             })?;
                         
                         // Get Solana token details
-                        let sol_token = match &pay_token {
+                        let _sol_token = match &pay_token {
                             StableToken::Solana(token) => token,
                             _ => {
                                 request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Invalid token type"));
@@ -171,34 +270,20 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                             }
                         };
                         
-                        // Extract sender from the transaction first
-                        let sender_pubkey = extract_solana_sender_from_transaction(tx_signature_str, sol_token.is_spl_token).await?;
-                        
-                        // Create canonical message with the sender for verification
-                        let canonical_message = CanonicalSwapMessage::from_swap_args(args)
-                            .with_sender(sender_pubkey.clone())
-                            .to_signing_message();
-                        
-                        // Verify the Solana transfer
-                        match verify_transfer_solana(tx_signature_str, signature, &pay_amount, &canonical_message, sol_token.is_spl_token).await {
-                            Ok(verification) => {
-                                let transfer_id = transfer_map::insert(&StableTransfer {
-                                    transfer_id: 0,
-                                    request_id,
-                                    is_send: true,
-                                    amount: verification.amount,
-                                    token_id: pay_token.token_id(),
-                                    tx_id: TxId::TransactionId(verification.tx_signature),
-                                    ts,
-                                });
-                                request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);
-                                transfer_id
-                            }
-                            Err(e) => {
-                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some(&e));
-                                Err(e)?
-                            }
-                        }
+                        // For async swaps, skip immediate sender extraction and verification
+                        // The spawn task will handle sender extraction with retry logic
+                        // Create a placeholder transfer record
+                        let transfer_id = transfer_map::insert(&StableTransfer {
+                            transfer_id: 0,
+                            request_id,
+                            is_send: true,
+                            amount: pay_amount.clone(),
+                            token_id: pay_token.token_id(),
+                            tx_id: TxId::TransactionId(tx_signature_str.to_string()),
+                            ts,
+                        });
+                        request_map::update_status(request_id, StatusCode::VerifyPayToken, None);
+                        transfer_id
                     }
                     _ => {
                         request_map::update_status(request_id, StatusCode::PayTxIdNotSupported, None);
