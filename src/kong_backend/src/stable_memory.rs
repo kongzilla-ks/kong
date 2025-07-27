@@ -97,8 +97,7 @@ thread_local! {
 
     // Cached Solana address (persisted)
     pub static CACHED_SOLANA_ADDRESS: RefCell<StableCell<String, Memory>> = with_memory_manager(|memory_manager| {
-        RefCell::new(StableCell::init(memory_manager.get(CACHED_SOLANA_ADDRESS_ID), String::new()).expect("Failed to initialize CACHED_SOLANA_ADDRESS cell")
-        )
+        RefCell::new(StableCell::init(memory_manager.get(CACHED_SOLANA_ADDRESS_ID), String::new()).expect("Failed to initialize CACHED_SOLANA_ADDRESS cell"))
     });
 
     // stableCell for the latest blockhash and timestamp (persisted)
@@ -117,12 +116,9 @@ thread_local! {
     });
 
     // Stable map for Solana transaction notifications
-    pub static SOLANA_TX_NOTIFICATIONS: RefCell<StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>> =
-        with_memory_manager(|memory_manager| {
-            RefCell::new(StableBTreeMap::init(
-                memory_manager.get(SOLANA_TX_NOTIFICATIONS_ID)
-            ))
-        });
+    pub static SOLANA_TX_NOTIFICATIONS: RefCell<StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>> = with_memory_manager(|memory_manager| {
+        RefCell::new(StableBTreeMap::init(memory_manager.get(SOLANA_TX_NOTIFICATIONS_ID)))
+    });
 
     //
     // Archive Stable Memory
@@ -219,10 +215,7 @@ pub fn with_solana_tx_notifications_mut<R>(
 
 /// Get a transaction by tx_signature
 pub fn get_solana_transaction(tx_signature: String) -> Option<TransactionNotification> {
-    with_solana_tx_notifications(|notifications| {
-        let key = TransactionNotificationId(tx_signature.clone());
-        notifications.get(&key)
-    })
+    with_solana_tx_notifications(|notifications| notifications.get(&TransactionNotificationId(tx_signature)))
 }
 
 /// Clean up old notifications (older than 24 hours)
