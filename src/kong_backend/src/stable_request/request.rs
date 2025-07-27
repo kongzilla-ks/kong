@@ -15,4 +15,5 @@ pub enum Request {
     Swap(SwapArgs),
     Claim(u64),
     Send(SendArgs),
+    SolanaVerifyAsync(String), // For async Solana verification tracking
 }
