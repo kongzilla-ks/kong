@@ -52,10 +52,7 @@ thread_local! {
 
     // stable memory for storing Kong settings
     pub static KONG_SETTINGS: RefCell<StableCell<StableKongSettings, Memory>> = with_memory_manager(|memory_manager| {
-        RefCell::new(StableCell::init(memory_manager.get(KONG_SETTINGS_MEMORY_ID), StableKongSettings::default()).unwrap_or_else(|_| {
-            // Handle corruption by reinitializing with default settings
-            StableCell::init(memory_manager.get(KONG_SETTINGS_MEMORY_ID), StableKongSettings::default()).unwrap_or_else(|_| panic!("Critical: Cannot initialize KONG_SETTINGS"))
-        }))
+        RefCell::new(StableCell::init(memory_manager.get(KONG_SETTINGS_MEMORY_ID), StableKongSettings::default()).expect("Failed to initialize Kong settings"))
     });
 
     // stable memory for storing user profiles
