@@ -1,40 +1,11 @@
-use ic_cdk::{query, update};
-use std::ops::Bound::{Excluded, Unbounded};
+use ic_cdk::update;
 
 use crate::ic::guards::caller_is_kong_rpc;
 use crate::ic::network::ICNetwork;
-use crate::stable_memory::{
-    store_transaction_notification, with_solana_latest_blockhash_mut, with_swap_job_queue, with_swap_job_queue_mut,
-};
-use crate::swap::swap_job::{SwapJob, SwapJobStatus};
+use crate::stable_memory::with_swap_job_queue_mut;
+use crate::swap::swap_job::SwapJobStatus;
 
-use super::types::TransactionNotification;
-
-/// Update the latest Solana blockhash (called by proxy)
-#[update(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn update_solana_latest_blockhash(blockhash: String) -> Result<(), String> {
-    with_solana_latest_blockhash_mut(|cell| {
-        cell.set(blockhash)
-        .map_err(|_| "Failed to update latest blockhash".to_string())?;
-        Ok(())
-    })
-}
-
-/// Get pending Solana swap jobs for proxy processing
-#[query(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn get_pending_solana_swaps(after_job_id: Option<u64>) -> Result<Vec<SwapJob>, String> {
-    const MAX_BATCH_SIZE: usize = 100;
-
-    with_swap_job_queue(|queue| {
-        Ok(queue
-            .range((after_job_id.map_or(Unbounded, Excluded), Unbounded))
-            .filter_map(|(_, job)| matches!(job.status, SwapJobStatus::Pending).then(|| job.clone()))
-            .take(MAX_BATCH_SIZE)
-            .collect())
-    })
-}
-
-/// Update a Solana swap job status (called by proxy after transaction execution)
+/// Update a Solana swap job status (called by kong_rpc after transaction execution)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
 pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successful: bool, error_msg: Option<String>) -> Result<(), String> {
     with_swap_job_queue_mut(|queue| {
@@ -95,18 +66,4 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
             Err(format!("Job {} not found", job_id))
         }
     })
-}
-
-/// Notify about a Solana transfer (called by proxy)
-#[update(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn notify_solana_transfer(signature: String, metadata: Option<String>) -> Result<(), String> {
-    let notification = TransactionNotification {
-        signature: signature.clone(),
-        status: "confirmed".to_string(), // Incoming payments are always confirmed
-        metadata,
-        timestamp: ICNetwork::get_time(),
-    };
-
-    store_transaction_notification(notification);
-    Ok(())
 }

@@ -1,6 +1,6 @@
 use candid::{CandidType, Deserialize, Principal};
 use ic_stable_structures::{storable::Bound, Storable};
-use serde::Serialize; // Added Serialize
+use serde::Serialize;
 use std::borrow::Cow;
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Copy)]
@@ -36,7 +36,6 @@ impl Storable for SwapJobStatus {
         is_fixed_size: true,
     };
 }
-
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug)]
 pub struct SwapJob {

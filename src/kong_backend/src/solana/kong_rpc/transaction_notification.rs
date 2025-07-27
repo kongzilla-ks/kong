@@ -3,9 +3,8 @@ use ic_stable_structures::{storable::Bound, Storable};
 use serde::Serialize;
 use std::borrow::Cow;
 
-/// Key for transaction notification storage
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TransactionNotificationId(pub String); // signature
+pub struct TransactionNotificationId(pub String); // tx_signature
 
 impl Storable for TransactionNotificationId {
     fn to_bytes(&self) -> Cow<[u8]> {
@@ -21,7 +20,6 @@ impl Storable for TransactionNotificationId {
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug)]
 pub struct TransactionNotification {
-    pub signature: String,
     pub status: String,           // e.g., "processed", "confirmed", "finalized", "failed"
     pub metadata: Option<String>, // Store full RPC response or parsed details
     pub timestamp: u64,

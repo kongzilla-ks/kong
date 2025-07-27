@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use crate::ic::network::ICNetwork;
-use crate::solana::proxy::types::{TransactionNotification, TransactionNotificationId};
+use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
 use crate::stable_claim::stable_claim::{StableClaim, StableClaimId};
 use crate::stable_kong_settings::stable_kong_settings::StableKongSettings;
 use crate::stable_lp_token::stable_lp_token::{StableLPToken, StableLPTokenId};
@@ -215,14 +215,6 @@ pub fn with_solana_tx_notifications_mut<R>(
     f: impl FnOnce(&mut StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>) -> R,
 ) -> R {
     SOLANA_TX_NOTIFICATIONS.with(|cell| f(&mut cell.borrow_mut()))
-}
-
-/// Store a transaction notification
-pub fn store_transaction_notification(notification: TransactionNotification) {
-    with_solana_tx_notifications_mut(|notifications| {
-        let key = TransactionNotificationId(notification.signature.clone());
-        notifications.insert(key, notification);
-    });
 }
 
 /// Get a transaction by tx_signature
