@@ -107,10 +107,7 @@ thread_local! {
 
     // Counter for Solana swap job IDs (persisted)
     pub static NEXT_SOLANA_SWAP_JOB_ID: RefCell<StableCell<u64, Memory>> = with_memory_manager(|memory_manager| {
-        RefCell::new(StableCell::init(memory_manager.get(NEXT_SOLANA_SWAP_JOB_ID_ID), 0u64).unwrap_or_else(|_| {
-            // Handle corruption by reinitializing with 0
-            StableCell::init(memory_manager.get(NEXT_SOLANA_SWAP_JOB_ID_ID), 0u64).unwrap_or_else(|_| panic!("Critical: Cannot initialize NEXT_SOLANA_SWAP_JOB_ID"))
-        }))
+        RefCell::new(StableCell::init(memory_manager.get(NEXT_SOLANA_SWAP_JOB_ID_ID), 0u64).expect("Failed to initialize NEXT_SOLANA_SWAP_JOB_ID cell"))
     });
 
     // Stable map for Solana swap jobs
