@@ -31,9 +31,15 @@ run_script "add_usdc_pool.sh" "USDC pool creation"
 run_script "add_sol_lp.sh" "SOL liquidity provision"
 run_script "add_usdc_lp.sh" "USDC liquidity provision"
 
+# Add Liquidity async
+run_script "add_sol_lp_async.sh" "SOL liquidity provision async"
+
 # Test Swaps
 run_script "swap_sol_to_usdc.sh" "SOL to USDC swap"
 run_script "swap_usdt_to_sol.sh" "USDT to SOL swap"
+
+# Test Async Swaps
+run_script "swap_sol_to_usdc_async.sh" "SOL to USDC async swap"
 
 # Remove Liquidity
 run_script "remove_sol_lp.sh" "SOL liquidity removal"

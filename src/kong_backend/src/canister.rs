@@ -149,15 +149,23 @@ fn inspect_message() {
     }
 
     // Add anti-spam filtering for swap operations
-    if method_name == "swap" || method_name == "swap_async" {
+    if method_name == "swap" {
         if let Err(e) = validate_swap_request() {
+            ic_cdk::trap(&e);
+        }
+    } else if method_name == "swap_async" {
+        if let Err(e) = validate_swap_async_request() {
             ic_cdk::trap(&e);
         }
     }
 
     // Add validation for add liquidity operations
-    if method_name == "add_liquidity" || method_name == "add_liquidity_async" {
+    if method_name == "add_liquidity" {
         if let Err(validation_error) = validate_add_liquidity_request() {
+            ic_cdk::trap(&validation_error);
+        }
+    } else if method_name == "add_liquidity_async" {
+        if let Err(validation_error) = validate_add_liquidity_async_request() {
             ic_cdk::trap(&validation_error);
         }
     }
@@ -205,6 +213,19 @@ fn validate_add_liquidity_request() -> Result<(), String> {
     Ok(())
 }
 
+fn validate_add_liquidity_async_request() -> Result<(), String> {
+    let args_bytes = ic_cdk::api::msg_arg_data();
+    
+    if args_bytes.len() > 10_000 {
+        return Err("Request payload too large".to_string());
+    }
+    
+    // Skip transaction readiness check for async add liquidity
+    // Let the async add liquidity logic handle transaction timing
+    
+    Ok(())
+}
+
 fn validate_add_pool_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
     
@@ -230,6 +251,19 @@ fn validate_swap_request() -> Result<(), String> {
     if let Ok(swap_args) = decode_one::<SwapArgs>(&args_bytes) {
         check_transaction_ready(&swap_args.pay_signature, &swap_args.pay_tx_id)?;
     }
+    
+    Ok(())
+}
+
+fn validate_swap_async_request() -> Result<(), String> {
+    let args_bytes = ic_cdk::api::msg_arg_data();
+    
+    if args_bytes.len() > 10_000 {
+        return Err("Request payload too large".to_string());
+    }
+    
+    // Skip transaction readiness check for async swaps
+    // Let the async swap logic handle transaction timing
     
     Ok(())
 }
