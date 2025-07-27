@@ -16,7 +16,7 @@ LOCAL_KONG_BACKEND="kong_backend"  # Will use dfx canister id locally
 PAY_TOKEN="SOL"
 SOL_CHAIN="SOL"
 SOL_ADDRESS="11111111111111111111111111111111"  # Native SOL
-PAY_AMOUNT=100000          # 0.005 SOL (9 decimals)
+PAY_AMOUNT=1000000         # 0.001 SOL (9 decimals)
 
 # Receive Token (USDC on Solana)
 # Use the actual token symbol from the Kong backend
@@ -126,7 +126,7 @@ echo "Async swap request submitted!"
 echo "Request ID: ${REQUEST_ID}"
 REQUEST_ID_NUM=$(echo "${REQUEST_ID}" | grep -o '[0-9]\+' | head -1)
 
-for i in {1..10}; do
+for i in {1..20}; do
     REQUEST_STATUS=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} requests "(opt ${REQUEST_ID_NUM})")
     STATUSES=$(echo "${REQUEST_STATUS}" | grep -A 10 'statuses = vec' | sed '/statuses = vec/,/}/!d')
     echo "Poll #${i}:"
@@ -135,5 +135,5 @@ for i in {1..10}; do
     if echo "${STATUSES}" | grep -q "Receive token received"; then
         break
     fi
-    sleep 1
+    sleep 3
 done
