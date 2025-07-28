@@ -7,7 +7,7 @@ use crate::solana::kong_rpc::transaction_notification::TransactionNotificationSt
 
 /// Extract sender from a Solana transaction based on token type
 pub async fn extract_solana_sender_from_transaction(tx_signature: &str, is_spl_token: bool) -> Result<String, String> {
-    let transaction = get_solana_transaction(tx_signature.to_string()).ok_or_else(|| {
+    let transaction = get_solana_transaction(tx_signature).ok_or_else(|| {
         format!(
             "Solana transaction {} not found. Make sure kong_rpc has processed this transaction.",
             tx_signature
@@ -48,7 +48,7 @@ pub async fn verify_solana_transaction(
     expected_amount: &Nat,
     is_spl_token: bool,
 ) -> Result<(), String> {
-    let transaction = get_solana_transaction(tx_signature.to_string()).ok_or_else(|| {
+    let transaction = get_solana_transaction(tx_signature).ok_or_else(|| {
         format!(
             "Solana transaction {} not found. Make sure kong_rpc has processed this transaction.",
             tx_signature
