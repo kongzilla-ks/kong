@@ -3,13 +3,13 @@ use ic_cdk::update;
 use crate::ic::guards::caller_is_kong_rpc;
 use crate::ic::network::ICNetwork;
 use crate::stable_memory::with_swap_job_queue_mut;
-use crate::solana::swap_job::SwapJobStatus;
+use crate::solana::swap_job::{SwapJobId, SwapJobStatus};
 
 /// Update a Solana swap job status (called by kong_rpc after transaction execution)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
 pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successful: bool, error_msg: Option<String>) -> Result<(), String> {
     with_swap_job_queue_mut(|queue| {
-        if let Some(mut job) = queue.get(&job_id) {
+        if let Some(mut job) = queue.get(&SwapJobId(job_id)) {
             let target_status = if was_successful {
                 SwapJobStatus::Confirmed
             } else {
@@ -27,7 +27,7 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
                     job.solana_tx_signature_of_payout = Some(final_solana_tx_sig);
                     job.error_message = error_msg;
                     job.updated_at = ICNetwork::get_time();
-                    queue.insert(job_id, job);
+                    queue.insert(SwapJobId(job_id), job);
                     Ok(())
                 }
                 SwapJobStatus::Confirmed => {
@@ -49,14 +49,14 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
                         job.solana_tx_signature_of_payout = Some(final_solana_tx_sig);
                         job.error_message = None;
                         job.updated_at = ICNetwork::get_time();
-                        queue.insert(job_id, job);
+                        queue.insert(SwapJobId(job_id), job);
                         Ok(())
                     } else {
                         // Already failed - update error message if different
                         if job.error_message != error_msg {
                             job.error_message = error_msg;
                             job.updated_at = ICNetwork::get_time();
-                            queue.insert(job_id, job);
+                            queue.insert(SwapJobId(job_id), job);
                         }
                         Ok(())
                     }

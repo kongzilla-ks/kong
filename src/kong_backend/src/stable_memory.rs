@@ -15,7 +15,7 @@ use crate::stable_transfer::stable_transfer::{StableTransfer, StableTransferId};
 use crate::stable_tx::stable_tx::{StableTx, StableTxId};
 use crate::stable_user::stable_user::{StableUser, StableUserId};
 use crate::stable_user::suspended_user_map::SuspendedUser;
-use crate::solana::swap_job::SwapJob;
+use crate::solana::swap_job::{SwapJob, SwapJobId};
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 
@@ -111,7 +111,7 @@ thread_local! {
     });
 
     // Stable map for Solana swap jobs
-    pub static SOLANA_SWAP_JOB_QUEUE: RefCell<StableBTreeMap<u64, SwapJob, Memory>> = with_memory_manager(|memory_manager| {
+    pub static SOLANA_SWAP_JOB_QUEUE: RefCell<StableBTreeMap<SwapJobId, SwapJob, Memory>> = with_memory_manager(|memory_manager| {
         RefCell::new(StableBTreeMap::init(memory_manager.get(SOLANA_SWAP_JOB_QUEUE_ID)))
     });
 
@@ -190,12 +190,12 @@ pub fn get_next_solana_swap_job_id() -> u64 {
 }
 
 /// Helper function to access the swap job queue
-pub fn with_swap_job_queue<R>(f: impl FnOnce(&StableBTreeMap<u64, SwapJob, Memory>) -> R) -> R {
+pub fn with_swap_job_queue<R>(f: impl FnOnce(&StableBTreeMap<SwapJobId, SwapJob, Memory>) -> R) -> R {
     SOLANA_SWAP_JOB_QUEUE.with(|cell| f(&cell.borrow()))
 }
 
 /// Helper function to mutate the swap job queue
-pub fn with_swap_job_queue_mut<R>(f: impl FnOnce(&mut StableBTreeMap<u64, SwapJob, Memory>) -> R) -> R {
+pub fn with_swap_job_queue_mut<R>(f: impl FnOnce(&mut StableBTreeMap<SwapJobId, SwapJob, Memory>) -> R) -> R {
     SOLANA_SWAP_JOB_QUEUE.with(|cell| f(&mut cell.borrow_mut()))
 }
 
