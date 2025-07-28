@@ -3,6 +3,7 @@ use num_traits::ToPrimitive;
 
 use crate::ic::network::ICNetwork;
 use crate::stable_memory::get_solana_transaction;
+use crate::solana::kong_rpc::transaction_notification::TransactionNotificationStatus;
 
 /// Extract sender from a Solana transaction based on token type
 pub async fn extract_solana_sender_from_transaction(tx_signature: &str, is_spl_token: bool) -> Result<String, String> {
@@ -55,10 +56,10 @@ pub async fn verify_solana_transaction(
     })?;
 
     // Check transaction status
-    match transaction.status.as_str() {
-        "confirmed" | "finalized" => {} // Good statuses
-        "failed" => return Err(format!("Solana transaction {} failed", tx_signature)),
-        status => return Err(format!("Solana transaction {} has unexpected status: {}", tx_signature, status)),
+    match transaction.status {
+        TransactionNotificationStatus::Confirmed | TransactionNotificationStatus::Finalized => {} // Good statuses
+        TransactionNotificationStatus::Failed => return Err(format!("Solana transaction {} failed", tx_signature)),
+        TransactionNotificationStatus::Processed => return Err(format!("Solana transaction {} still being processed", tx_signature)),
     }
 
     // Verify blockchain timestamp freshness (5 minute window)

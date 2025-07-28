@@ -123,7 +123,7 @@ fn remove_archive_transfers(ts: u64) -> Result<String, String> {
 fn debug_get_solana_transaction(signature: String) -> Result<String, String> {
     match get_solana_transaction(signature) {
         Some(tx) => {
-            Ok(format!("Transaction found: status={}, metadata={:?}, timestamp={}", 
+            Ok(format!("Transaction found: status={:?}, metadata={:?}, timestamp={}", 
                 tx.status, tx.metadata, tx.timestamp))
         },
         None => Err("Transaction not found".to_string())
