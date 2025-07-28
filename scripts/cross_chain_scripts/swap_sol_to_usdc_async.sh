@@ -40,6 +40,12 @@ else
     KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
 fi
 
+# Force Solana to use devnet for local testing
+if [ "$NETWORK" = "local" ]; then
+    echo "Switching Solana config to devnet for local testing..."
+    solana config set --url devnet
+fi
+
 # --- Helper to check for command success ---
 check_ok() {
     local result="$1"; local context="$2"
@@ -60,8 +66,7 @@ echo "======================================================"
 echo
 echo "--- 0. Setup ---"
 KONG_SOLANA_ADDRESS_RAW=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} get_solana_address --output json)
-check_ok "${KONG_SOLANA_ADDRESS_RAW}" "Failed to get Kong Solana address"
-KONG_SOLANA_ADDRESS=$(echo "${KONG_SOLANA_ADDRESS_RAW}" | jq -r '.Ok')
+KONG_SOLANA_ADDRESS=$(echo "${KONG_SOLANA_ADDRESS_RAW}" | jq -r '.')
 USER_SOLANA_ADDRESS=$(solana address)
 echo "Kong Solana address: ${KONG_SOLANA_ADDRESS}"
 echo "User Solana address: ${USER_SOLANA_ADDRESS}"

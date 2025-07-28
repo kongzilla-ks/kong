@@ -41,8 +41,7 @@ check_ok() { local r="$1"; local ctx="$2"; echo "$r" | grep -q -e "Ok" -e "ok" |
 
 # --- 0. Setup ---
 KONG_SOL_RAW=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} get_solana_address --output json)
-check_ok "$KONG_SOL_RAW" "get_solana_address failed"
-KONG_SOL_ADDR=$(echo "$KONG_SOL_RAW" | jq -r '.Ok')
+KONG_SOL_ADDR=$(echo "$KONG_SOL_RAW" | jq -r '.')
 
 echo "Kong Solana Address: $KONG_SOL_ADDR"
 

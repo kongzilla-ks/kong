@@ -39,8 +39,7 @@ echo "============================================"
 echo
 echo "--- 0. Getting addresses ---"
 KONG_SOLANA_ADDRESS_RAW=$(dfx canister call --network ic $KONG_BACKEND get_solana_address --output json)
-check_ok "${KONG_SOLANA_ADDRESS_RAW}" "Failed to get Kong Solana address"
-KONG_SOLANA_ADDRESS=$(echo "${KONG_SOLANA_ADDRESS_RAW}" | jq -r '.Ok')
+KONG_SOLANA_ADDRESS=$(echo "${KONG_SOLANA_ADDRESS_RAW}" | jq -r '.')
 USER_SOLANA_ADDRESS=$(solana address)
 echo "Kong Solana address: $KONG_SOLANA_ADDRESS"
 echo "User Solana address: $USER_SOLANA_ADDRESS"
