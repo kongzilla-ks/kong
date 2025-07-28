@@ -138,7 +138,7 @@ async fn should_return_transfer(transfer: &StableTransfer, signature: &str) -> b
     }
 
     // Check if we have the Solana transaction metadata
-    if get_solana_transaction(signature.to_string()).is_none() {
+    if get_solana_transaction(signature).is_none() {
         return false; // No metadata available
     }
 
@@ -149,7 +149,7 @@ async fn should_return_transfer(transfer: &StableTransfer, signature: &str) -> b
 
 // Extract sender address from Solana transaction metadata
 fn get_solana_sender_address(signature: &str) -> Option<String> {
-    if let Some(notification) = get_solana_transaction(signature.to_string()) {
+    if let Some(notification) = get_solana_transaction(signature) {
         if let Some(metadata_json) = notification.metadata {
             if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&metadata_json) {
                 // Try different fields where sender might be stored

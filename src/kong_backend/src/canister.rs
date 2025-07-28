@@ -190,7 +190,7 @@ fn inspect_message() {
 fn check_transaction_ready(signature: &Option<String>, tx_id: &Option<TxId>) -> Result<(), String> {
     if let (Some(_signature), Some(tx_id)) = (signature, tx_id) {
         if let TxId::TransactionId(tx_sig) = tx_id {
-            if get_solana_transaction(tx_sig.clone()).is_none() {
+            if get_solana_transaction(tx_sig).is_none() {
                 return Err("TRANSACTION_NOT_READY".to_string());
             }
         }

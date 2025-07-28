@@ -214,8 +214,8 @@ pub fn with_solana_tx_notifications_mut<R>(
 }
 
 /// Get a transaction by tx_signature
-pub fn get_solana_transaction(tx_signature: String) -> Option<TransactionNotification> {
-    with_solana_tx_notifications(|notifications| notifications.get(&TransactionNotificationId(tx_signature)))
+pub fn get_solana_transaction(tx_signature: &str) -> Option<TransactionNotification> {
+    with_solana_tx_notifications(|notifications| notifications.get(&TransactionNotificationId(tx_signature.to_string())))
 }
 
 /// Clean up old notifications (older than 24 hours)

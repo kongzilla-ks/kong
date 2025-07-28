@@ -149,7 +149,7 @@ fn get_solana_sender_from_transfers(transfer_ids: &[u64]) -> Result<String, Stri
     for transfer_id in transfer_ids {
         if let Some(transfer) = transfer_map::get_by_transfer_id(*transfer_id) {
             if let TxId::TransactionId(tx_signature) = &transfer.tx_id {
-                if let Some(notification) = get_solana_transaction(tx_signature.clone()) {
+                if let Some(notification) = get_solana_transaction(tx_signature) {
                     // parse metadata to get sender, can be in different fields due to the different types of transactions
                     if let Some(metadata_json) = notification.metadata {
                         let metadata: serde_json::Value = serde_json::from_str(&metadata_json)
