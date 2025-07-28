@@ -15,7 +15,7 @@ use crate::stable_transfer::stable_transfer::{StableTransfer, StableTransferId};
 use crate::stable_tx::stable_tx::{StableTx, StableTxId};
 use crate::stable_user::stable_user::{StableUser, StableUserId};
 use crate::stable_user::suspended_user_map::SuspendedUser;
-use crate::swap::swap_job::SwapJob;
+use crate::solana::swap_job::SwapJob;
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 

@@ -3,7 +3,7 @@ use std::ops::Bound::{Excluded, Unbounded};
 
 use crate::ic::guards::caller_is_kong_rpc;
 use crate::stable_memory::with_swap_job_queue;
-use crate::swap::swap_job::{SwapJob, SwapJobStatus};
+use crate::solana::swap_job::{SwapJob, SwapJobStatus};
 
 /// Get pending Solana swap jobs for kong_rpc processing (called by kong_rpc)
 #[query(hidden = true, guard = "caller_is_kong_rpc")]

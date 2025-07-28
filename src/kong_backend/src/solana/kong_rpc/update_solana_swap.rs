@@ -3,7 +3,7 @@ use ic_cdk::update;
 use crate::ic::guards::caller_is_kong_rpc;
 use crate::ic::network::ICNetwork;
 use crate::stable_memory::with_swap_job_queue_mut;
-use crate::swap::swap_job::SwapJobStatus;
+use crate::solana::swap_job::SwapJobStatus;
 
 /// Update a Solana swap job status (called by kong_rpc after transaction execution)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]

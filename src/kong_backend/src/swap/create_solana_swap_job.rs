@@ -14,7 +14,7 @@ use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::solana::transaction::builder::{TransactionBuilder, SplTransferWithAtaParams};
 use crate::solana::transaction::sign::sign_transaction;
 
-use super::swap_job::{SwapJob, SwapJobStatus};
+use crate::solana::swap_job::{SwapJob, SwapJobStatus};
 
 /// Creates a Solana swap job for processing an outgoing transfer
 pub async fn create_solana_swap_job(

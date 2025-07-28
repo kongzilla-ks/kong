@@ -21,7 +21,7 @@ use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_i
 use crate::stable_user::user_map;
 use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
 use crate::solana::payment_verification::extract_solana_sender_from_transaction;
-use crate::swap::message_builder::CanonicalSwapMessage;
+use crate::solana::message_builders::swap::CanonicalSwapMessage;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer

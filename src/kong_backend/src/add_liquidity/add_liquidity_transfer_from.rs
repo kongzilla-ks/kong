@@ -26,7 +26,7 @@ use crate::stable_user::user_map;
 use super::add_liquidity::TokenIndex;
 use super::add_liquidity_args::AddLiquidityArgs;
 use super::add_liquidity_reply::AddLiquidityReply;
-use super::message_builder::CanonicalAddLiquidityMessage;
+use crate::solana::message_builders::add_liquidity::CanonicalAddLiquidityMessage;
 
 pub async fn add_liquidity_transfer_from(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     let (user_id, pool, add_amount_0, add_amount_1) = check_arguments(&args).await?;

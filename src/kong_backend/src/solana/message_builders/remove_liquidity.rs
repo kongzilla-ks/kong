@@ -2,8 +2,7 @@ use candid::Nat;
 use serde::{Deserialize, Serialize};
 
 use crate::helpers::nat_helpers::serialize_amount_as_string;
-
-use super::remove_liquidity_args::RemoveLiquidityArgs;
+use crate::remove_liquidity::remove_liquidity_args::RemoveLiquidityArgs;
 
 /// A structure representing the canonical message format for signing liquidity removals
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
