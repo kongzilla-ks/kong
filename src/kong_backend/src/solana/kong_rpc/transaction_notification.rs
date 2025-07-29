@@ -52,11 +52,14 @@ impl Storable for TransactionNotificationId {
     const BOUND: Bound = Bound::Unbounded;
 }
 
-#[derive(CandidType, Deserialize, Serialize, Clone, Debug)]
+#[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
 pub struct TransactionNotification {
     pub status: TransactionNotificationStatus,
     pub metadata: Option<String>, // Store full RPC response or parsed details
     pub timestamp: u64,
+    pub tx_signature: String,
+    pub job_id: u64,
+    pub is_completed: bool,
 }
 
 impl Storable for TransactionNotification {

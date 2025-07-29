@@ -232,7 +232,8 @@ pub fn cleanup_old_notifications() {
 
         // Find old entries
         for (key, notification) in notifications.iter() {
-            if notification.timestamp < cutoff_time {
+            // Only remove completed notifications that are older than 24 hours
+            if notification.is_completed && notification.timestamp < cutoff_time {
                 to_remove.push(key.clone());
             }
         }
