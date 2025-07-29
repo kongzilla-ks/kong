@@ -1,6 +1,20 @@
 use candid::Nat;
 use ic_cdk::futures::spawn;
 
+use crate::helpers::nat_helpers::nat_is_zero;
+use crate::ic::address::Address;
+use crate::ic::address_helpers::get_address;
+use crate::ic::network::ICNetwork;
+use crate::ic::verify_transfer::verify_transfer;
+use crate::solana::message_builders::swap::CanonicalSwapMessage;
+use crate::solana::payment_verification::extract_solana_sender_from_transaction;
+use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
+use crate::stable_kong_settings::kong_settings_map;
+use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
+use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
+use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
+use crate::stable_user::user_map;
+
 use super::archive_to_kong_data::archive_to_kong_data;
 use super::return_pay_token::return_pay_token;
 use super::send_receive_token::send_receive_token;
@@ -8,20 +22,6 @@ use super::swap_args::SwapArgs;
 use super::swap_calc::SwapCalc;
 use super::swap_reply::SwapReply;
 use super::update_liquidity_pool::update_liquidity_pool;
-
-use crate::helpers::nat_helpers::nat_is_zero;
-use crate::ic::address::Address;
-use crate::ic::address_helpers::get_address;
-use crate::ic::network::ICNetwork;
-use crate::ic::verify_transfer::verify_transfer;
-use crate::stable_kong_settings::kong_settings_map;
-use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
-use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
-use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
-use crate::stable_user::user_map;
-use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
-use crate::solana::payment_verification::extract_solana_sender_from_transaction;
-use crate::solana::message_builders::swap::CanonicalSwapMessage;
 
 pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
     // as user has transferred the pay token, we need to log the request immediately and verify the transfer
@@ -96,7 +96,8 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                         let mut verification_result = None;
                         for attempt in 0..10 {
                             // Try to extract sender first (will fail if tx not found)
-                            let sender_pubkey = match extract_solana_sender_from_transaction(tx_signature_str, sol_token.is_spl_token).await {
+                            let sender_pubkey = match extract_solana_sender_from_transaction(tx_signature_str, sol_token.is_spl_token).await
+                            {
                                 Ok(pubkey) => pubkey,
                                 Err(e) if e.contains("not found") || e.contains("Make sure kong_rpc has processed") => {
                                     if attempt < 9 {
@@ -110,7 +111,11 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                         continue; // Retry sender extraction
                                     } else {
                                         // Max retries reached
-                                        request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Transaction not found after retries"));
+                                        request_map::update_status(
+                                            request_id,
+                                            StatusCode::VerifyPayTokenFailed,
+                                            Some("Transaction not found after retries"),
+                                        );
                                         let _ = archive_to_kong_data(request_id);
                                         return;
                                     }
@@ -122,14 +127,22 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                     return;
                                 }
                             };
-                            
+
                             // Create canonical message for verification
                             let canonical_message = CanonicalSwapMessage::from_swap_args(&args)
                                 .with_sender(sender_pubkey.clone())
                                 .to_signing_message();
-                            
+
                             // Now try verification
-                            match verify_transfer_solana(tx_signature_str, signature, &pay_amount, &canonical_message, sol_token.is_spl_token).await {
+                            match verify_transfer_solana(
+                                tx_signature_str,
+                                signature,
+                                &pay_amount,
+                                &canonical_message,
+                                sol_token.is_spl_token,
+                            )
+                            .await
+                            {
                                 Ok(result) => {
                                     verification_result = Some(result);
                                     break;
@@ -146,7 +159,11 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                         continue; // Retry verification
                                     } else {
                                         // Max retries reached
-                                        request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Transaction verification failed after retries"));
+                                        request_map::update_status(
+                                            request_id,
+                                            StatusCode::VerifyPayTokenFailed,
+                                            Some("Transaction verification failed after retries"),
+                                        );
                                         let _ = archive_to_kong_data(request_id);
                                         return;
                                     }
@@ -159,16 +176,20 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                 }
                             }
                         }
-                        
+
                         let verification = match verification_result {
                             Some(result) => result,
                             None => {
-                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Transaction not found after retries"));
+                                request_map::update_status(
+                                    request_id,
+                                    StatusCode::VerifyPayTokenFailed,
+                                    Some("Transaction not found after retries"),
+                                );
                                 let _ = archive_to_kong_data(request_id);
                                 return;
                             }
                         };
-                        
+
                         // Update transfer record with verified data
                         let _transfer_id = transfer_map::insert(&StableTransfer {
                             transfer_id: 0,
@@ -255,12 +276,15 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                 match pay_tx_id {
                     TxId::TransactionId(tx_signature_str) => {
                         // Get the signature from args
-                        let _signature = args.pay_signature.as_ref()
-                            .ok_or_else(|| {
-                                request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Payment signature is required for Solana/SPL tokens"));
-                                "Payment signature is required for Solana/SPL tokens".to_string()
-                            })?;
-                        
+                        let _signature = args.pay_signature.as_ref().ok_or_else(|| {
+                            request_map::update_status(
+                                request_id,
+                                StatusCode::VerifyPayTokenFailed,
+                                Some("Payment signature is required for Solana/SPL tokens"),
+                            );
+                            "Payment signature is required for Solana/SPL tokens".to_string()
+                        })?;
+
                         // Get Solana token details
                         let _sol_token = match &pay_token {
                             StableToken::Solana(token) => token,
@@ -269,13 +293,17 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                                 return Err("Invalid token type".to_string());
                             }
                         };
-                        
+
                         // Check if this Solana transaction signature has already been used
                         if transfer_map::contains_tx_signature(pay_token.token_id(), tx_signature_str) {
-                            request_map::update_status(request_id, StatusCode::VerifyPayTokenFailed, Some("Solana transaction signature already used"));
+                            request_map::update_status(
+                                request_id,
+                                StatusCode::VerifyPayTokenFailed,
+                                Some("Solana transaction signature already used"),
+                            );
                             return Err("Solana transaction signature already used".to_string());
                         }
-                        
+
                         // For async swaps, skip immediate sender extraction and verification
                         // The spawn task will handle sender extraction with retry logic
                         // Create a placeholder transfer record
