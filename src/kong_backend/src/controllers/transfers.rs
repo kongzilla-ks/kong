@@ -4,7 +4,8 @@ use std::collections::BTreeMap;
 
 use crate::ic::guards::caller_is_kingkong;
 use crate::ic::network::ICNetwork;
-use crate::stable_memory::{get_solana_transaction, TRANSFER_ARCHIVE_MAP, TRANSFER_MAP};
+use crate::solana::stable_memory::get_solana_transaction;
+use crate::stable_memory::{TRANSFER_ARCHIVE_MAP, TRANSFER_MAP};
 use crate::stable_transfer::stable_transfer::{StableTransfer, StableTransferId};
 use crate::stable_transfer::transfer_archive::archive_transfer_map;
 
@@ -121,12 +122,12 @@ fn remove_archive_transfers(ts: u64) -> Result<String, String> {
 /// Get Solana transaction data
 #[query(hidden = true, guard = "caller_is_kingkong")]
 fn debug_get_solana_transaction(signature: String) -> Result<String, String> {
-    match get_solana_transaction(&signature) {
-        Some(tx) => {
-            Ok(format!("Transaction found: status={:?}, metadata={:?}, timestamp={}", 
-                tx.status, tx.metadata, tx.timestamp))
-        },
-        None => Err("Transaction not found".to_string())
+    match get_solana_transaction(signature) {
+        Some(tx) => Ok(format!(
+            "Transaction found: status={:?}, metadata={:?}, timestamp={}", 
+            tx.status, tx.metadata, tx.timestamp
+        )),
+        None => Err("Transaction not found".to_string()),
     }
 }
 

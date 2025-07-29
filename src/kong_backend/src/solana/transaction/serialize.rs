@@ -5,11 +5,11 @@
 
 use anyhow::Result;
 
-use crate::solana::error::SolanaError;
-use crate::solana::sdk::compiled_instruction::CompiledInstruction;
-use crate::solana::sdk::instruction::Instruction;
-use crate::solana::utils::base58;
-use crate::stable_memory::with_solana_latest_blockhash;
+use super::super::error::SolanaError;
+use super::super::sdk::compiled_instruction::CompiledInstruction;
+use super::super::sdk::instruction::Instruction;
+use super::super::stable_memory::with_solana_latest_blockhash;
+use super::super::utils::base58;
 
 /// Message header for Solana transactions
 #[derive(Debug, Clone)]

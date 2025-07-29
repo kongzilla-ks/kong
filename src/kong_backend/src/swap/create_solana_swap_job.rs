@@ -9,12 +9,11 @@ use serde_json;
 
 use crate::ic::address::Address;
 use crate::ic::network::ICNetwork;
-use crate::stable_memory::{get_cached_solana_address, get_next_solana_swap_job_id, with_swap_job_queue_mut};
-use crate::stable_token::{stable_token::StableToken, token::Token};
-use crate::solana::transaction::builder::{TransactionBuilder, SplTransferWithAtaParams};
-use crate::solana::transaction::sign::sign_transaction;
-
+use crate::solana::stable_memory::{get_cached_solana_address, get_next_solana_swap_job_id, with_swap_job_queue_mut};
 use crate::solana::swap_job::{SwapJob, SwapJobId, SwapJobStatus};
+use crate::solana::transaction::builder::{SplTransferWithAtaParams, TransactionBuilder};
+use crate::solana::transaction::sign::sign_transaction;
+use crate::stable_token::{stable_token::StableToken, token::Token};
 
 /// Creates a Solana swap job for processing an outgoing transfer
 pub async fn create_solana_swap_job(
@@ -54,7 +53,9 @@ pub async fn create_solana_swap_job(
 
         // API boundary: Solana blockchain requires u64 amounts (max ~18.4e18 lamports)
         // This is acceptable since Solana tokens have at most 9 decimals
-        let amount_u64 = receive_amount.0.to_u64()
+        let amount_u64 = receive_amount
+            .0
+            .to_u64()
             .ok_or("Amount too large for Solana transfer (max ~18.4e18)")?;
 
         // Build transaction instructions based on token type
@@ -65,7 +66,8 @@ pub async fn create_solana_swap_job(
                 &destination_address,
                 amount_u64,
                 Some(format!("Kong swap job #{}", job_id)),
-            ).await
+            )
+            .await
             .map_err(|e| format!("Failed to build SOL transfer: {}", e))?
         } else {
             // SPL token transfer with ATA creation
@@ -84,8 +86,9 @@ pub async fn create_solana_swap_job(
                 amount: amount_u64,
                 memo: Some(format!("Kong swap job #{}", job_id)),
             };
-            
-            TransactionBuilder::build_transfer_spl_with_ata_transaction(params).await
+
+            TransactionBuilder::build_transfer_spl_with_ata_transaction(params)
+                .await
                 .map_err(|e| format!("Failed to build SPL transfer with ATA: {}", e))?
         };
 
@@ -102,11 +105,10 @@ pub async fn create_solana_swap_job(
         };
 
         // Encode the signed transaction using proper Solana transaction format
-        let encoded_tx = signed_tx.encode()
-            .map_err(|e| format!("Failed to encode transaction: {}", e))?;
+        let encoded_tx = signed_tx.encode().map_err(|e| format!("Failed to encode transaction: {}", e))?;
 
         // Create the swap job using passed timestamp
-        
+
         // Create a simplified args structure for the job
         let job_args = serde_json::json!({
             "request_id": request_id,

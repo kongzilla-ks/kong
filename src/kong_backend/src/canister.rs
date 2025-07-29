@@ -21,20 +21,19 @@ use crate::claims::claims_timer::process_claims_timer;
 use crate::helpers::nat_helpers::{nat_to_decimals_f64, nat_to_f64};
 use crate::ic::network::ICNetwork;
 use crate::remove_liquidity::remove_liquidity_args::RemoveLiquidityArgs;
+use crate::solana::stable_memory::{cleanup_old_notifications, get_cached_solana_address, get_solana_transaction};
 use crate::stable_kong_settings::kong_settings_map;
-use crate::stable_memory::{cleanup_old_notifications, get_solana_transaction};
-use crate::stable_transfer::tx_id::TxId;
 use crate::stable_request::request_archive::archive_request_map;
 use crate::stable_token::token::Token;
 use crate::stable_token::token_management::check_disabled_tokens;
 use crate::stable_token::token_map;
 use crate::stable_transfer::transfer_archive::archive_transfer_map;
+use crate::stable_transfer::tx_id::TxId;
 use crate::stable_tx::tx_archive::archive_tx_map;
 use crate::stable_user::principal_id_map::create_principal_id_map;
 use crate::swap::swap_args::SwapArgs;
 
 use super::kong_backend::KongBackend;
-use super::stable_memory::get_cached_solana_address;
 use super::{APP_NAME, APP_VERSION};
 
 // list of query calls
@@ -190,7 +189,7 @@ fn inspect_message() {
 fn check_transaction_ready(signature: &Option<String>, tx_id: &Option<TxId>) -> Result<(), String> {
     if let (Some(_signature), Some(tx_id)) = (signature, tx_id) {
         if let TxId::TransactionId(tx_sig) = tx_id {
-            if get_solana_transaction(tx_sig).is_none() {
+            if get_solana_transaction(tx_sig.to_string()).is_none() {
                 return Err("TRANSACTION_NOT_READY".to_string());
             }
         }
@@ -200,54 +199,54 @@ fn check_transaction_ready(signature: &Option<String>, tx_id: &Option<TxId>) -> 
 
 fn validate_add_liquidity_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     if let Ok(add_liquidity_args) = decode_one::<AddLiquidityArgs>(&args_bytes) {
         check_transaction_ready(&add_liquidity_args.signature_0, &add_liquidity_args.tx_id_0)?;
         check_transaction_ready(&add_liquidity_args.signature_1, &add_liquidity_args.tx_id_1)?;
     }
-    
+
     Ok(())
 }
 
 fn validate_add_liquidity_async_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     // Skip transaction readiness check for async add liquidity
     // Let the async add liquidity logic handle transaction timing
-    
+
     Ok(())
 }
 
 fn validate_add_pool_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     if let Ok(add_pool_args) = decode_one::<AddPoolArgs>(&args_bytes) {
         check_transaction_ready(&add_pool_args.signature_0, &add_pool_args.tx_id_0)?;
         check_transaction_ready(&add_pool_args.signature_1, &add_pool_args.tx_id_1)?;
     }
-    
+
     Ok(())
 }
 
 fn validate_swap_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     if let Ok(swap_args) = decode_one::<SwapArgs>(&args_bytes) {
         check_transaction_ready(&swap_args.pay_signature, &swap_args.pay_tx_id)?;
         
@@ -255,17 +254,17 @@ fn validate_swap_request() -> Result<(), String> {
             return Err("Solana token requires receive_address".to_string());
         }
     }
-    
+
     Ok(())
 }
 
 fn validate_swap_async_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     // Skip transaction readiness check for async swaps
     // Let the async swap logic handle transaction timing
     if let Ok(swap_args) = decode_one::<SwapArgs>(&args_bytes) {
@@ -273,17 +272,16 @@ fn validate_swap_async_request() -> Result<(), String> {
             return Err("Solana token requires receive_address".to_string());
         }
     }
-    
     Ok(())
 }
 
 fn validate_remove_liquidity_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
-    
+
     if args_bytes.len() > 10_000 {
         return Err("Request payload too large".to_string());
     }
-    
+
     if let Ok(remove_args) = decode_one::<RemoveLiquidityArgs>(&args_bytes) {
         if remove_args.token_0.starts_with("SOL.") && remove_args.payout_address_0.is_none() {
             return Err("Solana token requires payout_address_0".to_string());
@@ -292,7 +290,7 @@ fn validate_remove_liquidity_request() -> Result<(), String> {
             return Err("Solana token requires payout_address_1".to_string());
         }
     }
-    
+
     Ok(())
 }
 

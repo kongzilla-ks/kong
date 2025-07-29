@@ -3,8 +3,8 @@ use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use crate::ic::network::ICNetwork;
 use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
+use crate::ic::network::ICNetwork;
 use crate::stable_claim::stable_claim::{StableClaim, StableClaimId};
 use crate::stable_kong_settings::stable_kong_settings::StableKongSettings;
 use crate::stable_lp_token::stable_lp_token::{StableLPToken, StableLPTokenId};
@@ -17,7 +17,7 @@ use crate::stable_user::stable_user::{StableUser, StableUserId};
 use crate::stable_user::suspended_user_map::SuspendedUser;
 use crate::solana::swap_job::{SwapJob, SwapJobId};
 
-type Memory = VirtualMemory<DefaultMemoryImpl>;
+pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 
 // Stable memory
 pub const KONG_SETTINGS_MEMORY_ID: MemoryId = MemoryId::new(20);
