@@ -15,7 +15,10 @@ impl Storable for SwapJobId {
         serde_cbor::from_slice(&bytes).expect("Failed to decode SwapJobId")
     }
 
-    const BOUND: Bound = Bound::Unbounded;
+    const BOUND: Bound = Bound::Bounded {
+        max_size: 16,
+        is_fixed_size: false,
+    };
 }
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Copy)]
