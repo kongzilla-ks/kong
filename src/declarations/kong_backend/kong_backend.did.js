@@ -544,7 +544,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'get_solana_address' : IDL.Func(
         [],
-        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
+        [IDL.Text],
         ['query'],
       ),
     'get_user' : IDL.Func([], [UserResult], ['query']),

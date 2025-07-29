@@ -38,6 +38,12 @@ else
     USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
 fi
 
+# Force Solana to use devnet for local testing
+if [ "$NETWORK" = "local" ]; then
+    echo "Switching Solana config to devnet for local testing..."
+    solana config set --url devnet
+fi
+
 # Helper function
 check_ok() { local r="$1"; local ctx="$2"; echo "$r" | grep -q -e "Ok" -e "ok" || { echo "Error: $ctx" >&2; echo "$r" >&2; exit 1; }; }
 

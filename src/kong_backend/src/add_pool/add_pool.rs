@@ -37,7 +37,7 @@ use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
 use super::add_pool_args::AddPoolArgs;
 use super::add_pool_reply::AddPoolReply;
-use super::message_builder::CanonicalAddPoolMessage;
+use crate::solana::message_builders::add_pool::CanonicalAddPoolMessage;
 
 enum TokenIndex {
     Token0,

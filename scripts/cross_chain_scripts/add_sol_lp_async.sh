@@ -40,6 +40,12 @@ else
     USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
 fi
 
+# Force Solana to use devnet for local testing
+if [ "$NETWORK" = "local" ]; then
+    echo "Switching Solana config to devnet for local testing..."
+    solana config set --url devnet
+fi
+
 # --- Helper to check for command success ---
 check_ok() {
     local result="$1"; local context="$2"
@@ -59,8 +65,7 @@ echo "=========================================================="
 echo
 echo "--- 0. Setup ---"
 KONG_SOL_RAW=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} get_solana_address --output json)
-check_ok "${KONG_SOL_RAW}" "Failed to get Kong Solana address"
-KONG_SOL_ADDR=$(echo "${KONG_SOL_RAW}" | jq -r '.Ok')
+KONG_SOL_ADDR=$(echo "${KONG_SOL_RAW}" | jq -r '.')
 echo "Kong Solana Address: ${KONG_SOL_ADDR}"
 
 # --- 1. Transfer SOL to Kong ---
@@ -120,7 +125,8 @@ for i in {1..20}; do
     echo "Poll #${i}:"
     echo "${STATUSES}"
     
-    if echo "${STATUSES}" | grep -q "LP token sent"; then
+    if echo "${STATUSES}" | grep -q "Success"; then
+        echo "Add liquidity completed successfully!"
         break
     fi
     sleep 3

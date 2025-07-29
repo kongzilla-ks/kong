@@ -511,11 +511,7 @@ export interface _SERVICE {
     { 'Ok' : number } |
       { 'Err' : string }
   >,
-  'get_solana_address' : ActorMethod<
-    [],
-    { 'Ok' : string } |
-      { 'Err' : string }
-  >,
+  'get_solana_address' : ActorMethod<[], string>,
   'get_user' : ActorMethod<[], UserResult>,
   'icrc10_supported_standards' : ActorMethod<
     [],

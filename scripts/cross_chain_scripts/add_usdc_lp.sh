@@ -38,11 +38,17 @@ else
     KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
     USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
 fi
+
+# Force Solana to use devnet for local testing
+if [ "$NETWORK" = "local" ]; then
+    echo "Switching Solana config to devnet for local testing..."
+    solana config set --url devnet
+fi
+
 check_ok(){ local r="$1"; local c="$2"; echo "$r" | grep -q -e "Ok" -e "ok" || { echo "Error: $c" >&2; echo "$r" >&2; exit 1; }; }
 # 0. Fetch Kong Solana address
 KONG_SOL_RAW=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} get_solana_address --output json)
-check_ok "$KONG_SOL_RAW" "get_solana_address failed"
-KONG_SOL_ADDR=$(echo "$KONG_SOL_RAW" | jq -r '.Ok')
+KONG_SOL_ADDR=$(echo "$KONG_SOL_RAW" | jq -r '.')
 
 # 1. Transfer USDC
 USDC_DEC=$(bc <<< "scale=6; ${USDC_AMOUNT}/1000000")

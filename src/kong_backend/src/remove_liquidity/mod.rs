@@ -2,4 +2,3 @@
 pub mod remove_liquidity;
 pub mod remove_liquidity_args;
 pub mod remove_liquidity_reply;
-pub mod message_builder;

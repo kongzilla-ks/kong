@@ -165,7 +165,6 @@ type SolanaTransferReply = record {
     amount : nat;
     mint_address : text;
     signature : text;
-    slot : opt nat64;
 };
 type TransferReply = variant {
     IC : ICTransferReply;
@@ -692,7 +691,7 @@ service : {
     send : (SendArgs) -> (SendResult);
 
     // Solana functions
-    get_solana_address : () -> (variant { Ok : text; Err : text }) query;
+    get_solana_address : () -> (text) query;
     
     // Solana proxy endpoints (called by kong_rpc)
     notify_solana_transfer : (text, opt text) -> (variant { Ok; Err : text });

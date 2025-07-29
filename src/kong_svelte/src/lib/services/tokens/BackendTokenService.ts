@@ -286,11 +286,7 @@ export class BackendTokenService {
       
       const result = await actor.get_solana_address();
       
-      if ("Ok" in result) {
-        return result.Ok;
-      }
-      
-      throw new Error("Err" in result ? result.Err : "Failed to get Solana address");
+      return result;
     } catch (error) {
       console.error("Error getting Kong Solana address:", error);
       throw error;

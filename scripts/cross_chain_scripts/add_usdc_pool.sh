@@ -48,6 +48,12 @@ else
     USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
 fi
 
+# Force Solana to use devnet for local testing
+if [ "$NETWORK" = "local" ]; then
+    echo "Switching Solana config to devnet for local testing..."
+    solana config set --url devnet
+fi
+
 # --- Helper to check for command success ---
 check_ok() {
     local result="$1"; local context="$2"
@@ -59,8 +65,7 @@ check_ok() {
 # --- 0. Setup: Fetch addresses ---
 echo "Fetching addresses..."
 KONG_SOLANA_ADDRESS_RAW=$(dfx canister call ${NETWORK_FLAG} ${KONG_BACKEND} get_solana_address --output json)
-check_ok "${KONG_SOLANA_ADDRESS_RAW}" "Failed to get Kong Solana address"
-KONG_SOLANA_ADDRESS=$(echo "${KONG_SOLANA_ADDRESS_RAW}" | jq -r '.Ok')
+KONG_SOLANA_ADDRESS=$(echo "${KONG_SOLANA_ADDRESS_RAW}" | jq -r '.')
 echo "Kong Solana Address: ${KONG_SOLANA_ADDRESS}"
 
 # --- 1. Transfer USDC to Kong ---

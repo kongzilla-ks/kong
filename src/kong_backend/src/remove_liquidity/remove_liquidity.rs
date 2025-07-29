@@ -20,7 +20,7 @@ use crate::stable_tx::{remove_liquidity_tx::RemoveLiquidityTx, stable_tx::Stable
 use crate::stable_user::user_map;
 use crate::swap::create_solana_swap_job::create_solana_swap_job;
 
-use super::message_builder::CanonicalRemoveLiquidityMessage;
+use crate::solana::message_builders::remove_liquidity::CanonicalRemoveLiquidityMessage;
 use super::remove_liquidity_args::RemoveLiquidityArgs;
 use super::remove_liquidity_reply::RemoveLiquidityReply;
 

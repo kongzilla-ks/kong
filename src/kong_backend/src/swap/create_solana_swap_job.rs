@@ -10,11 +10,10 @@ use serde_json;
 use crate::ic::address::Address;
 use crate::ic::network::ICNetwork;
 use crate::solana::stable_memory::{get_cached_solana_address, get_next_solana_swap_job_id, with_swap_job_queue_mut};
+use crate::solana::swap_job::{SwapJob, SwapJobId, SwapJobStatus};
 use crate::solana::transaction::builder::{SplTransferWithAtaParams, TransactionBuilder};
 use crate::solana::transaction::sign::sign_transaction;
 use crate::stable_token::{stable_token::StableToken, token::Token};
-
-use super::swap_job::{SwapJob, SwapJobStatus};
 
 /// Creates a Solana swap job for processing an outgoing transfer
 pub async fn create_solana_swap_job(
@@ -137,7 +136,7 @@ pub async fn create_solana_swap_job(
 
         // Store the job in the queue
         with_swap_job_queue_mut(|queue| {
-            queue.insert(job_id, swap_job);
+            queue.insert(SwapJobId(job_id), swap_job);
         });
 
         Ok(job_id)

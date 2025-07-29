@@ -3,6 +3,21 @@ use ic_stable_structures::{storable::Bound, Storable};
 use serde::Serialize;
 use std::borrow::Cow;
 
+#[derive(CandidType, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SwapJobId(pub u64);
+
+impl Storable for SwapJobId {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        serde_cbor::to_vec(self).expect("Failed to encode SwapJobId").into()
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        serde_cbor::from_slice(&bytes).expect("Failed to decode SwapJobId")
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SwapJobStatus {
     PendingVerification, // Payment verification in progress

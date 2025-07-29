@@ -4,9 +4,10 @@ use crate::ic::network::ICNetwork;
 use crate::stable_memory::{
     Memory, CACHED_SOLANA_ADDRESS, NEXT_SOLANA_SWAP_JOB_ID, SOLANA_LATEST_BLOCKHASH, SOLANA_SWAP_JOB_QUEUE, SOLANA_TX_NOTIFICATIONS,
 };
-use crate::swap::swap_job::SwapJob;
+use crate::solana::swap_job::SwapJob;
 
 use super::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
+use super::swap_job::SwapJobId;
 
 /// Helper function to access the cached Solana address
 pub fn with_cached_solana_address<R>(f: impl FnOnce(&StableCell<String, Memory>) -> R) -> R {
@@ -53,12 +54,12 @@ pub fn get_next_solana_swap_job_id() -> u64 {
 }
 
 /// Helper function to access the swap job queue
-pub fn with_swap_job_queue<R>(f: impl FnOnce(&StableBTreeMap<u64, SwapJob, Memory>) -> R) -> R {
+pub fn with_swap_job_queue<R>(f: impl FnOnce(&StableBTreeMap<SwapJobId, SwapJob, Memory>) -> R) -> R {
     SOLANA_SWAP_JOB_QUEUE.with(|cell| f(&cell.borrow()))
 }
 
 /// Helper function to mutate the swap job queue
-pub fn with_swap_job_queue_mut<R>(f: impl FnOnce(&mut StableBTreeMap<u64, SwapJob, Memory>) -> R) -> R {
+pub fn with_swap_job_queue_mut<R>(f: impl FnOnce(&mut StableBTreeMap<SwapJobId, SwapJob, Memory>) -> R) -> R {
     SOLANA_SWAP_JOB_QUEUE.with(|cell| f(&mut cell.borrow_mut()))
 }
 

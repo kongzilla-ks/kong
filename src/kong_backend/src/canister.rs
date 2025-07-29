@@ -189,7 +189,7 @@ fn inspect_message() {
 fn check_transaction_ready(signature: &Option<String>, tx_id: &Option<TxId>) -> Result<(), String> {
     if let (Some(_signature), Some(tx_id)) = (signature, tx_id) {
         if let TxId::TransactionId(tx_sig) = tx_id {
-            if get_solana_transaction(tx_sig.clone()).is_none() {
+            if get_solana_transaction(tx_sig.to_string()).is_none() {
                 return Err("TRANSACTION_NOT_READY".to_string());
             }
         }
@@ -249,6 +249,10 @@ fn validate_swap_request() -> Result<(), String> {
 
     if let Ok(swap_args) = decode_one::<SwapArgs>(&args_bytes) {
         check_transaction_ready(&swap_args.pay_signature, &swap_args.pay_tx_id)?;
+        
+        if swap_args.receive_token.starts_with("SOL.") && swap_args.receive_address.is_none() {
+            return Err("Solana token requires receive_address".to_string());
+        }
     }
 
     Ok(())
@@ -263,7 +267,11 @@ fn validate_swap_async_request() -> Result<(), String> {
 
     // Skip transaction readiness check for async swaps
     // Let the async swap logic handle transaction timing
-
+    if let Ok(swap_args) = decode_one::<SwapArgs>(&args_bytes) {
+        if swap_args.receive_token.starts_with("SOL.") && swap_args.receive_address.is_none() {
+            return Err("Solana token requires receive_address".to_string());
+        }
+    }
     Ok(())
 }
 
