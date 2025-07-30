@@ -159,7 +159,7 @@ async fn send_claim(
         }
         SolanaAddress(solana_address) => {
             // Create Solana swap job for failed claim
-            match crate::swap::create_solana_swap_job::create_solana_swap_job(
+            match crate::solana::create_solana_swap_job::create_solana_swap_job(
                 request_id,    // Use the claim request_id
                 claim.user_id, // Use user_id from claim
                 token,

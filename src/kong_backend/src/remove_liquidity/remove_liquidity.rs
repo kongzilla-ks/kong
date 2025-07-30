@@ -18,7 +18,7 @@ use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{remove_liquidity_tx::RemoveLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
-use crate::swap::create_solana_swap_job::create_solana_swap_job;
+use crate::solana::create_solana_swap_job::create_solana_swap_job;
 
 use crate::solana::message_builders::remove_liquidity::CanonicalRemoveLiquidityMessage;
 use super::remove_liquidity_args::RemoveLiquidityArgs;

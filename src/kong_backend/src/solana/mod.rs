@@ -7,6 +7,7 @@ pub mod sdk;
 pub mod signature_verification;
 pub mod stable_memory;
 pub mod swap_job;
+pub mod create_solana_swap_job;
 pub mod transaction;
 pub mod utils;
 pub mod verify_transfer;

@@ -11,7 +11,7 @@ use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{stable_tx::StableTx, swap_tx::SwapTx, tx_map};
 
-use super::create_solana_swap_job::create_solana_swap_job;
+use crate::solana::create_solana_swap_job::create_solana_swap_job;
 use super::swap_calc::SwapCalc;
 use super::swap_reply::SwapReply;
 
