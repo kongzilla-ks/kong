@@ -11,7 +11,7 @@ use crate::stable_request::request_map;
 use crate::stable_request::status::StatusCode;
 use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
-use crate::swap::create_solana_swap_job::create_solana_swap_job;
+use crate::solana::create_solana_swap_job::create_solana_swap_job;
 
 use super::swap_reply::SwapReply;
 

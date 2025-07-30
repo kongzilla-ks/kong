@@ -33,7 +33,7 @@ use crate::stable_transfer::transfer_map;
 use crate::stable_transfer::tx_id::TxId;
 use crate::stable_tx::{add_pool_tx::AddPoolTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
-use crate::swap::create_solana_swap_job::create_solana_swap_job;
+use crate::solana::create_solana_swap_job::create_solana_swap_job;
 
 use super::add_pool_args::AddPoolArgs;
 use super::add_pool_reply::AddPoolReply;

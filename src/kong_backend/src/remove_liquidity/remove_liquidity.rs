@@ -6,7 +6,7 @@ use crate::chains::chains::SOL_CHAIN;
 use crate::helpers::nat_helpers::{nat_add, nat_divide, nat_is_zero, nat_multiply, nat_subtract, nat_zero};
 use crate::ic::network::ICNetwork;
 use crate::ic::{address::Address, guards::not_in_maintenance_mode, transfer::icrc1_transfer};
-use crate::solana::signature_verification::verify_canonical_message;
+use crate::solana::verify_transfer::verify_canonical_message;
 use crate::solana::utils::validation;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
@@ -18,7 +18,7 @@ use crate::stable_token::{stable_token::StableToken, token::Token};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_tx::{remove_liquidity_tx::RemoveLiquidityTx, stable_tx::StableTx, tx_map};
 use crate::stable_user::user_map;
-use crate::swap::create_solana_swap_job::create_solana_swap_job;
+use crate::solana::create_solana_swap_job::create_solana_swap_job;
 
 use crate::solana::message_builders::remove_liquidity::CanonicalRemoveLiquidityMessage;
 use super::remove_liquidity_args::RemoveLiquidityArgs;

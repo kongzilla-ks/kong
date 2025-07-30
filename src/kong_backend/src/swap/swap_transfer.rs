@@ -7,8 +7,7 @@ use crate::ic::address_helpers::get_address;
 use crate::ic::network::ICNetwork;
 use crate::ic::verify_transfer::verify_transfer;
 use crate::solana::message_builders::swap::CanonicalSwapMessage;
-use crate::solana::payment_verification::extract_solana_sender_from_transaction;
-use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
+use crate::solana::verify_transfer::{verify_transfer as verify_transfer_solana, extract_solana_sender_from_transaction};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
 use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
@@ -95,7 +94,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                         // Simple retry loop - delay until transaction found
                         let mut verification_result = None;
                         for attempt in 0..10 {
-                            // Try to extract sender first (will fail if tx not found)
+                            // First, extract sender from transaction (will fail if tx not found)
                             let sender_pubkey = match extract_solana_sender_from_transaction(tx_signature_str, sol_token.is_spl_token).await
                             {
                                 Ok(pubkey) => pubkey,
@@ -128,12 +127,12 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                 }
                             };
 
-                            // Create canonical message for verification
+                            // Create canonical message for verification with the extracted sender
                             let canonical_message = CanonicalSwapMessage::from_swap_args(&args)
                                 .with_sender(sender_pubkey.clone())
                                 .to_signing_message();
 
-                            // Now try verification
+                            // Now perform full verification with the correct canonical message
                             match verify_transfer_solana(
                                 tx_signature_str,
                                 signature,
@@ -337,7 +336,6 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
 
     Ok((pay_token, pay_amount, transfer_id))
 }
-
 #[allow(clippy::too_many_arguments)]
 async fn process_swap(
     request_id: u64,

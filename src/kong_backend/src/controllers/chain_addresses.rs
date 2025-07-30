@@ -11,11 +11,6 @@ use crate::solana::stable_memory::{get_cached_solana_address, set_cached_solana_
 /// If already cached, it verifies the cached address matches the current derivation
 #[update(hidden = true, guard = "caller_is_kingkong")]
 pub async fn cache_solana_address() -> Result<String, String> {
-    // Derive the Solana address from the canister's Ed25519 key
-    let address = KongBackend::get_solana_address()
-        .await
-        .map_err(|e| format!("Failed to derive Solana address: {}", e))?;
-
     // Check if already cached
     let cached = get_cached_solana_address();
     match if cached.is_empty() {
@@ -24,6 +19,11 @@ pub async fn cache_solana_address() -> Result<String, String> {
         Ok(cached)
     } {
         Ok(cached) => {
+            // Derive the Solana address to verify cached value
+            let address = KongBackend::get_solana_address()
+                .await
+                .map_err(|e| format!("Failed to derive Solana address: {}", e))?;
+            
             if cached == address {
                 Ok(format!("Address already cached and verified: {}", cached))
             } else {
@@ -35,7 +35,12 @@ pub async fn cache_solana_address() -> Result<String, String> {
             }
         }
         Err(_) => {
-            // Not cached yet, cache it now
+            // Not cached yet, derive it now
+            let address = KongBackend::get_solana_address()
+                .await
+                .map_err(|e| format!("Failed to derive Solana address: {}", e))?;
+            
+            // Cache the address
             set_cached_solana_address(address.clone());
             Ok(format!("Successfully cached Solana address: {}", address))
         }
