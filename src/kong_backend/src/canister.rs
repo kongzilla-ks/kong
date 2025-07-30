@@ -195,6 +195,13 @@ fn check_transaction_ready(signature: &Option<String>, tx_id: &Option<TxId>) -> 
     Ok(())
 }
 
+fn check_solana_signature_provided(token: &str, signature: &Option<String>) -> Result<(), String> {
+    if token.starts_with("SOL.") && signature.is_none() {
+        return Err("Solana token transfer requires signature".to_string());
+    }
+    Ok(())
+}
+
 fn validate_add_liquidity_request() -> Result<(), String> {
     let args_bytes = ic_cdk::api::msg_arg_data();
 
@@ -205,6 +212,9 @@ fn validate_add_liquidity_request() -> Result<(), String> {
     if let Ok(add_liquidity_args) = decode_one::<AddLiquidityArgs>(&args_bytes) {
         check_transaction_ready(&add_liquidity_args.signature_0, &add_liquidity_args.tx_id_0)?;
         check_transaction_ready(&add_liquidity_args.signature_1, &add_liquidity_args.tx_id_1)?;
+        
+        check_solana_signature_provided(&add_liquidity_args.token_0, &add_liquidity_args.signature_0)?;
+        check_solana_signature_provided(&add_liquidity_args.token_1, &add_liquidity_args.signature_1)?;
     }
 
     Ok(())
@@ -233,6 +243,9 @@ fn validate_add_pool_request() -> Result<(), String> {
     if let Ok(add_pool_args) = decode_one::<AddPoolArgs>(&args_bytes) {
         check_transaction_ready(&add_pool_args.signature_0, &add_pool_args.tx_id_0)?;
         check_transaction_ready(&add_pool_args.signature_1, &add_pool_args.tx_id_1)?;
+        
+        check_solana_signature_provided(&add_pool_args.token_0, &add_pool_args.signature_0)?;
+        check_solana_signature_provided(&add_pool_args.token_1, &add_pool_args.signature_1)?;
     }
 
     Ok(())
@@ -247,6 +260,8 @@ fn validate_swap_request() -> Result<(), String> {
 
     if let Ok(swap_args) = decode_one::<SwapArgs>(&args_bytes) {
         check_transaction_ready(&swap_args.pay_signature, &swap_args.pay_tx_id)?;
+        
+        check_solana_signature_provided(&swap_args.pay_token, &swap_args.pay_signature)?;
 
         if swap_args.receive_token.starts_with("SOL.") && swap_args.receive_address.is_none() {
             return Err("Solana token requires receive_address".to_string());
