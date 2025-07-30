@@ -44,9 +44,6 @@ pub async fn create_solana_swap_job(
 
         // Get Kong's Solana address
         let kong_address = get_cached_solana_address();
-        if kong_address.is_empty() {
-            return Err("Kong Solana address not initialized".to_string());
-        }
 
         // Get the job ID
         let job_id = get_next_solana_swap_job_id();
