@@ -2,6 +2,7 @@ use candid::{decode_one, CandidType, Nat};
 use ic_cdk::{init, post_upgrade, pre_upgrade, query, update};
 use ic_cdk_macros::inspect_message;
 use ic_cdk_timers::set_timer_interval;
+use ic_stable_structures::Memory as DefaultMemoryTrait;
 use icrc_ledger_types::icrc21::errors::ErrorInfo;
 use icrc_ledger_types::icrc21::requests::{ConsentMessageMetadata, ConsentMessageRequest};
 use icrc_ledger_types::icrc21::responses::{ConsentInfo, ConsentMessage};
@@ -20,7 +21,8 @@ use crate::add_token::update_token_reply::UpdateTokenReply;
 use crate::claims::claims_timer::process_claims_timer;
 use crate::helpers::nat_helpers::{nat_to_decimals_f64, nat_to_f64};
 use crate::ic::network::ICNetwork;
-use crate::solana::stable_memory::{cleanup_old_notifications, get_cached_solana_address};
+use crate::solana::stable_memory::{cleanup_old_notifications, get_cached_solana_address, with_swap_job_queue_mut};
+use crate::stable_memory::{with_memory_manager, SOLANA_SWAP_JOB_QUEUE_ID, NEXT_SOLANA_SWAP_JOB_ID};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_request::request_archive::archive_request_map;
 use crate::stable_token::token::Token;
@@ -69,6 +71,30 @@ async fn post_upgrade() {
     ICNetwork::info_log(&format!("{} canister has been upgraded", APP_NAME));
 
     create_principal_id_map();
+
+    // Clear SwapJob queue stable memory to remove old incompatible data structure
+    ICNetwork::info_log("Clearing SwapJob stable memory for clean upgrade");
+    with_swap_job_queue_mut(|queue| {
+        queue.clear_new();
+    });
+    
+    // Zero out the allocated stable memory for SwapJob queue
+    with_memory_manager(|memory_manager| {
+        let memory = memory_manager.get(SOLANA_SWAP_JOB_QUEUE_ID);
+        if memory.size() > 0 {
+            ICNetwork::info_log(&format!("Clearing {} WASM pages of SwapJob memory", memory.size()));
+            memory.write(0, &[0]);
+        }
+    });
+
+    // Reset the job ID counter to start from 0
+    NEXT_SOLANA_SWAP_JOB_ID.with(|cell| {
+        if let Err(e) = cell.borrow_mut().set(0u64) {
+            ICNetwork::error_log(&format!("Failed to reset SwapJob ID counter: {:?}", e));
+        } else {
+            ICNetwork::info_log("Reset SwapJob ID counter to 0");
+        }
+    });
 
     // Check if Solana address is cached
     // NOTE: We cannot make inter-canister calls in post_upgrade, even with spawn
