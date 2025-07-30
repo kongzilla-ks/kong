@@ -6,7 +6,7 @@ use crate::chains::chains::SOL_CHAIN;
 use crate::helpers::nat_helpers::{nat_add, nat_divide, nat_is_zero, nat_multiply, nat_subtract, nat_zero};
 use crate::ic::network::ICNetwork;
 use crate::ic::{address::Address, guards::not_in_maintenance_mode, transfer::icrc1_transfer};
-use crate::solana::signature_verification::verify_canonical_message;
+use crate::solana::verify_transfer::verify_canonical_message;
 use crate::solana::utils::validation;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
