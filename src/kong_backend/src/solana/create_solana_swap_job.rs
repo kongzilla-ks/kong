@@ -5,15 +5,13 @@
 
 use candid::Nat;
 use num_traits::ToPrimitive;
-use serde_json;
 
 use crate::ic::address::Address;
-use crate::ic::network::ICNetwork;
 use crate::solana::stable_memory::{get_cached_solana_address, get_next_solana_swap_job_id, with_swap_job_queue_mut};
 use crate::solana::swap_job::{SwapJob, SwapJobId, SwapJobStatus};
 use crate::solana::transaction::builder::{SplTransferWithAtaParams, TransactionBuilder};
 use crate::solana::transaction::sign::sign_transaction;
-use crate::stable_token::{stable_token::StableToken, token::Token};
+use crate::stable_token::stable_token::StableToken;
 
 /// Creates a Solana swap job for processing an outgoing transfer
 pub async fn create_solana_swap_job(
@@ -106,28 +104,16 @@ pub async fn create_solana_swap_job(
 
         // Create the swap job using passed timestamp
 
-        // Create a simplified args structure for the job
-        let job_args = serde_json::json!({
-            "request_id": request_id,
-            "user_id": user_id,
-            "receive_token": receive_token.symbol(),
-            "receive_amount": amount_u64,
-            "to_address": destination_address,
-            "mint_address": sol_token.mint_address,
-            "program_id": sol_token.program_id,
-        });
-
         let swap_job = SwapJob::new(
             job_id,
-            ICNetwork::caller(),
-            job_args.to_string(),
+            user_id,
+            request_id,
             SwapJobStatus::Pending,
             ts,
             ts,
             encoded_tx,
             None,
             None,
-            0,
             tx_sig,
         );
 

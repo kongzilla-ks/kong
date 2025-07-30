@@ -1,4 +1,4 @@
-use candid::{CandidType, Deserialize, Principal};
+use candid::{CandidType, Deserialize};
 use ic_stable_structures::{storable::Bound, Storable};
 use serde::Serialize;
 use std::borrow::Cow;
@@ -58,16 +58,15 @@ impl Storable for SwapJobStatus {
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug)]
 pub struct SwapJob {
     pub id: u64,
-    pub caller: Principal,
-    pub original_args_json: String,
+    pub user_id: u32,
+    pub request_id: u64,
     pub status: SwapJobStatus,
     pub created_at: u64, // ic_cdk::api::time()
     pub updated_at: u64,
     pub encoded_signed_solana_tx: String,
-    pub solana_tx_signature_of_payout: Option<String>,
+    pub solana_tx_signature_of_payout: Option<String>, // Final tx signature confirmed by Solana network (after successful submission)
     pub error_message: Option<String>,
-    pub attempts: u32,  // For kong_rpc retry logic
-    pub tx_sig: String, // Transaction signature computed at signing time
+    pub tx_sig: String, // Initial tx signature computed locally at signing time (before network submission)
 }
 
 impl Storable for SwapJob {
@@ -84,28 +83,26 @@ impl Storable for SwapJob {
 impl SwapJob {
     pub fn new(
         id: u64,
-        caller: Principal,
-        original_args_json: String,
+        user_id: u32,
+        request_id: u64,
         status: SwapJobStatus,
         created_at: u64,
         updated_at: u64,
         encoded_signed_solana_tx: String,
         solana_tx_signature_of_payout: Option<String>,
         error_message: Option<String>,
-        attempts: u32,
         tx_sig: String,
     ) -> Self {
         Self {
             id,
-            caller,
-            original_args_json,
+            user_id,
+            request_id,
             status,
             created_at,
             updated_at,
             encoded_signed_solana_tx,
             solana_tx_signature_of_payout,
             error_message,
-            attempts,
             tx_sig,
         }
     }
