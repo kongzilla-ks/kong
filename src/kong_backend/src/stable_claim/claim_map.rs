@@ -61,6 +61,10 @@ pub fn update_too_many_attempts_status(claim_id: u64) -> Option<StableClaim> {
     update_status(claim_id, ClaimStatus::TooManyAttempts)
 }
 
+pub fn update_disabled_token(claim_id: u64) -> Option<StableClaim> {
+    update_status(claim_id, ClaimStatus::DisabledToken)
+}
+
 // used for setting the status of a claim to claimed after a successful claim
 pub fn update_claimed_status(claim_id: u64, request_id: u64, transfer_id: u64) -> Option<StableClaim> {
     CLAIM_MAP.with(|m| {
