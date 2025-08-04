@@ -16,6 +16,10 @@ use super::sdk::offchain_message::OffchainMessage;
 use super::sdk::pubkey::Pubkey;
 use super::sdk::signature::Signature as SolanaSignature;
 
+// Solana program constants
+const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
+const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+
 /// Result of Solana transfer verification
 #[derive(Debug, Clone)]
 pub struct SolanaVerificationResult {
@@ -70,7 +74,7 @@ pub async fn verify_transfer(
     // NEW SECURITY VALIDATIONS
     
     // 1. Validate receiver address matches Kong's expected address
-    validate_receiver_address(&metadata)?;
+    validate_receiver_address(&metadata, expected_token)?;
     
     // 2. Validate program ID matches expected token type
     validate_program_id(&metadata, is_spl_token)?;
@@ -250,18 +254,40 @@ pub async fn extract_solana_sender_from_transaction(tx_signature: &str, is_spl_t
 }
 
 /// Validate that the receiver address matches Kong's expected Solana address
-fn validate_receiver_address(metadata: &serde_json::Value) -> Result<(), String> {
+fn validate_receiver_address(metadata: &serde_json::Value, expected_token: &StableToken) -> Result<(), String> {
     let receiver = metadata.get("receiver")
         .and_then(|v| v.as_str())
         .ok_or("Missing receiver in transaction metadata")?;
     
-    let expected_receiver = get_cached_solana_address();
+    let kong_address = get_cached_solana_address();
+    let program_id = metadata.get("program_id").and_then(|v| v.as_str());
     
-    if receiver != expected_receiver {
-        return Err(format!(
-            "Invalid receiver address. Expected: {}, Got: {}",
-            expected_receiver, receiver
-        ));
+    // For SPL tokens, receiver is an ATA. We need to validate it's the correct ATA for Kong
+    if program_id == Some(SPL_TOKEN_PROGRAM_ID) {
+        if let StableToken::Solana(sol_token) = expected_token {
+            if sol_token.is_spl_token {
+                // Derive what the ATA should be for Kong's address and this mint
+                let expected_ata = crate::solana::transaction::builder::TransactionBuilder::derive_associated_token_account(
+                    &kong_address,
+                    &sol_token.mint_address
+                ).map_err(|e| format!("Failed to derive expected ATA: {}", e))?;
+                
+                if receiver != expected_ata {
+                    return Err(format!(
+                        "Invalid receiver ATA. Expected: {} (for Kong address {} and mint {}), Got: {}",
+                        expected_ata, kong_address, sol_token.mint_address, receiver
+                    ));
+                }
+            }
+        }
+    } else {
+        // For native SOL, receiver should be Kong's address directly
+        if receiver != kong_address {
+            return Err(format!(
+                "Invalid receiver address. Expected: {}, Got: {}",
+                kong_address, receiver
+            ));
+        }
     }
     Ok(())
 }
@@ -271,10 +297,6 @@ fn validate_program_id(metadata: &serde_json::Value, expected_is_spl: bool) -> R
     let program_id = metadata.get("program_id")
         .and_then(|v| v.as_str())
         .ok_or("Missing program_id in transaction metadata")?;
-    
-    // Constants for Solana programs
-    const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
-    const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
     
     let expected_program = if expected_is_spl {
         SPL_TOKEN_PROGRAM_ID
