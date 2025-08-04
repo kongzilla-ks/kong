@@ -9,6 +9,8 @@ use std::str::FromStr;
 use crate::ic::network::ICNetwork;
 use crate::stable_memory::get_solana_transaction;
 use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationStatus};
+use crate::solana::stable_memory::get_cached_solana_address;
+use crate::stable_token::stable_token::StableToken;
 use super::error::SolanaError;
 use super::sdk::offchain_message::OffchainMessage;
 use super::sdk::pubkey::Pubkey;
@@ -29,6 +31,7 @@ pub struct SolanaVerificationResult {
 /// * `signature` - The Ed25519 signature on the canonical message
 /// * `amount` - The expected transfer amount
 /// * `canonical_message` - The message that was signed (without sender, as it will be extracted)
+/// * `expected_token` - The expected token (contains mint_address for SPL tokens)
 /// * `is_spl_token` - Whether this is an SPL token (true) or native SOL (false)
 ///
 /// # Returns
@@ -39,6 +42,7 @@ pub async fn verify_transfer(
     signature: &str,
     amount: &Nat,
     canonical_message: &str,
+    expected_token: &StableToken,
     is_spl_token: bool,
 ) -> Result<SolanaVerificationResult, String> {
     // Get transaction and parse metadata once
@@ -62,6 +66,17 @@ pub async fn verify_transfer(
     // The message should already contain the pay_address that matches the sender
     verify_canonical_message(canonical_message, &sender_pubkey, signature)
         .map_err(|e| format!("Signature verification failed: {}", e))?;
+    
+    // NEW SECURITY VALIDATIONS
+    
+    // 1. Validate receiver address matches Kong's expected address
+    validate_receiver_address(&metadata)?;
+    
+    // 2. Validate program ID matches expected token type
+    validate_program_id(&metadata, is_spl_token)?;
+    
+    // 3. Validate mint address for SPL tokens
+    validate_mint_address(&metadata, expected_token)?;
     
     // Verify the actual Solana transaction on-chain using the parsed metadata
     verify_solana_transaction_with_metadata(&transaction, &metadata, &sender_pubkey, amount, is_spl_token)?;
@@ -232,5 +247,70 @@ pub async fn extract_solana_sender_from_transaction(tx_signature: &str, is_spl_t
 
     // Use the existing metadata extraction function
     extract_solana_sender_from_metadata(&metadata, is_spl_token)
+}
+
+/// Validate that the receiver address matches Kong's expected Solana address
+fn validate_receiver_address(metadata: &serde_json::Value) -> Result<(), String> {
+    let receiver = metadata.get("receiver")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing receiver in transaction metadata")?;
+    
+    let expected_receiver = get_cached_solana_address();
+    
+    if receiver != expected_receiver {
+        return Err(format!(
+            "Invalid receiver address. Expected: {}, Got: {}",
+            expected_receiver, receiver
+        ));
+    }
+    Ok(())
+}
+
+/// Validate that the program ID matches the expected token type
+fn validate_program_id(metadata: &serde_json::Value, expected_is_spl: bool) -> Result<(), String> {
+    let program_id = metadata.get("program_id")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing program_id in transaction metadata")?;
+    
+    // Constants for Solana programs
+    const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
+    const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+    
+    let expected_program = if expected_is_spl {
+        SPL_TOKEN_PROGRAM_ID
+    } else {
+        SYSTEM_PROGRAM_ID
+    };
+    
+    if program_id != expected_program {
+        return Err(format!(
+            "Program ID mismatch. Expected {} transfer with program {}, got {}",
+            if expected_is_spl { "SPL" } else { "SOL" },
+            expected_program,
+            program_id
+        ));
+    }
+    Ok(())
+}
+
+/// Validate mint address for SPL tokens
+fn validate_mint_address(metadata: &serde_json::Value, expected_token: &StableToken) -> Result<(), String> {
+    if let StableToken::Solana(sol_token) = expected_token {
+        if !sol_token.is_spl_token {
+            return Ok(()); // Native SOL doesn't need mint validation
+        }
+        
+        let actual_mint = metadata.get("mint_address")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing mint_address for SPL token in transaction metadata")?;
+        
+        if actual_mint != sol_token.mint_address {
+            return Err(format!(
+                "Mint address mismatch. Expected token {} with mint {}, got {}",
+                sol_token.symbol, sol_token.mint_address, actual_mint
+            ));
+        }
+    }
+    Ok(())
 }
 

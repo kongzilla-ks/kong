@@ -140,8 +140,28 @@ async fn should_return_transfer(transfer: &StableTransfer, signature: &str) -> b
         return false; // No metadata available
     }
 
-    // If this transfer is being archived after 1 hour and it's still in the map,
-    // it means it was never successfully used in a swap/liquidity operation
+    // Check if this transfer was used in a successful request
+    if transfer.request_id > 0 {
+        if let Some(request) = request_map::get_by_request_id(transfer.request_id) {
+            if let Some(last_status) = request.statuses.last() {
+                // If the request succeeded, don't refund!
+                match last_status.status_code {
+                    StatusCode::Success |
+                    StatusCode::SwapSuccess |
+                    StatusCode::SendReceiveTokenSuccess |
+                    StatusCode::SendToken0Success |
+                    StatusCode::SendToken1Success |
+                    StatusCode::AddPoolSuccess |
+                    StatusCode::ClaimTokenSuccess => {
+                        return false; // Was successfully used, don't refund
+                    }
+                    _ => {} // Failed/incomplete requests can be refunded
+                }
+            }
+        }
+    }
+
+    // Only refund if the request failed or was never created
     true
 }
 
