@@ -510,7 +510,7 @@ async fn verify_cross_chain_transfer(
     let canonical_message = CanonicalAddPoolMessage::from_add_pool_args(args).to_signing_message();
 
     // Verify the Solana transfer
-    let verification = verify_transfer_solana(&tx_signature_str, signature, amount, &canonical_message, sol_token.is_spl_token)
+    let verification = verify_transfer_solana(&tx_signature_str, signature, amount, &canonical_message, token, sol_token.is_spl_token)
         .await
         .map_err(|e| {
             let error_msg = format!("Cross-chain pool verification failed: {}", e);

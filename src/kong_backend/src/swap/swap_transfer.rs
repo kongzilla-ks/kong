@@ -138,6 +138,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                 signature,
                                 &pay_amount,
                                 &canonical_message,
+                                &pay_token,
                                 sol_token.is_spl_token,
                             )
                             .await

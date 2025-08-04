@@ -259,6 +259,7 @@ async fn process_add_liquidity(
             signature,
             add_amount_0,
             &canonical_message,
+            &token_0,
             sol_token.is_spl_token,
         )
         .await
@@ -324,7 +325,7 @@ async fn process_add_liquidity(
                 let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args).to_signing_message();
 
                 // Verify the Solana transfer
-                match verify_transfer_solana(&tx_signature_str, sig, add_amount_1, &canonical_message, sol_token.is_spl_token).await {
+                match verify_transfer_solana(&tx_signature_str, sig, add_amount_1, &canonical_message, &token_1, sol_token.is_spl_token).await {
                     Ok(verification) => {
                         // Check if this Solana transaction has already been used
                         if transfer_map::contains_tx_signature(token_1.token_id(), &verification.tx_signature) {
