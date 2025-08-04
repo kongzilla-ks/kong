@@ -12,13 +12,10 @@ use crate::solana::kong_rpc::transaction_notification::{TransactionNotification,
 use crate::solana::stable_memory::get_cached_solana_address;
 use crate::stable_token::stable_token::StableToken;
 use super::error::SolanaError;
+use super::network::{SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID as SPL_TOKEN_PROGRAM_ID};
 use super::sdk::offchain_message::OffchainMessage;
 use super::sdk::pubkey::Pubkey;
 use super::sdk::signature::Signature as SolanaSignature;
-
-// Solana program constants
-const SYSTEM_PROGRAM_ID: &str = "11111111111111111111111111111111";
-const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 
 /// Result of Solana transfer verification
 #[derive(Debug, Clone)]
