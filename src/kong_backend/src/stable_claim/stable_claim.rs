@@ -25,6 +25,7 @@ pub enum ClaimStatus {
     Claiming, // used as a guard to prevent re-entrancy
     Claimed,
     TooManyAttempts,
+    DisabledToken,
     UnclaimedOverride,
     Claimable, // claim where user needs to call claim() to get the token
     Expired,
@@ -37,6 +38,7 @@ impl std::fmt::Display for ClaimStatus {
             ClaimStatus::Claiming => write!(f, "Claiming"),
             ClaimStatus::Claimed => write!(f, "Success"),
             ClaimStatus::TooManyAttempts => write!(f, "TooManyAttempts"),
+            ClaimStatus::DisabledToken => write!(f, "DisabledToken"),
             ClaimStatus::UnclaimedOverride => write!(f, "UnclaimedOverride"),
             ClaimStatus::Claimable => write!(f, "Claimable"),
             ClaimStatus::Expired => write!(f, "Expired"),
