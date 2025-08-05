@@ -24,9 +24,10 @@ const COMPUTE_UNITS_SPL_TRANSFER: u32 = 100_000;
 const COMPUTE_UNITS_SPL_WITH_ATA: u32 = 150_000;
 
 // Priority fee constants (in microlamports per compute unit)
-const PRIORITY_FEE_SOL: u64 = 100; // 100 microlamports/CU = 5,000 lamports total for 50k CU
-const PRIORITY_FEE_SPL: u64 = 150; // 150 microlamports/CU = 15,000 lamports total for 100k CU
-const PRIORITY_FEE_SPL_WITH_ATA: u64 = 100; // 100 microlamports/CU = 15,000 lamports total for 150k CU
+// Increased fees for better mainnet reliability
+const PRIORITY_FEE_SOL: u64 = 2000; // 2000 * 50k CU = 100,000 lamports (0.0001 SOL)
+const PRIORITY_FEE_SPL: u64 = 1500; // 1500 * 100k CU = 150,000 lamports (0.00015 SOL)
+const PRIORITY_FEE_SPL_WITH_ATA: u64 = 1000; // 1000 * 150k CU = 150,000 lamports (0.00015 SOL)
 
 /// Parameters for building a SPL token transfer transaction with ATA creation
 #[derive(Debug, Clone)]
