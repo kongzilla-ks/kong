@@ -147,12 +147,10 @@ pub fn archive_to_kong_data(user: &StableUser) -> Result<(), String> {
     ic_cdk::futures::spawn(async move {
         let kong_data = kong_settings_map::get().kong_data;
         match ic_cdk::call::Call::unbounded_wait(kong_data, "update_user")
-            .with_arg((user_json,))
+            .with_arg(user_json)
             .await
             .map_err(|e| format!("{:?}", e))
-            .and_then(|response| response.candid::<(Result<String, String>,)>().map_err(|e| format!("{:?}", e)))
-            .unwrap_or_else(|e| (Err(e),))
-            .0
+            .and_then(|response| response.candid::<Result<String, String>>().map_err(|e| format!("{:?}", e)))
         {
             Ok(_) => (),
             Err(e) => ICNetwork::error_log(&format!("Failed to archive user_id #{}. {}", user_id, e)),
