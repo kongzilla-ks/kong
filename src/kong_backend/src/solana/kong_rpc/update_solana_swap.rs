@@ -108,54 +108,28 @@ pub fn update_solana_swap(
                                                 // Get the receive token symbol for lookup
                                                 match token_map::get_by_token(&swap_reply.receive_symbol) {
                                                     Ok(receive_token) => {
-                                                        // Only create claims for retryable failures
-                                                        let should_create_claim = match &error_msg {
-                                                            Some(msg) => {
-                                                                // Network/timeout failures - retryable
-                                                                msg.contains("timeout") || 
-                                                                msg.contains("Timeout") ||
-                                                                msg.contains("RPC") || 
-                                                                msg.contains("network") ||
-                                                                msg.contains("Network") ||
-                                                                msg.contains("connection") ||
-                                                                msg.contains("Connection") ||
-                                                                msg.contains("blockhash") ||
-                                                                // WebSocket failures - retryable
-                                                                msg.contains("WebSocket") ||
-                                                                msg.contains("websocket") ||
-                                                                // Processing crashes - retryable
-                                                                msg.contains("crashed") ||
-                                                                msg.contains("panic") ||
-                                                                // General processing errors - retryable
-                                                                msg.contains("Processing error") ||
-                                                                // Submission errors - retryable
-                                                                msg.contains("submission error")
-                                                            }
-                                                            None => true // If no error message, assume retryable
-                                                        };
+                                                        // Create claim for failed swap to allow fund recovery
+                                                        // The kong_rpc service determines which errors warrant claims
+                                                        ICNetwork::info_log(&format!(
+                                                            "Creating claim for failed swap job #{} (user: {}, request: {}, dest: {})",
+                                                            job.id, job.user_id, job.request_id, destination_address
+                                                        ));
                                                         
-                                                        if should_create_claim {
-                                                            ICNetwork::info_log(&format!(
-                                                                "Creating claim for failed swap job #{} (user: {}, request: {}, dest: {})",
-                                                                job.id, job.user_id, job.request_id, destination_address
-                                                            ));
-                                                            
-                                                            // Create the claim with the ACTUAL destination address
-                                                            let claim = StableClaim::new(
-                                                                job.user_id,
-                                                                receive_token.token_id(),
-                                                                &swap_reply.receive_amount,
-                                                                Some(job.request_id),
-                                                                Some(Address::SolanaAddress(destination_address)),
-                                                                ICNetwork::get_time(),
-                                                            );
-                                                            
-                                                            let claim_id = claim_map::insert(&claim);
-                                                            ICNetwork::info_log(&format!(
-                                                                "Created claim #{} for failed swap job #{}",
-                                                                claim_id, job.id
-                                                            ));
-                                                        }
+                                                        // Create the claim with the ACTUAL destination address
+                                                        let claim = StableClaim::new(
+                                                            job.user_id,
+                                                            receive_token.token_id(),
+                                                            &swap_reply.receive_amount,
+                                                            Some(job.request_id),
+                                                            Some(Address::SolanaAddress(destination_address)),
+                                                            ICNetwork::get_time(),
+                                                        );
+                                                        
+                                                        let claim_id = claim_map::insert(&claim);
+                                                        ICNetwork::info_log(&format!(
+                                                            "Created claim #{} for failed swap job #{}",
+                                                            claim_id, job.id
+                                                        ));
                                                     }
                                                     Err(e) => {
                                                         ICNetwork::error_log(&format!(
