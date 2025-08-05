@@ -42,13 +42,6 @@ pub fn update_solana_swap(
     with_swap_job_queue_mut(|queue| {
         if let Some(mut job) = queue.get(&SwapJobId(job_id)) {
             match job.status {
-                SwapJobStatus::PendingVerification => {
-                    // Jobs still in verification shouldn't be finalized
-                    Err(format!(
-                        "Job {} is still in payment verification, cannot finalize yet",
-                        job_id
-                    ))
-                }
                 SwapJobStatus::Pending => {
                     if was_successful {
                         // Normal transition: Pending -> Confirmed
@@ -215,6 +208,14 @@ pub fn update_solana_swap(
                         }
                         Ok(())
                     }
+                }
+                SwapJobStatus::Expired => {
+                    // Job expired - requires manual intervention
+                    // kong_rpc should not be calling this for expired jobs
+                    Err(format!(
+                        "Job {} is expired - requires manual investigation",
+                        job_id
+                    ))
                 }
             }
         } else {

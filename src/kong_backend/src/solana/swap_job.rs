@@ -23,29 +23,29 @@ impl Storable for SwapJobId {
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SwapJobStatus {
-    PendingVerification, // Payment verification in progress
-    Pending,             // Job created, awaiting processing by kong_rpc
-    Confirmed,           // Confirmed by kong_rpc as successful on Solana
-    Failed,              // Failed (either Solana tx failed, or an internal error)
+    Pending,   // Job created, awaiting processing by kong_rpc
+    Confirmed, // Confirmed by kong_rpc as successful on Solana
+    Failed,    // Failed (either Solana tx failed, or an internal error)
+    Expired,   // Timed out after 300s without response from kong_rpc (status unknown)
 }
 
 impl Storable for SwapJobStatus {
     fn to_bytes(&self) -> Cow<[u8]> {
         match self {
-            SwapJobStatus::PendingVerification => Cow::Borrowed(&[0]),
-            SwapJobStatus::Pending => Cow::Borrowed(&[1]),
-            SwapJobStatus::Confirmed => Cow::Borrowed(&[2]),
-            SwapJobStatus::Failed => Cow::Borrowed(&[3]),
+            SwapJobStatus::Pending => Cow::Borrowed(&[0]),
+            SwapJobStatus::Confirmed => Cow::Borrowed(&[1]),
+            SwapJobStatus::Failed => Cow::Borrowed(&[2]),
+            SwapJobStatus::Expired => Cow::Borrowed(&[3]),
         }
     }
 
     fn from_bytes(bytes: Cow<[u8]>) -> Self {
         match bytes.first() {
-            Some(&0) => SwapJobStatus::PendingVerification,
-            Some(&1) => SwapJobStatus::Pending,
-            Some(&2) => SwapJobStatus::Confirmed,
-            Some(&3) => SwapJobStatus::Failed,
-            _ => panic!("Invalid SwapJobStatus bytes"), // Or handle error appropriately
+            Some(&0) => SwapJobStatus::Pending,
+            Some(&1) => SwapJobStatus::Confirmed,
+            Some(&2) => SwapJobStatus::Failed,
+            Some(&3) => SwapJobStatus::Expired,
+            _ => panic!("Invalid SwapJobStatus bytes"),
         }
     }
 

@@ -5,11 +5,7 @@
 
 use crate::ic::network::ICNetwork;
 use crate::solana::swap_job::SwapJobStatus;
-use crate::stable_claim::{claim_map, stable_claim::StableClaim};
-use crate::stable_memory::{with_swap_job_queue_mut, CLAIM_MAP};
-use crate::stable_request::{request_map, reply::Reply, request::Request};
-use crate::stable_token::{token_map, token::Token};
-use crate::ic::address::Address;
+use crate::stable_memory::with_swap_job_queue_mut;
 
 /// Timeout for swap jobs in nanoseconds (300 seconds = 5 minutes)
 const SWAP_JOB_TIMEOUT_NS: u64 = 300_000_000_000;
@@ -40,108 +36,22 @@ pub fn cleanup_expired_swap_jobs() {
             .collect();
         
         for (job_id, mut job) in jobs_to_update {
-            // Check if a claim already exists for this request to prevent duplicates
-            let existing_claims: Vec<_> = CLAIM_MAP.with(|m| {
-                m.borrow()
-                    .iter()
-                    .filter(|(_, claim)| claim.request_id == Some(job.request_id))
-                    .collect::<Vec<_>>()
-            });
+            // Expired = uncertain status, needs manual investigation
+            // Only kong_rpc reported failures create claims
+            ICNetwork::error_log(&format!(
+                "[CLEANUP] Job #{} expired after {}s - Status UNKNOWN, manual investigation required. User: {}, Request: {}",
+                job.id,
+                (current_time - job.created_at) / 1_000_000_000,
+                job.user_id,
+                job.request_id
+            ));
             
-            if !existing_claims.is_empty() {
-                ICNetwork::info_log(&format!(
-                    "[CLEANUP] Job #{} - Claim already exists for request {}, skipping",
-                    job.id, job.request_id
-                ));
-                // Still mark as failed but don't create another claim
-                job.status = SwapJobStatus::Failed;
-                job.error_message = Some("Transaction expired (>5 minutes) - claim already exists".to_string());
-                job.updated_at = current_time;
-                queue.insert(job_id, job);
-                continue;
-            }
+            expired_count += 1;
             
-            // Get the original request to create a claim
-            match request_map::get_by_request_id(job.request_id) {
-                Some(request) => {
-                    match &request.request {
-                        Request::Swap(swap_args) => {
-                            let destination_address = match &swap_args.receive_address {
-                                Some(addr) => addr.clone(),
-                                None => {
-                                    ICNetwork::error_log(&format!(
-                                        "[CLEANUP] Job #{} - No receive_address in swap args",
-                                        job.id
-                                    ));
-                                    continue;
-                                }
-                            };
-                            
-                            match request.reply {
-                                Reply::Swap(swap_reply) => {
-                                    match token_map::get_by_token(&swap_reply.receive_symbol) {
-                                        Ok(receive_token) => {
-                                            ICNetwork::info_log(&format!(
-                                                "[CLEANUP] Job #{} expired after {} seconds - creating claim for user {}",
-                                                job.id,
-                                                (current_time - job.created_at) / 1_000_000_000,
-                                                job.user_id
-                                            ));
-                                            
-                                            // Create claim for fund recovery
-                                            let claim = StableClaim::new(
-                                                job.user_id,
-                                                receive_token.token_id(),
-                                                &swap_reply.receive_amount,
-                                                Some(job.request_id),
-                                                Some(Address::SolanaAddress(destination_address)),
-                                                current_time,
-                                            );
-                                            
-                                            let claim_id = claim_map::insert(&claim);
-                                            ICNetwork::info_log(&format!(
-                                                "[CLEANUP] Created claim #{} for expired job #{}",
-                                                claim_id, job.id
-                                            ));
-                                            
-                                            expired_count += 1;
-                                        }
-                                        Err(e) => {
-                                            ICNetwork::error_log(&format!(
-                                                "[CLEANUP] Job #{} - Failed to get receive token: {}",
-                                                job.id, e
-                                            ));
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    ICNetwork::error_log(&format!(
-                                        "[CLEANUP] Job #{} - Request {} is not a swap",
-                                        job.id, job.request_id
-                                    ));
-                                }
-                            }
-                        }
-                        _ => {
-                            ICNetwork::error_log(&format!(
-                                "[CLEANUP] Job #{} - Request {} is not a swap",
-                                job.id, job.request_id
-                            ));
-                        }
-                    }
-                }
-                None => {
-                    ICNetwork::error_log(&format!(
-                        "[CLEANUP] Job #{} - Request {} not found",
-                        job.id, job.request_id
-                    ));
-                }
-            }
-            
-            // Mark job as failed
-            job.status = SwapJobStatus::Failed;
+            // Mark job as expired (NOT failed - status is unknown)
+            job.status = SwapJobStatus::Expired;
             job.error_message = Some(format!(
-                "Transaction expired after {} seconds without confirmation from kong_rpc",
+                "Transaction expired after {} seconds without confirmation from kong_rpc - status unknown, requires manual check",
                 (current_time - job.created_at) / 1_000_000_000
             ));
             job.updated_at = current_time;
@@ -150,7 +60,7 @@ pub fn cleanup_expired_swap_jobs() {
         
         if expired_count > 0 {
             ICNetwork::info_log(&format!(
-                "[CLEANUP] Expired {} swap job(s) and created claims for fund recovery",
+                "[CLEANUP] Marked {} swap job(s) as expired - manual investigation required",
                 expired_count
             ));
         }
