@@ -1,6 +1,8 @@
 use candid::Nat;
 use icrc_ledger_types::icrc1::account::Account;
 
+use crate::add_pool::add_pool;
+use crate::add_pool::add_pool_args::AddPoolArgs;
 use crate::chains::chains::SOL_CHAIN;
 use crate::helpers::nat_helpers::{
     nat_add, nat_divide, nat_is_zero, nat_multiply, nat_sqrt, nat_subtract, nat_to_decimal_precision, nat_zero,
@@ -64,6 +66,7 @@ pub async fn add_liquidity_transfer_from_async(args: AddLiquidityArgs) -> Result
     Ok(request_id)
 }
 
+/// Check the arguments are valid, create new pool if it does not exist and calculate the amounts to be added to the pool
 async fn check_arguments(args: &AddLiquidityArgs) -> Result<(u32, StablePool, Nat, Nat), String> {
     if nat_is_zero(&args.amount_0) || nat_is_zero(&args.amount_1) {
         Err("Invalid zero amounts".to_string())?
@@ -677,4 +680,54 @@ pub fn archive_to_kong_data(request_id: u64) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+pub async fn add_pool_if_not_exist(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
+    let res = add_pool::add_pool(AddPoolArgs {
+        token_0: args.token_0,
+        amount_0: args.amount_0,
+        tx_id_0: args.tx_id_0,
+        token_1: args.token_1,
+        amount_1: args.amount_1,
+        tx_id_1: args.tx_id_1,
+        lp_fee_bps: None,
+        signature_0: args.signature_0,
+        signature_1: args.signature_1,
+    })
+    .await?;
+
+    Ok(AddLiquidityReply {
+        tx_id: res.tx_id,
+        request_id: res.request_id,
+        status: res.status,
+        symbol: res.symbol,
+        chain_0: res.chain_0,
+        address_0: res.address_0,
+        symbol_0: res.symbol_0,
+        amount_0: res.amount_0,
+        chain_1: res.chain_1,
+        address_1: res.address_1,
+        symbol_1: res.symbol_1,
+        amount_1: res.amount_1,
+        add_lp_token_amount: res.add_lp_token_amount,
+        transfer_ids: res.transfer_ids,
+        claim_ids: res.claim_ids,
+        ts: res.ts,
+    })
+}
+
+pub async fn add_pool_if_not_exist_async(args: AddLiquidityArgs) -> Result<u64, String> {
+    let user_id = user_map::insert(None)?;
+    let ts = ICNetwork::get_time();
+    let request_id = request_map::insert(&StableRequest::new(user_id, &Request::AddLiquidity(args.clone()), ts));
+
+    ic_cdk::futures::spawn(async move {
+        match add_pool_if_not_exist(args).await {
+            Ok(_) => request_map::update_status(request_id, StatusCode::Success, None),
+            Err(_) => request_map::update_status(request_id, StatusCode::Failed, None),
+        };
+        _ = archive_to_kong_data(request_id);
+    });
+
+    return Ok(request_id);
 }

@@ -1,6 +1,8 @@
 use ic_cdk::update;
 
+use crate::add_liquidity::add_liquidity_transfer_from::{add_pool_if_not_exist, add_pool_if_not_exist_async};
 use crate::ic::guards::not_in_maintenance_mode;
+use crate::stable_pool::pool_map;
 use crate::stable_token::token::Token;
 
 use super::add_liquidity_args::AddLiquidityArgs;
@@ -53,11 +55,23 @@ pub enum TokenIndex {
 /// 7. update_liquidity_pool() - update pool with amount_0, amount_1, add_lp_token_amount
 /// 8. send_lp_token() - if no errors, send add_lp_token_amount to user. send back any extra (add_amount_0 - amount) and (add_amount_1 - amount)
 /// 9. return_tokens() - otherwise if any errors occurred, return tokens
+///
+/// Usage comments:
+/// No automatic return for excessively sent txid. For approve case, only amount, that's required is taken
+/// Possible usages
+/// 1) if no pool, taken token_0, amount_0 and token_1, amount_1. Market Ratio becomes amount_1/amount_0
+/// 2) if pool exists, token_0, amount_0 and token_1, amount_1 must be given.
+/// In this case maximum possible amount is taken saving existing market ratio.
+/// e.g. if market ratio is 5, amount_0=2, amount_1=9 => amount_0=4.5 and amount_1=9 is taken.
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_liquidity(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     // Import token_map to check token types
     use crate::chains::chains::SOL_CHAIN;
     use crate::stable_token::token_map;
+
+    if pool_map::get_by_tokens(&args.token_0, &args.token_1).is_err() {
+        return add_pool_if_not_exist(args).await;
+    }
 
     // Check if either token is a Solana token
     let token_0_is_solana = token_map::get_by_token(&args.token_0)
@@ -94,6 +108,10 @@ pub async fn add_liquidity_async(args: AddLiquidityArgs) -> Result<u64, String> 
     // Import token_map to check token types
     use crate::chains::chains::SOL_CHAIN;
     use crate::stable_token::token_map;
+
+    if pool_map::get_by_tokens(&args.token_0, &args.token_1).is_err() {
+        return add_pool_if_not_exist_async(args).await;
+    }
 
     // Check if either token is a Solana token
     let token_0_is_solana = token_map::get_by_token(&args.token_0)
