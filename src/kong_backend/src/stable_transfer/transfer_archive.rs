@@ -140,28 +140,15 @@ async fn should_return_transfer(transfer: &StableTransfer, signature: &str) -> b
         return false; // No metadata available
     }
 
-    // Check if this transfer was used in a successful request
+    // CRITICAL SAFETY CHECK: If Kong touched this transfer in ANY way, we MUST NOT return it
+    // Simple rule: request_id > 0 means Kong processed it (success, fail, or partial)
+    // These transfers are handled through the claim system, NOT auto-returns
     if transfer.request_id > 0 {
-        if let Some(request) = request_map::get_by_request_id(transfer.request_id) {
-            if let Some(last_status) = request.statuses.last() {
-                // If the request succeeded, don't refund!
-                match last_status.status_code {
-                    StatusCode::Success |
-                    StatusCode::SwapSuccess |
-                    StatusCode::SendReceiveTokenSuccess |
-                    StatusCode::SendToken0Success |
-                    StatusCode::SendToken1Success |
-                    StatusCode::AddPoolSuccess |
-                    StatusCode::ClaimTokenSuccess => {
-                        return false; // Was successfully used, don't refund
-                    }
-                    _ => {} // Failed/incomplete requests can be refunded
-                }
-            }
-        }
+        return false; // Kong touched it, no return. User recovers through claims if needed.
     }
 
-    // Only refund if the request failed or was never created
+    // Only return if Kong NEVER touched this transfer
+    // (request_id == 0 means it was never used in any Kong operation)
     true
 }
 
