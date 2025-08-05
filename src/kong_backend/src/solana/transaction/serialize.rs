@@ -4,6 +4,7 @@
 //! expected by Solana.
 
 use anyhow::Result;
+use std::collections::HashMap;
 
 use super::super::error::SolanaError;
 use super::super::sdk::compiled_instruction::CompiledInstruction;
@@ -29,54 +30,104 @@ pub struct Message {
 }
 
 impl Message {
-    /// Create a new message from instructions
+    /// Create a new message from instructions (Refactored for safety, performance, and clarity)
     pub fn new(instructions: Vec<Instruction>, payer: &str) -> Result<Self> {
-        // Collect all unique account keys
-        let mut account_keys = vec![payer.to_string()]; // Payer is always first
+        // 1. Collect all accounts and their properties into a HashMap
+        let mut accounts_map: HashMap<String, (bool, bool)> = HashMap::new();
+        instructions
+            .iter()
+            .flat_map(|inst| {
+                // Create a single iterator over the program_id and all instruction accounts
+                std::iter::once((&inst.program_id, false, false)) // Program IDs are never signers or writable
+                    .chain(inst.accounts.iter().map(|acc| (&acc.pubkey, acc.is_signer, acc.is_writable)))
+            })
+            .for_each(|(key, is_signer, is_writable)| {
+                let entry = accounts_map.entry(key.clone()).or_insert((false, false));
+                entry.0 |= is_signer;
+                entry.1 |= is_writable;
+            });
 
-        for instruction in &instructions {
-            // Add program ID if not already present
-            if !account_keys.contains(&instruction.program_id) {
-                account_keys.push(instruction.program_id.clone());
-            }
+        // Ensure the payer is in the map as a writable signer
+        accounts_map.insert(payer.to_string(), (true, true));
 
-            // Add accounts
-            for account in &instruction.accounts {
-                if !account_keys.contains(&account.pubkey) {
-                    account_keys.push(account.pubkey.clone());
+        // 2. Sort the accounts with payer first automatically
+        let mut sorted_accounts: Vec<_> = accounts_map.into_iter().collect();
+        sorted_accounts.sort_by_key(|(key, (is_signer, is_writable))| {
+            // Primary sort key: is this the payer? (false comes before true, so payer is first)
+            // Secondary sort keys: the standard Solana account order
+            (
+                key != payer, // Payer gets `false`, everyone else `true`
+                match (*is_signer, *is_writable) {
+                    (true, true) => 0,
+                    (true, false) => 1,
+                    (false, true) => 2,
+                    (false, false) => 3,
+                },
+            )
+        });
+
+        // 3. Extract final keys and calculate header values in a single pass
+        let account_keys: Vec<String> = sorted_accounts.iter().map(|(key, _)| key.clone()).collect();
+        let header = sorted_accounts.iter().fold(
+            MessageHeader {
+                num_required_signatures: 0,
+                num_readonly_signed_accounts: 0,
+                num_readonly_unsigned_accounts: 0,
+            },
+            |mut acc, (_, (is_signer, is_writable))| {
+                if *is_signer {
+                    acc.num_required_signatures += 1;
+                    if !*is_writable {
+                        acc.num_readonly_signed_accounts += 1;
+                    }
+                } else if !*is_writable {
+                    acc.num_readonly_unsigned_accounts += 1;
                 }
-            }
-        }
+                acc
+            },
+        );
 
-        // Convert instructions to compiled form
-        let compiled_instructions: Vec<CompiledInstruction> = instructions
+        // 4. Create a reverse lookup map for efficient and safe index resolution
+        let key_to_index_map: HashMap<&str, u8> = account_keys
+            .iter()
+            .enumerate()
+            .map(|(i, key)| (key.as_str(), i as u8))
+            .collect();
+
+        // 5. Compile instructions using the fast lookup map
+        let compiled_instructions: Result<Vec<CompiledInstruction>> = instructions
             .into_iter()
             .map(|inst| {
-                let program_id_index = account_keys.iter().position(|key| key == &inst.program_id).unwrap() as u8;
+                // Let `?` handle the conversion from SolanaError to anyhow::Error
+                let program_id_index = *key_to_index_map
+                    .get(inst.program_id.as_str())
+                    .ok_or_else(|| SolanaError::TransactionBuildError(format!("Program ID {} not found in key map", inst.program_id)))?;
 
-                let accounts: Vec<u8> = inst
+                let account_indices: Result<Vec<u8>> = inst
                     .accounts
                     .iter()
-                    .map(|acc| account_keys.iter().position(|key| key == &acc.pubkey).unwrap() as u8)
-                    .collect();
+                    .map(|acc| {
+                        key_to_index_map
+                            .get(acc.pubkey.as_str())
+                            .copied()
+                            .ok_or_else(|| SolanaError::TransactionBuildError(format!("Account {} not found in key map", acc.pubkey)))
+                    })
+                    .collect::<Result<Vec<u8>, _>>() // Specify the collection type to handle the inner Result
+                    .map_err(anyhow::Error::from); // Convert the error type for the whole collection at once
 
-                CompiledInstruction {
+                Ok(CompiledInstruction {
                     program_id_index,
-                    accounts,
+                    accounts: account_indices?,
                     data: inst.data,
-                }
+                })
             })
             .collect();
 
         Ok(Message {
-            header: MessageHeader {
-                num_required_signatures: 1, // Only payer signs
-                num_readonly_signed_accounts: 0,
-                num_readonly_unsigned_accounts: 0,
-            },
+            header,
             account_keys,
-            recent_blockhash: String::new(), // Will be set later
-            instructions: compiled_instructions,
+            recent_blockhash: String::new(),
+            instructions: compiled_instructions?,
         })
     }
 
