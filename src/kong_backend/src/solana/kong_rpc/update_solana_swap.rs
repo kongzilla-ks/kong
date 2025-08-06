@@ -1,15 +1,25 @@
 use ic_cdk::update;
 
+use crate::ic::address::Address;
 use crate::ic::guards::caller_is_kong_rpc;
 use crate::ic::network::ICNetwork;
-use crate::stable_memory::with_swap_job_queue_mut;
+use crate::solana::kong_rpc::transaction_notification::{
+    TransactionNotification, TransactionNotificationId, TransactionNotificationStatus,
+};
 use crate::solana::swap_job::{SwapJobId, SwapJobStatus};
-use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId, TransactionNotificationStatus};
-use crate::stable_memory::with_solana_tx_notifications_mut;
+use crate::stable_claim::{claim_map, stable_claim::StableClaim};
+use crate::stable_memory::{with_solana_tx_notifications_mut, with_swap_job_queue_mut, CLAIM_MAP};
+use crate::stable_request::{request_map, reply::Reply, request::Request};
+use crate::stable_token::{token_map, token::Token};
 
 /// Update a Solana swap job status (called by kong_rpc after transaction execution)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successful: bool, error_msg: Option<String>) -> Result<(), String> {
+pub fn update_solana_swap(
+    job_id: u64,
+    final_solana_tx_sig: String,
+    was_successful: bool,
+    error_msg: Option<String>,
+) -> Result<(), String> {
     // Add or update transaction notification
     with_solana_tx_notifications_mut(|notifications| {
         let notification_id = TransactionNotificationId(final_solana_tx_sig.clone());
@@ -31,30 +41,129 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
     // Update the swap job status in the main map
     with_swap_job_queue_mut(|queue| {
         if let Some(mut job) = queue.get(&SwapJobId(job_id)) {
-            let target_status = if was_successful {
-                SwapJobStatus::Confirmed
-            } else {
-                SwapJobStatus::Failed
-            };
-
             match job.status {
-                SwapJobStatus::PendingVerification => {
-                    // Jobs still in verification shouldn't be finalized
-                    Err(format!("Job {} is still in payment verification, cannot finalize yet", job_id))
-                }
                 SwapJobStatus::Pending => {
-                    // Normal transition: Pending -> Confirmed/Failed
-                    job.status = target_status;
-                    job.solana_tx_signature_of_payout = Some(final_solana_tx_sig);
-                    job.error_message = error_msg;
-                    job.updated_at = ICNetwork::get_time();
-                    queue.insert(SwapJobId(job_id), job);
-                    
-                    // Remove successfully completed jobs to prevent reprocessing
                     if was_successful {
+                        // Normal transition: Pending -> Confirmed
+                        job.status = SwapJobStatus::Confirmed;
+                        job.solana_tx_signature_of_payout = Some(final_solana_tx_sig);
+                        job.error_message = None;
+                        job.updated_at = ICNetwork::get_time();
+                        queue.insert(SwapJobId(job_id), job);
+                        
+                        // Remove successfully completed jobs to prevent reprocessing
                         queue.remove(&SwapJobId(job_id));
+                        Ok(())
+                    } else {
+                        // Transition: Pending -> Failed
+                        // Create a claim for failed Solana swaps so user can recover funds
+                        
+                        // First check if claim already exists to prevent double-spend
+                        let existing_claims: Vec<_> = CLAIM_MAP.with(|m| {
+                            m.borrow()
+                                .iter()
+                                .filter(|(_, claim)| claim.request_id == Some(job.request_id))
+                                .collect::<Vec<_>>()
+                        });
+                        
+                        if !existing_claims.is_empty() {
+                            ICNetwork::info_log(&format!(
+                                "Claim already exists for request {}, skipping claim creation",
+                                job.request_id
+                            ));
+                            job.status = SwapJobStatus::Failed;
+                            job.solana_tx_signature_of_payout = Some(final_solana_tx_sig);
+                            job.error_message = error_msg;
+                            job.updated_at = ICNetwork::get_time();
+                            queue.insert(SwapJobId(job_id), job);
+                            return Ok(());
+                        }
+                        
+                        // Get the original request to extract swap details
+                        match request_map::get_by_request_id(job.request_id) {
+                            Some(request) => {
+                                // We need to check the actual request, not just the reply
+                                match &request.request {
+                                    Request::Swap(swap_args) => {
+                                        // Get the actual destination address from swap args
+                                        let destination_address = match &swap_args.receive_address {
+                                            Some(addr) => addr.clone(),
+                                            None => {
+                                                ICNetwork::error_log(&format!(
+                                                    "No receive_address in swap args for job #{}", job.id
+                                                ));
+                                                return Ok(());
+                                            }
+                                        };
+                                        
+                                        match request.reply {
+                                            Reply::Swap(swap_reply) => {
+                                                // Get the receive token symbol for lookup
+                                                match token_map::get_by_token(&swap_reply.receive_symbol) {
+                                                    Ok(receive_token) => {
+                                                        // Create claim for failed swap to allow fund recovery
+                                                        // The kong_rpc service determines which errors warrant claims
+                                                        ICNetwork::info_log(&format!(
+                                                            "Creating claim for failed swap job #{} (user: {}, request: {}, dest: {})",
+                                                            job.id, job.user_id, job.request_id, destination_address
+                                                        ));
+                                                        
+                                                        // Create the claim with the ACTUAL destination address
+                                                        let claim = StableClaim::new(
+                                                            job.user_id,
+                                                            receive_token.token_id(),
+                                                            &swap_reply.receive_amount,
+                                                            Some(job.request_id),
+                                                            Some(Address::SolanaAddress(destination_address)),
+                                                            ICNetwork::get_time(),
+                                                        );
+                                                        
+                                                        let claim_id = claim_map::insert(&claim);
+                                                        ICNetwork::info_log(&format!(
+                                                            "Created claim #{} for failed swap job #{}",
+                                                            claim_id, job.id
+                                                        ));
+                                                    }
+                                                    Err(e) => {
+                                                        ICNetwork::error_log(&format!(
+                                                            "Failed to get receive token for swap job #{}: {}",
+                                                            job.id, e
+                                                        ));
+                                                    }
+                                                }
+                                            }
+                                            _ => {
+                                                ICNetwork::error_log(&format!(
+                                                    "Request {} reply is not a swap reply",
+                                                    job.request_id
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        ICNetwork::error_log(&format!(
+                                            "Request {} is not a swap request, cannot create claim",
+                                            job.request_id
+                                        ));
+                                    }
+                                }
+                            }
+                            None => {
+                                ICNetwork::error_log(&format!(
+                                    "Request {} not found for swap job #{}",
+                                    job.request_id, job.id
+                                ));
+                            }
+                        }
+                        
+                        // Update job status regardless of claim creation
+                        job.status = SwapJobStatus::Failed;
+                        job.solana_tx_signature_of_payout = Some(final_solana_tx_sig);
+                        job.error_message = error_msg;
+                        job.updated_at = ICNetwork::get_time();
+                        queue.insert(SwapJobId(job_id), job);
+                        Ok(())
                     }
-                    Ok(())
                 }
                 SwapJobStatus::Confirmed => {
                     if was_successful {
@@ -64,12 +173,18 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
                                 // Remove completed jobs to prevent reprocessing
                                 queue.remove(&SwapJobId(job_id));
                                 Ok(())
-                            },
-                            _ => Err(format!("Job {} already confirmed with different signature", job_id)),
+                            }
+                            _ => Err(format!(
+                                "Job {} already confirmed with different signature",
+                                job_id
+                            )),
                         }
                     } else {
                         // Can't fail a confirmed job
-                        Err(format!("Job {} is already confirmed, cannot mark as failed", job_id))
+                        Err(format!(
+                            "Job {} is already confirmed, cannot mark as failed",
+                            job_id
+                        ))
                     }
                 }
                 SwapJobStatus::Failed => {
@@ -80,7 +195,7 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
                         job.error_message = None;
                         job.updated_at = ICNetwork::get_time();
                         queue.insert(SwapJobId(job_id), job);
-                        
+
                         // Remove successfully completed jobs to prevent reprocessing
                         queue.remove(&SwapJobId(job_id));
                         Ok(())
@@ -94,9 +209,18 @@ pub fn update_solana_swap(job_id: u64, final_solana_tx_sig: String, was_successf
                         Ok(())
                     }
                 }
+                SwapJobStatus::Expired => {
+                    // Job expired - requires manual intervention
+                    // kong_rpc should not be calling this for expired jobs
+                    Err(format!(
+                        "Job {} is expired - requires manual investigation",
+                        job_id
+                    ))
+                }
             }
         } else {
             Err(format!("Job {} not found", job_id))
         }
     })
 }
+

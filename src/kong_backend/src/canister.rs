@@ -133,6 +133,14 @@ async fn set_timer_processes() {
             cleanup_old_notifications();
         });
     });
+
+    // start the background timer to cleanup expired Solana swap jobs
+    let _ = set_timer_interval(Duration::from_secs(60), || {
+        // Check every minute for expired swap jobs
+        ic_cdk::futures::spawn(async {
+            crate::solana::swap_job_cleanup::cleanup_expired_swap_jobs();
+        });
+    });
 }
 
 /// inspect all ingress messages to the canister that are called as updates

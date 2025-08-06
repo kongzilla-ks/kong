@@ -53,6 +53,15 @@ pub async fn verify_transfer(
             tx_id
         )
     })?;
+    
+    // Security check: Ensure transaction was marked as successful by kong_rpc
+    // Failed transactions should never have made it this far
+    if transaction.status == TransactionNotificationStatus::Failed {
+        return Err(format!(
+            "Transaction {} was marked as failed by kong_rpc. Cannot use for deposit.",
+            tx_id
+        ));
+    }
 
     let metadata_json = transaction.metadata.as_ref()
         .ok_or("Transaction metadata is missing")?;

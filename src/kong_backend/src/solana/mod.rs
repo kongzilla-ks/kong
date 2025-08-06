@@ -5,6 +5,7 @@ pub mod network;
 pub mod sdk;
 pub mod stable_memory;
 pub mod swap_job;
+pub mod swap_job_cleanup;
 pub mod create_solana_swap_job;
 pub mod transaction;
 pub mod utils;

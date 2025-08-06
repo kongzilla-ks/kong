@@ -2862,7 +2862,7 @@ dependencies = [
 
 [[package]]
 name = "kong_backend"
-version = "0.0.75"
+version = "0.0.76"
 dependencies = [
  "anyhow",
  "bs58",
