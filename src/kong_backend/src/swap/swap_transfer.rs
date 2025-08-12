@@ -337,6 +337,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
 
     Ok((pay_token, pay_amount, transfer_id))
 }
+
 #[allow(clippy::too_many_arguments)]
 async fn process_swap(
     request_id: u64,
