@@ -62,7 +62,7 @@ pub enum TokenIndex {
 /// 1) if no pool, taken token_0, amount_0 and token_1, amount_1. Market Ratio becomes amount_1/amount_0
 /// 2) if pool exists, token_0, amount_0 and token_1, amount_1 must be given.
 /// In this case maximum possible amount is taken saving existing market ratio.
-/// e.g. if market ratio is 5, amount_0=2, amount_1=9 => amount_0=4.5 and amount_1=9 is taken.
+/// e.g. if market ratio is 5, amount_0=2, amount_1=9 => amount_0=1.8 and amount_1=9 is taken.
 #[update(guard = "not_in_maintenance_mode")]
 pub async fn add_liquidity(args: AddLiquidityArgs) -> Result<AddLiquidityReply, String> {
     // Import token_map to check token types
