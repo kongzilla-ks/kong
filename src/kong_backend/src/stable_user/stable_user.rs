@@ -2,7 +2,7 @@ use candid::CandidType;
 use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize};
 
-use crate::ic::network::ICNetwork;
+use crate::{ic::network::ICNetwork, reward::user_reward_progress::UserRewardProgress};
 
 // reserved user ids
 // 0: all users - users for stable_messages to broadcast to all users
@@ -43,6 +43,7 @@ pub struct StableUser {
     // so 0 = no discount, 100 = pays no lp_fee on swaps
     pub fee_level: u8,
     pub fee_level_expires_at: Option<u64>,
+    pub user_reward_progress: UserRewardProgress,
 }
 
 impl Default for StableUser {
@@ -55,6 +56,7 @@ impl Default for StableUser {
             referred_by_expires_at: None,
             fee_level: 0,
             fee_level_expires_at: None,
+            user_reward_progress: UserRewardProgress::default(),
         }
     }
 }

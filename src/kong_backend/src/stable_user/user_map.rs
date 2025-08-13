@@ -1,5 +1,6 @@
 use crate::ic::management_canister::ManagementCanister;
 use crate::ic::network::ICNetwork;
+use crate::reward::user_reward_progress::UserRewardProgress;
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_memory::USER_MAP;
 
@@ -39,7 +40,6 @@ pub fn get_by_principal_id(principal_id: &str) -> Result<Option<StableUser>, Str
     })
 }
 
-
 /// return StableUser of the caller
 ///
 /// # Returns
@@ -49,7 +49,6 @@ pub fn get_by_principal_id(principal_id: &str) -> Result<Option<StableUser>, Str
 pub fn get_by_caller() -> Result<Option<StableUser>, String> {
     get_by_principal_id(&ICNetwork::caller().to_text())
 }
-
 
 /// return StableUser by referral code
 ///
@@ -67,6 +66,12 @@ pub fn get_user_by_referral_code(referral_code: &str) -> Option<StableUser> {
             .iter()
             .find_map(|(_, v)| if v.my_referral_code == referral_code { Some(v) } else { None })
     })
+}
+
+pub fn update(user: StableUser) {
+    USER_MAP.with(|m| {
+        m.borrow_mut().insert(StableUserId(user.user_id), user);
+    });
 }
 
 pub fn insert(referred_by: Option<&str>) -> Result<u32, String> {
@@ -114,6 +119,7 @@ pub fn insert(referred_by: Option<&str>) -> Result<u32, String> {
                 referred_by_expires_at,
                 fee_level: 0,
                 fee_level_expires_at: None,
+                user_reward_progress: UserRewardProgress::default(),
             };
             // insert to principal_id_map
             principal_id_map::insert_principal_id(&user);

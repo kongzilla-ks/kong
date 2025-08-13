@@ -2,7 +2,7 @@ use candid::{CandidType, Nat};
 use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize};
 
-use crate::ic::address::Address;
+use crate::{ic::address::Address, reward::reward_info::RewardInfoId};
 
 #[derive(CandidType, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct StableClaimId(pub u64);
@@ -54,6 +54,7 @@ pub struct StableClaim {
     pub token_id: u32,
     pub amount: Nat,
     pub request_id: Option<u64>,     // optional to allow claims not associated with a request. ie. airdrops
+    pub reward_id: Option<RewardInfoId>, // optional to allow claims to be associated with reward id
     pub to_address: Option<Address>, // optional, will default to caller's principal id
     pub desc: Option<String>,
     pub attempt_request_id: Vec<u64>,
@@ -70,6 +71,7 @@ impl StableClaim {
             token_id,
             amount: amount.clone(),
             request_id,
+            reward_id: None,
             to_address,
             desc: None,
             attempt_request_id: Vec::new(),

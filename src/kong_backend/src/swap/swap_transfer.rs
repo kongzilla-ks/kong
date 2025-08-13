@@ -7,12 +7,13 @@ use crate::ic::address_helpers::get_address;
 use crate::ic::network::ICNetwork;
 use crate::ic::verify_transfer::verify_transfer;
 use crate::solana::message_builders::swap::CanonicalSwapMessage;
-use crate::solana::verify_transfer::{verify_transfer as verify_transfer_solana, extract_solana_sender_from_transaction};
+use crate::solana::verify_transfer::{extract_solana_sender_from_transaction, verify_transfer as verify_transfer_solana};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_request::{request::Request, request_map, stable_request::StableRequest, status::StatusCode};
 use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_user::user_map;
+use crate::swap::swap_helpers::process_swap_rewards;
 
 use super::archive_to_kong_data::archive_to_kong_data;
 use super::return_pay_token::return_pay_token;
@@ -51,6 +52,8 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
         let _ = archive_to_kong_data(request_id);
     })?;
 
+    let mut reward_claim_ids = process_swap_rewards(user_id, &receive_token, &receive_amount_with_fees_and_gas, ts);
+
     let result = send_receive_token(
         request_id,
         user_id,
@@ -64,6 +67,7 @@ pub async fn swap_transfer(args: SwapArgs) -> Result<SwapReply, String> {
         price,
         slippage,
         &swaps,
+        &mut reward_claim_ids,
         ts,
     )
     .await;
@@ -226,6 +230,8 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
         };
 
         spawn(async move {
+            let mut reward_claim_ids = process_swap_rewards(user_id, &receive_token, &receive_amount_with_fees_and_gas, ts);
+
             send_receive_token(
                 request_id,
                 user_id,
@@ -239,6 +245,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                 price,
                 slippage,
                 &swaps,
+                &mut reward_claim_ids,
                 ts,
             )
             .await;

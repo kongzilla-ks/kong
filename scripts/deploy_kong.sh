@@ -142,6 +142,11 @@ if [[ "${NETWORK}" =~ ^(local|staging)$ ]]; then
         echo "Deploying tokens and creating liquidity pools..."
         bash "${SCRIPT_DIR}/deploy_tokens_pools.sh" "${NETWORK}"
     } || echo "Warning: deploy_tokens_pools.sh not found"
+
+    [ -f "${SCRIPT_DIR}/deploy_reward_infos.sh" ] && {
+        echo "Adding reward infos..."
+        bash "${SCRIPT_DIR}/deploy_reward_infos.sh" "${NETWORK}"
+    } || echo "Warning: deploy_reward_infos.sh not found"
 fi
 
 if [[ "${NETWORK}" == "ic" ]]; then

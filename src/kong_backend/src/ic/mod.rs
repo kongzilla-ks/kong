@@ -4,6 +4,7 @@ pub mod ckusdt;
 pub mod error;
 pub mod guards;
 pub mod icp;
+pub mod kong;
 pub mod ledger;
 pub mod logging;
 pub mod management_canister;

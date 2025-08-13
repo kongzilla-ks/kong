@@ -3,8 +3,10 @@ use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
 use crate::ic::network::ICNetwork;
+use crate::reward::reward_info::{RewardInfo, RewardInfoId};
+use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
+use crate::solana::swap_job::{SwapJob, SwapJobId};
 use crate::stable_claim::stable_claim::{StableClaim, StableClaimId};
 use crate::stable_kong_settings::stable_kong_settings::StableKongSettings;
 use crate::stable_lp_token::stable_lp_token::{StableLPToken, StableLPTokenId};
@@ -15,7 +17,6 @@ use crate::stable_transfer::stable_transfer::{StableTransfer, StableTransferId};
 use crate::stable_tx::stable_tx::{StableTx, StableTxId};
 use crate::stable_user::stable_user::{StableUser, StableUserId};
 use crate::stable_user::suspended_user_map::SuspendedUser;
-use crate::solana::swap_job::{SwapJob, SwapJobId};
 
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 
@@ -29,6 +30,7 @@ pub const REQUEST_MEMORY_ID: MemoryId = MemoryId::new(26);
 pub const TRANSFER_MEMORY_ID: MemoryId = MemoryId::new(27);
 pub const CLAIM_MEMORY_ID: MemoryId = MemoryId::new(28);
 pub const LP_TOKEN_MEMORY_ID: MemoryId = MemoryId::new(29);
+pub const REWARD_INFO_ID: MemoryId = MemoryId::new(30);
 // Stable memory for Solana
 pub const CACHED_SOLANA_ADDRESS_ID: MemoryId = MemoryId::new(60);
 pub const SOLANA_LATEST_BLOCKHASH_ID: MemoryId = MemoryId::new(61);
@@ -93,6 +95,10 @@ thread_local! {
     // stable memory for storing all LP tokens for users
     pub static LP_TOKEN_MAP: RefCell<StableBTreeMap<StableLPTokenId, StableLPToken, Memory>> = with_memory_manager(|memory_manager| {
         RefCell::new(StableBTreeMap::init(memory_manager.get(LP_TOKEN_MEMORY_ID)))
+    });
+
+    pub static REWARD_INFO_MAP: RefCell<StableBTreeMap<RewardInfoId, RewardInfo, Memory>> = with_memory_manager(|memory_manager| {
+        RefCell::new(StableBTreeMap::init(memory_manager.get(REWARD_INFO_ID)))
     });
 
     // Cached Solana address (persisted)
