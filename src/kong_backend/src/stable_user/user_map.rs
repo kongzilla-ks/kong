@@ -119,7 +119,7 @@ pub fn insert(referred_by: Option<&str>) -> Result<u32, String> {
                 referred_by_expires_at,
                 fee_level: 0,
                 fee_level_expires_at: None,
-                user_reward_progress: UserRewardProgress::default(),
+                user_reward_progress: Some(UserRewardProgress::default()),
             };
             // insert to principal_id_map
             principal_id_map::insert_principal_id(&user);

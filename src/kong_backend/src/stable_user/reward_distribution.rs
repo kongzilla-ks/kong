@@ -22,8 +22,8 @@ pub fn on_made_swap(user: &mut StableUser, volume_notional: &Nat, ts: u64) -> Ve
         // Dups are possible, that's why we need is_new_reward && add_reward
         if reward_info
             .reward_rules
-            .is_new_reward(&rewarded_user.user_reward_progress, &volume_notional)
-            && rewarded_user.user_reward_progress.add_reward(&reward_info.id)
+            .is_new_reward(rewarded_user.get_user_reward_progress(), &volume_notional)
+            && rewarded_user.get_user_reward_progress_mut().add_reward(&reward_info.id)
         {
             let claim_id = create_claim(reward_info, rewarded_user.user_id, ts);
             user_map::update(rewarded_user.clone());

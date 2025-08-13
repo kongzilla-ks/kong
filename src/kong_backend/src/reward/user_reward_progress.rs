@@ -18,6 +18,17 @@ pub struct UserRewardProgress {
 }
 
 impl UserRewardProgress {
+    pub const fn new_const_default() -> Self {
+        Self {
+            received_rewards: Vec::new(),
+            consecutive_trading_days: 0,
+            total_swap_count: 0,
+            total_user_volume: Nat(num_bigint::BigUint::ZERO),
+            total_referred_volume: Nat(num_bigint::BigUint::ZERO),
+            last_trading_day: 0,
+        }
+    }
+
     pub fn add_reward(&mut self, id: &RewardInfoId) -> bool {
         match self.received_rewards.binary_search(id) {
             Ok(_) => false,
@@ -28,7 +39,6 @@ impl UserRewardProgress {
         }
     }
 }
-
 
 fn time_to_day(day_ts: u64) -> u64 {
     // let day_ts = ICNetwork::get_time();
@@ -42,7 +52,7 @@ fn get_current_trading_day() -> u64 {
 }
 
 pub fn update_stats(user: &mut StableUser, volume_notional: &Nat) {
-    let stats = &mut user.user_reward_progress;
+    let stats = user.get_user_reward_progress_mut();
     // Update consecutive trading days
     let current_day = get_current_trading_day();
     if stats.last_trading_day == 0 {
@@ -69,13 +79,17 @@ pub fn update_stats(user: &mut StableUser, volume_notional: &Nat) {
     if let Some(referred_by) = user.referred_by {
         match user_map::get_by_user_id(referred_by) {
             Some(mut referred_user) => {
-                referred_user.user_reward_progress.total_referred_volume += volume_notional.clone();
+                referred_user.get_user_reward_progress_mut().total_referred_volume += volume_notional.clone();
                 user_map::update(referred_user);
-            },
-            None => ic_cdk::eprintln!("Failed to find referred user in user map, user={}, referred_user={}", user.user_id, referred_by),
+            }
+            None => ic_cdk::eprintln!(
+                "Failed to find referred user in user map, user={}, referred_user={}",
+                user.user_id,
+                referred_by
+            ),
         }
     }
-    
+
     user_map::update(user.clone());
 }
 
@@ -85,12 +99,10 @@ impl RewardRules {
             current_volume >= desired_volume && &(current_volume.clone() - trade_notional_volume.clone()) < desired_volume
         }
         match self {
-            Self::UserNotionalVolume(v) => {
-                passed_desired_volume(&progress.total_user_volume, &trade_notional_volume, &v.desired_volume)
-            },
+            Self::UserNotionalVolume(v) => passed_desired_volume(&progress.total_user_volume, &trade_notional_volume, &v.desired_volume),
             Self::ReferredNotionalVolume(v) => {
                 passed_desired_volume(&progress.total_referred_volume, &trade_notional_volume, &v.desired_volume)
-            },
+            }
             Self::UserSwapCount(v) => v.swap_count == progress.total_swap_count,
             Self::ConsecutiveDays(v) => v.consecutive_days == progress.consecutive_trading_days,
         }

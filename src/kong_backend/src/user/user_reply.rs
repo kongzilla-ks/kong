@@ -40,7 +40,7 @@ impl From<&StableUser> for UserReply {
             referred_by_expires_at: user.referred_by_expires_at,
             fee_level: user.fee_level,
             fee_level_expires_at: user.fee_level_expires_at,
-            user_reward_progress: user.user_reward_progress.clone(),
+            user_reward_progress: user.get_user_reward_progress().clone(),
         }
     }
 }

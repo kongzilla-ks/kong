@@ -194,7 +194,7 @@ type UserReply = record {
     referred_by_expires_at : opt nat64;
     fee_level : nat8;
     fee_level_expires_at : opt nat64;
-    user_reward_progress: UserRewardProgress;
+    user_reward_progress: opt UserRewardProgress;
 };
 type UserResult = variant { Ok : UserReply; Err : text };
 
@@ -731,7 +731,7 @@ service : {
     // send LP tokens to another user
     send : (SendArgs) -> (SendResult);
     // show info about possible rewards
-    reward_infos : () -> (vec RewardInfo);
+    reward_infos : () -> (vec RewardInfo) query;
 
     // Solana functions
     get_solana_address : () -> (text) query;
