@@ -6,6 +6,8 @@ use crate::ic::network::ICNetwork;
 use crate::stable_user::stable_user::StableUser;
 use crate::stable_user::user_map;
 
+use crate::reward::user_reward_progress::UserRewardProgress;
+
 #[derive(CandidType, Clone, Debug, Serialize, Deserialize)]
 pub struct UserReply {
     pub user_id: u32,
@@ -16,6 +18,7 @@ pub struct UserReply {
     pub referred_by_expires_at: Option<u64>,
     pub fee_level: u8,
     pub fee_level_expires_at: Option<u64>,
+    pub user_reward_progress: UserRewardProgress,
 }
 
 impl From<&StableUser> for UserReply {
@@ -37,6 +40,7 @@ impl From<&StableUser> for UserReply {
             referred_by_expires_at: user.referred_by_expires_at,
             fee_level: user.fee_level,
             fee_level_expires_at: user.fee_level_expires_at,
+            user_reward_progress: user.get_user_reward_progress().clone(),
         }
     }
 }

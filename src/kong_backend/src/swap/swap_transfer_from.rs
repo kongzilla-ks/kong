@@ -14,6 +14,7 @@ use crate::stable_token::{stable_token::StableToken, token::Token, token_map};
 use crate::stable_transfer::{stable_transfer::StableTransfer, transfer_map, tx_id::TxId};
 use crate::stable_user::suspended_user_map::{increase_consecutive_error, is_suspended_user, reset_consecutive_error};
 use crate::stable_user::user_map;
+use crate::swap::swap_helpers::process_swap_rewards;
 
 use super::archive_to_kong_data::archive_to_kong_data;
 use super::calculate_amounts::calculate_amounts;
@@ -49,6 +50,8 @@ pub async fn swap_transfer_from(args: SwapArgs) -> Result<SwapReply, String> {
         let _ = archive_to_kong_data(request_id);
     })?;
 
+    let mut reward_claim_ids = process_swap_rewards(user_id, &receive_token, &receive_amount_with_fees_and_gas, ts);
+
     let result = send_receive_token(
         request_id,
         user_id,
@@ -62,6 +65,7 @@ pub async fn swap_transfer_from(args: SwapArgs) -> Result<SwapReply, String> {
         price,
         slippage,
         &swaps,
+        &mut reward_claim_ids,
         ts,
     )
     .await;
@@ -102,6 +106,9 @@ pub async fn swap_transfer_from_async(args: SwapArgs) -> Result<u64, String> {
         };
 
         ic_cdk::futures::spawn(async move {
+
+            let mut reward_claim_ids = process_swap_rewards(user_id, &receive_token, &receive_amount_with_fees_and_gas, ts);
+
             send_receive_token(
                 request_id,
                 user_id,
@@ -115,6 +122,7 @@ pub async fn swap_transfer_from_async(args: SwapArgs) -> Result<u64, String> {
                 price,
                 slippage,
                 &swaps,
+                &mut reward_claim_ids,
                 ts,
             )
             .await;

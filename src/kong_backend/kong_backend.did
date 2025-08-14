@@ -175,6 +175,16 @@ type TransferIdReply = record {
     transfer : TransferReply
 };
 
+type UserRewardProgress = record {
+    received_rewards : vec nat32;
+    consecutive_trading_days : nat32;
+    total_swap_count : nat32;
+    total_user_volume : nat;
+    total_referred_volume : nat;
+
+    last_trading_day : nat64;
+};
+
 type UserReply = record {
     user_id : nat32;
     principal_id : text;
@@ -184,6 +194,7 @@ type UserReply = record {
     referred_by_expires_at : opt nat64;
     fee_level : nat8;
     fee_level_expires_at : opt nat64;
+    user_reward_progress: opt UserRewardProgress;
 };
 type UserResult = variant { Ok : UserReply; Err : text };
 
@@ -618,6 +629,27 @@ type SendReply = record {
 };
 type SendResult = variant { Ok : SendReply; Err : text };
 
+type NotionalVolumeRec = record { desired_volume: nat; };
+type UserSwapCountRec = record { swap_count: nat32; };
+type ConsecutiveDaysRec = record { consecutive_days: nat32; };
+type RewardRules = variant {
+    UserNotionalVolume : NotionalVolumeRec;
+    ReferredNotionalVolume : NotionalVolumeRec;
+    UserSwapCount : UserSwapCountRec;
+    ConsecutiveDays : ConsecutiveDaysRec
+};
+
+type RewardInfo = record {
+    id : nat32;
+    reward_amount : nat;
+    reward_token_id : nat32;
+    created_ts : nat64;
+    updated_ts : nat64;
+    updated_user : text;
+    is_active : bool;
+    reward_rules : RewardRules;
+};
+
 service : {
     // icrc1 standards
     icrc1_name : () -> (text) query;
@@ -698,6 +730,8 @@ service : {
 
     // send LP tokens to another user
     send : (SendArgs) -> (SendResult);
+    // show info about possible rewards
+    reward_infos : () -> (vec RewardInfo) query;
 
     // Solana functions
     get_solana_address : () -> (text) query;

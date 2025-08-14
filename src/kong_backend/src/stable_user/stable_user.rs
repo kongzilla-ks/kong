@@ -2,7 +2,7 @@ use candid::CandidType;
 use ic_stable_structures::{storable::Bound, Storable};
 use serde::{Deserialize, Serialize};
 
-use crate::ic::network::ICNetwork;
+use crate::{ic::network::ICNetwork, reward::user_reward_progress::UserRewardProgress};
 
 // reserved user ids
 // 0: all users - users for stable_messages to broadcast to all users
@@ -16,6 +16,8 @@ pub const ALL_USERS_USER_ID: u32 = 1;
 #[allow(dead_code)]
 pub const SYSTEM_USER_ID: u32 = 2;
 pub const CLAIMS_TIMER_USER_ID: u32 = 3;
+
+static DEFAULT_USER_REWARD_PROGRESS: UserRewardProgress = UserRewardProgress::new_const_default();
 
 #[derive(CandidType, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct StableUserId(pub u32);
@@ -43,6 +45,17 @@ pub struct StableUser {
     // so 0 = no discount, 100 = pays no lp_fee on swaps
     pub fee_level: u8,
     pub fee_level_expires_at: Option<u64>,
+    pub user_reward_progress: Option<UserRewardProgress>,
+}
+
+impl StableUser {
+    pub fn get_user_reward_progress_mut(&mut self) -> &mut UserRewardProgress {
+        self.user_reward_progress.get_or_insert_default()
+    }
+
+    pub fn get_user_reward_progress(&self) -> &UserRewardProgress {
+        self.user_reward_progress.as_ref().unwrap_or(&DEFAULT_USER_REWARD_PROGRESS)
+    }
 }
 
 impl Default for StableUser {
@@ -55,6 +68,7 @@ impl Default for StableUser {
             referred_by_expires_at: None,
             fee_level: 0,
             fee_level_expires_at: None,
+            user_reward_progress: Some(UserRewardProgress::default()),
         }
     }
 }
