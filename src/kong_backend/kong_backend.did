@@ -704,4 +704,6 @@ service : {
 
     // admin functions
     check_pools : () -> (CheckPoolsResult);
+
+    very_long_op : (nat32, bool) -> (bool);
 }

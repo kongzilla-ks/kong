@@ -1,0 +1,80 @@
+type BestBidAsk = record {
+  ask : opt PriceAmount;
+  bid : opt PriceAmount;
+  bookname : record { text; text };
+};
+type LimitOrderArgs = record {
+  expired_at_epoch_seconds : opt nat64;
+  price_str : text;
+};
+type Order = record {
+  id : nat64;
+  order_status : OrderStatus;
+  side : OrderSide;
+  user : principal;
+  created_at : nat64;
+  finsihed_at : nat64;
+  price : record { nat; nat };
+  expired_at : opt nat64;
+  swap_args : SwapArgs;
+};
+type OrderSide = variant { Buy; Sell };
+type OrderStatus = variant {
+  Failed;
+  Executing;
+  Placed;
+  Executed;
+  Cancelled;
+  Expired;
+};
+type OrderbookL2 = record {
+  bookname : record { text; text };
+  asks : vec PriceAmount;
+  bids : vec PriceAmount;
+};
+type OrderbookTokens = record { token_0 : text; token_1 : text };
+type PriceAmount = record { price : record { nat; nat }; amount : nat };
+type QueryOrdersArgs = record {
+  token_0 : text;
+  token_1 : text;
+  start_ts : opt nat64;
+  limit : opt nat64;
+};
+type QueryOrdersResult = record {
+  bookname : record { text; text };
+  orders : vec Order;
+};
+type RemoveOrderArgs = record {
+  symbol_0 : text;
+  symbol_1 : text;
+  order_id : nat64;
+};
+type Result = variant { Ok : nat64; Err : text };
+type Result_1 = variant { Ok; Err : text };
+type Result_2 = variant { Ok : Order; Err : text };
+type Result_3 = variant { Ok : BestBidAsk; Err : text };
+type Result_4 = variant { Ok : OrderbookL2; Err : text };
+type Result_5 = variant { Ok : QueryOrdersResult; Err : text };
+type SwapArgs = record {
+  receive_token : text;
+  max_slippage : opt float64;
+  pay_amount : nat;
+  referred_by : opt text;
+  receive_amount : opt nat;
+  receive_address : opt text;
+  pay_token : text;
+  pay_tx_id : opt TxId;
+};
+type TxId = variant { TransactionHash : text; BlockIndex : nat };
+service : {
+  add_order : (SwapArgs, LimitOrderArgs) -> (Result);
+  cancel_all_user_orders : (text, text) -> (Result_1);
+  cancel_order : (RemoveOrderArgs) -> (Result_2);
+  exec_orders : (text, text, text) -> (Result_1);
+  list_available_orderbooks : () -> (vec OrderbookTokens) query;
+  orderbook_l1 : (text, text) -> (Result_3) query;
+  orderbook_l2 : (text, text, opt nat64) -> (Result_4) query;
+  query_active_orders : (text, text) -> (Result_5) query;
+  query_history_orders : (QueryOrdersArgs) -> (Result_5) query;
+  query_order : (text, text, nat64) -> (Result_2) query;
+}

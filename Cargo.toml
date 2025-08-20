@@ -4,6 +4,7 @@ members = [
     "src/kong_backend",
     "src/kong_data",
     "src/kong_faucet",
+    "src/kong_limit_order",
     "src/kong_admin",
     "src/sdk/rsKong",
     "src/prediction_markets_backend",

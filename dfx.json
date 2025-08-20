@@ -31,6 +31,21 @@
         }
       ]
     },
+    "kong_limit_order": {
+      "candid": "src/kong_limit_order/kong_limit_order.did",
+      "declarations": {
+        "node_compatibility": true
+      },
+      "package": "kong_limit_order",
+      "type": "custom",
+      "build": "bash ./scripts/build_kong_limit_order.sh",
+      "wasm": "target/wasm32-unknown-unknown/release/kong_limit_order.wasm",
+      "metadata": [
+        {
+          "name": "candid:service"
+        }
+      ]
+    },
     "event_store": {
       "type": "custom",
       "candid": "canisters/event_store.did",

@@ -12,6 +12,7 @@ pub struct StandardRecord {
 
 #[allow(dead_code)]
 pub async fn get_user_balance(ledger: &Principal) -> Result<Nat, String> {
+    #[allow(deprecated)]
     ic_cdk::call::<(Account,), (Nat,)>(*ledger, "icrc1_balance_of", (caller_id(),))
         .await
         .map(|(balance,)| balance)
@@ -19,6 +20,7 @@ pub async fn get_user_balance(ledger: &Principal) -> Result<Nat, String> {
 }
 
 pub async fn get_name(ledger: &Principal) -> Result<String, String> {
+    #[allow(deprecated)]
     ic_cdk::call::<(), (String,)>(*ledger, "icrc1_name", ())
         .await
         .map(|(name,)| name)
@@ -26,6 +28,7 @@ pub async fn get_name(ledger: &Principal) -> Result<String, String> {
 }
 
 pub async fn get_symbol(ledger: &Principal) -> Result<String, String> {
+    #[allow(deprecated)]
     ic_cdk::call::<(), (String,)>(*ledger, "icrc1_symbol", ())
         .await
         .map(|(symbol,)| symbol)
@@ -33,6 +36,7 @@ pub async fn get_symbol(ledger: &Principal) -> Result<String, String> {
 }
 
 pub async fn get_decimals(ledger: &Principal) -> Result<u8, String> {
+    #[allow(deprecated)]
     ic_cdk::call::<(), (u8,)>(*ledger, "icrc1_decimals", ())
         .await
         .map(|(decimals,)| decimals)
@@ -40,6 +44,7 @@ pub async fn get_decimals(ledger: &Principal) -> Result<u8, String> {
 }
 
 pub async fn get_fee(ledger: &Principal) -> Result<Nat, String> {
+    #[allow(deprecated)]
     ic_cdk::call::<(), (Nat,)>(*ledger, "icrc1_fee", ())
         .await
         .map(|(fee,)| fee)
@@ -48,6 +53,7 @@ pub async fn get_fee(ledger: &Principal) -> Result<Nat, String> {
 
 /// try icrc10_supported_standards first, if it fails, try icrc1_supported_standards
 pub async fn get_supported_standards(ledger: &Principal) -> Result<Vec<StandardRecord>, String> {
+    #[allow(deprecated)]
     match ic_cdk::call::<(), (Vec<StandardRecord>,)>(*ledger, "icrc10_supported_standards", ())
         .await
         .map(|(standards,)| standards)
@@ -62,6 +68,7 @@ pub async fn get_supported_standards(ledger: &Principal) -> Result<Vec<StandardR
 
 #[allow(dead_code)]
 pub async fn get_total_supply(ledger: &Principal) -> Result<Nat, String> {
+    #[allow(deprecated)]
     ic_cdk::call::<(), (Nat,)>(*ledger, "icrc1_total_supply", ())
         .await
         .map(|(supply,)| supply)
