@@ -1,30 +1,141 @@
 use std::{cell::RefCell, rc::Rc};
 
 use candid::Principal;
-use ic_cdk::update;
+use ic_cdk::{query, update};
 use kong_lib::storable_rational::StorableRational;
 
 use crate::{
     orderbook::{
+        book_name::BookName,
         order::{self, Order, OrderStatus},
-        order_side::OrderSide,
-        orderbook,
+        orderbook::{self, get_orderbook_nocheck, PricePath},
+        orderbook_path::{get_border_paths_by_id, Path, BORDER_PATHS},
         price::Price,
     },
     stable_memory::STABLE_LIMIT_ORDER_SETTINGS,
 };
 
-#[update]
-pub async fn exec_orders(token_0: String, token_1: String, price: String) -> Result<(), String> {
-    let price = Price::new(StorableRational::new_str(&price)?);
+#[query]
+pub async fn get_prices(receive_token: String, send_token: String) -> Result<Vec<PricePath>, String> {
+    let direct_orderbook = orderbook::get_orderbook(&receive_token, &send_token)?;
 
-    let orderbook = orderbook::get_orderbook(token_0, token_1)?;
-    orderbook.borrow_mut().update_last_price(price);
+    let all_price_paths = direct_orderbook.borrow().get_all_price_paths();
 
-    exec_order_in_orderbook_loop(orderbook.clone()).await
+    Ok(all_price_paths)
 }
 
-pub async fn exec_order_in_orderbook_loop(orderbook: Rc<RefCell<orderbook::OrderBook>>) -> Result<(), String> {
+#[update]
+pub async fn exec_orders(receive_token: String, send_token: String, price: String) -> Result<(), String> {
+    let direct_orderbook = orderbook::get_orderbook(&receive_token, &send_token)?;
+    let price = Price::new(StorableRational::new_str(&price)?);
+    let old_price = direct_orderbook.borrow().get_own_price();
+    update_prices(direct_orderbook.clone(), price.clone());
+
+    let rev_orderbook = direct_orderbook.borrow().reversed();
+    let rev_price = price.reversed();
+    update_prices(rev_orderbook.clone(), rev_price);
+
+    match old_price {
+        None => {
+            exec_orders_in_orderbooks(direct_orderbook).await?;
+            exec_orders_in_orderbooks(rev_orderbook).await?;
+        }
+        Some(old_price) => {
+            if price < old_price {
+                exec_orders_in_orderbooks(direct_orderbook).await?;
+            } else if price > old_price {
+                exec_orders_in_orderbooks(rev_orderbook).await?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn calculate_path_price(path: &Path, borrowed_orderbook_name: &BookName, borrowed_orderbook_price: Price) -> Option<Price> {
+    if path.0.first().unwrap() == borrowed_orderbook_name {
+        let path_vec = Path(path.0.split_first().unwrap().1.to_vec());
+        return orderbook::calculate_path_price(&path_vec).map(|p| Price(p.0 * borrowed_orderbook_price.0));
+    }
+
+    if path.0.last().unwrap() == borrowed_orderbook_name {
+        let path_vec = Path(path.0.split_last().unwrap().1.to_vec());
+        return orderbook::calculate_path_price(&path_vec).map(|p| Price(p.0 * borrowed_orderbook_price.0));
+    }
+
+    assert!(false, "Invalid borrowed orderbook param");
+    None
+}
+
+fn update_prices(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>, price: Price) {
+    let mut orderbook = orderbook.borrow_mut();
+    BORDER_PATHS.with_borrow(|border_paths| {
+        let border_paths = match border_paths.get(&orderbook.name) {
+            Some(border_paths) => border_paths,
+            None => {
+                ic_cdk::eprintln!("Unexpectedly empty border paths, book={}", orderbook.name);
+                return;
+            }
+        };
+
+        for border_path in border_paths {
+            if border_path.0.len() == 1 {
+                orderbook.update_price_path(price.clone(), border_path);
+            } else {
+                match calculate_path_price(border_path, &orderbook.name, price.clone()) {
+                    Some(price) => {
+                        let orderbook_for_path = get_orderbook_nocheck(border_path.get_book_name());
+                        orderbook_for_path.borrow_mut().update_price_path(price, border_path);
+                    }
+                    None => {}
+                }
+            };
+        }
+    })
+}
+
+async fn exec_orders_in_orderbooks(changed_orderbook: Rc<RefCell<orderbook::SidedOrderBook>>) -> Result<(), String> {
+    let mut id: usize = 0;
+    loop {
+        let path = match get_border_paths_by_id(&changed_orderbook.borrow().name, id) {
+            Some(p) => p,
+            None => break,
+        };
+        id += 1;
+
+        let orderbook_to_exec = get_orderbook_nocheck(path.get_book_name());
+        exec_order_in_orderbook_loop_changed(orderbook_to_exec, &path).await?;
+    }
+
+    Ok(())
+}
+
+async fn exec_order_in_orderbook_loop_changed(
+    orderbook: Rc<RefCell<orderbook::SidedOrderBook>>,
+    changed_path: &Path,
+) -> Result<(), String> {
+    // Go into the loop if price of changed path is the best
+    let changed_price = match orderbook.borrow().get_price_by_path(changed_path) {
+        Some(price) => price,
+        None => {
+            ic_cdk::eprintln!("Can't get price of path {}", changed_path);
+            return Ok(());
+        }
+    };
+
+    if orderbook
+        .borrow()
+        .get_best_price_path()
+        .map(|p| p.0 == changed_price)
+        .unwrap_or(false)
+    {
+        return exec_order_in_orderbook_loop(orderbook.clone()).await;
+    }
+
+    Ok(())
+}
+
+pub async fn exec_order_in_orderbook_loop(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>) -> Result<(), String> {
     loop {
         if !exec_order_in_orderbook(orderbook.clone()).await? {
             break;
@@ -34,9 +145,9 @@ pub async fn exec_order_in_orderbook_loop(orderbook: Rc<RefCell<orderbook::Order
     Ok(())
 }
 
-async fn exec_order_in_orderbook(orderbook: Rc<RefCell<orderbook::OrderBook>>) -> Result<bool, String> {
-    let current_price: Price = match orderbook.borrow().get_last_price() {
-        Some(v) => v,
+async fn exec_order_in_orderbook(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>) -> Result<bool, String> {
+    let best_price: Price = match orderbook.borrow().get_best_price_path() {
+        Some(v) => v.0.clone(),
         None => {
             ic_cdk::println!("No price found for {}", orderbook.borrow().name);
             return Ok(false);
@@ -53,19 +164,15 @@ async fn exec_order_in_orderbook(orderbook: Rc<RefCell<orderbook::OrderBook>>) -
     }
 
     fn filter_by_price(o: &mut order::Order, current_price: Price) -> Option<&mut order::Order> {
-        let is_ok = match o.side {
-            OrderSide::Buy => current_price <= o.price,
-            OrderSide::Sell => current_price >= o.price,
-        };
-
-        if is_ok {
+        if current_price <= o.price {
             Some(o)
         } else {
             None
         }
     }
 
-    fn mark_executed(orderbook: Rc<RefCell<orderbook::OrderBook>>, o: order::Order, success: Option<bool>) {
+    fn mark_executed(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>, o: order::Order, success: Option<bool>) {
+        ic_cdk::println!("Mark executed, id={}, success={}", o.id, success.unwrap_or(false));
         let new_status = match success {
             Some(success) => {
                 if success {
@@ -96,10 +203,10 @@ async fn exec_order_in_orderbook(orderbook: Rc<RefCell<orderbook::OrderBook>>) -
         }
     }
 
-    fn take_order_to_process(orderbook: Rc<RefCell<orderbook::OrderBook>>, side: OrderSide, current_price: Price) -> Option<Order> {
+    fn take_order_to_process(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>, current_price: Price) -> Option<Order> {
         let order = orderbook
             .borrow_mut()
-            .get_first_sided_order_mut(side)
+            .get_first_order_mut()
             .and_then(|o| filter_by_price(o, current_price.clone()))
             .and_then(filter_out_executing)
             .cloned();
@@ -108,7 +215,7 @@ async fn exec_order_in_orderbook(orderbook: Rc<RefCell<orderbook::OrderBook>>) -
             Some(order) => {
                 if order.is_expired() {
                     let _ = orderbook.borrow_mut().on_finished_order(order.id, OrderStatus::Expired);
-                    return take_order_to_process(orderbook.clone(), side, current_price.clone());
+                    return take_order_to_process(orderbook.clone(), current_price.clone());
                 } else {
                     Some(order)
                 }
@@ -117,9 +224,10 @@ async fn exec_order_in_orderbook(orderbook: Rc<RefCell<orderbook::OrderBook>>) -
         }
     }
 
-    async fn take_and_process_order(orderbook: Rc<RefCell<orderbook::OrderBook>>, side: OrderSide, current_price: Price) -> bool {
-        match take_order_to_process(orderbook.clone(), side, current_price) {
+    async fn take_and_process_order(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>, current_price: Price) -> bool {
+        match take_order_to_process(orderbook.clone(), current_price) {
             Some(o) => {
+                ic_cdk::println!("Take order to process={}", o.id);
                 orderbook
                     .borrow_mut()
                     .get_order_by_order_id_mut(&o.id)
@@ -132,11 +240,10 @@ async fn exec_order_in_orderbook(orderbook: Rc<RefCell<orderbook::OrderBook>>) -
         }
     }
 
-    let bid_changed = take_and_process_order(orderbook.clone(), OrderSide::Buy, current_price.clone()).await;
-    let ask_changed = take_and_process_order(orderbook.clone(), OrderSide::Sell, current_price.clone()).await;
+    let bid_changed = take_and_process_order(orderbook.clone(), best_price.clone()).await;
 
-    // ic_cdk::println!("exec_order_in_orderbook result={}", bid_changed || ask_changed);
-    Ok(bid_changed || ask_changed)
+    ic_cdk::println!("exec_order_in_orderbook, best_price={}, result={}", best_price, bid_changed);
+    Ok(bid_changed)
 }
 
 pub async fn very_long_op(secs: u32, res: bool) -> Result<bool, String> {

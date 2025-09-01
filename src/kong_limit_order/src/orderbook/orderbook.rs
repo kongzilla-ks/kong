@@ -3,12 +3,11 @@ use crate::orderbook::book_name::BookName;
 use crate::orderbook::order::{Order, OrderStatus};
 use crate::orderbook::order_history::add_order_to_history;
 use crate::orderbook::order_id::OrderId;
-use crate::orderbook::order_side::OrderSide;
 use crate::orderbook::order_storage::OrderStorage;
+use crate::orderbook::orderbook_path::{is_available_token_path, Path};
 use crate::orderbook::price::Price;
-use crate::stable_memory::STABLE_LIMIT_ORDER_SETTINGS;
-use crate::stable_memory_helpers::get_available_orderbook_name;
-use candid::Principal;
+use crate::stable_memory_helpers::get_max_orders_per_instruments;
+use candid::{CandidType, Principal};
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
 use kong_lib::ic::network::ICNetwork;
@@ -23,30 +22,52 @@ use std::rc::Rc;
 use std::time::Duration;
 
 thread_local! {
-    pub static ORDERBOOKS: RefCell<HashMap<BookName, Rc<RefCell<OrderBook>>>> = RefCell::default();
+    pub static ORDERBOOKS: RefCell<HashMap<BookName, Rc<RefCell<SidedOrderBook>>>> = RefCell::default();
 }
 
-pub fn get_orderbook(symbol_0: String, symbol_1: String) -> Result<Rc<RefCell<OrderBook>>, String> {
-    let book_name = get_available_orderbook_name(&symbol_0, &symbol_1)?;
-    get_orderbook_impl(book_name)
+pub fn calculate_path_price(path: &Path) -> Option<Price> {
+    let mut price = Price::one();
+    for bookname in &path.0 {
+        let p = match get_orderbook_nocheck(bookname.clone()).borrow().get_own_price() {
+            Some(p) => p,
+            None => return None,
+        };
+
+        price.0 *= p.0;
+    }
+
+    Some(price)
 }
 
-fn get_orderbook_impl(bookname: BookName) -> Result<Rc<RefCell<OrderBook>>, String> {
+pub fn get_orderbook(receive_token: &str, send_token: &str) -> Result<Rc<RefCell<SidedOrderBook>>, String> {
+    let bookname = BookName::new(&receive_token, &send_token);
+
+    if is_available_token_path(receive_token, send_token) {
+        return Ok(get_orderbook_nocheck(bookname));
+    }
+
+    return Err(format!("Token path {}/{} does not exist", receive_token, send_token));
+}
+
+pub fn get_orderbook_nocheck(bookname: BookName) -> Rc<RefCell<SidedOrderBook>> {
     ORDERBOOKS.with_borrow_mut(|m| {
-        let orderbook = m
-            .entry(bookname.clone())
-            .or_insert_with(|| Rc::new(RefCell::new(OrderBook::new(bookname))));
-        Ok(orderbook.clone())
+        let orderbook = m.entry(bookname.clone()).or_insert_with(|| {
+            ic_cdk::println!("Creating new orderbook: {}", bookname);
+            Rc::new(RefCell::new(SidedOrderBook::new(bookname)))
+        });
+        orderbook.clone()
     })
 }
 
+#[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
+pub struct PricePath(pub Price, pub Path);
+
 #[derive(Debug, Clone)]
-pub struct OrderBook {
+pub struct SidedOrderBook {
     pub name: BookName,
-    last_price: Option<Price>,
+    prices: Vec<PricePath>,
 
     bids: BTreeMap<Reverse<Price>, VecDeque<OrderId>>,
-    asks: BTreeMap<Price, VecDeque<OrderId>>,
     next_order_id: OrderId,
 
     active_order_storage: OrderStorage,
@@ -55,13 +76,12 @@ pub struct OrderBook {
     expiration_timer_id: Option<(ic_cdk_timers::TimerId, u64)>,
 }
 
-impl OrderBook {
+impl SidedOrderBook {
     pub fn new(bookname: BookName) -> Self {
-        OrderBook {
+        SidedOrderBook {
             name: bookname,
-            last_price: None,
+            prices: Vec::new(),
             bids: BTreeMap::new(),
-            asks: BTreeMap::new(),
             next_order_id: 1.into(),
 
             active_order_storage: OrderStorage::new(),
@@ -70,18 +90,22 @@ impl OrderBook {
         }
     }
 
-    fn to_vec(&self) -> (BookName, Option<Price>, OrderId, OrderStorage) {
+    pub fn reversed(&self) -> Rc<RefCell<SidedOrderBook>> {
+        get_orderbook_nocheck(self.name.reversed())
+    }
+
+    fn to_vec(&self) -> (BookName, Vec<PricePath>, OrderId, OrderStorage) {
         (
             self.name.clone(),
-            self.last_price.clone(),
+            self.prices.clone(),
             self.next_order_id,
             self.active_order_storage.clone().with_sort_orders_before_serialization(),
         )
     }
 
-    fn from_vec(bookname: BookName, last_price: Option<Price>, next_order_id: OrderId, storage: OrderStorage) -> Self {
+    fn from_vec(bookname: BookName, last_prices: Vec<PricePath>, next_order_id: OrderId, storage: OrderStorage) -> Self {
         let mut res = Self::new(bookname);
-        res.last_price = last_price;
+        res.prices = last_prices;
         res.next_order_id = next_order_id;
 
         // Fill active_order_storage, bids, asks
@@ -93,19 +117,11 @@ impl OrderBook {
     }
 
     pub fn add_order(&mut self, swap_args: SwapArgs, limit_args: LimitOrderArgs) -> Result<Order, String> {
-        let side = match self.name.symbols() {
-            (s0, s1) if s0 == swap_args.pay_token.as_str() && s1 == swap_args.receive_token.as_str() => OrderSide::Sell,
-            (s0, s1) if s0 == swap_args.receive_token.as_str() && s1 == swap_args.pay_token.as_str() => OrderSide::Buy,
-            _ => {
-                return Err(format!(
-                    "Invalid orderbook, pay/receive tokens={}/{}, orderbook={}",
-                    swap_args.pay_token, swap_args.receive_token, self.name
-                ))
-            }
-        };
+        assert!(swap_args.receive_token == self.name.receive_token());
+        assert!(swap_args.pay_token == self.name.send_token());
 
         let user = ICNetwork::caller();
-        let max_orders_per_instruments = STABLE_LIMIT_ORDER_SETTINGS.with_borrow(|s| s.get().max_orders_per_instrument);
+        let max_orders_per_instruments = get_max_orders_per_instruments();
         if self.active_order_storage.get_user_order_number(&user) >= max_orders_per_instruments {
             return Err(format!("Max orders per instrument exceeded, limit={}", max_orders_per_instruments));
         }
@@ -117,7 +133,6 @@ impl OrderBook {
         let order = Order {
             id: self.next_order_id,
             price: Price::new(price),
-            side: side,
             user: user,
             expired_at: expired_at,
             order_status: OrderStatus::Placed,
@@ -142,23 +157,12 @@ impl OrderBook {
     }
 
     fn add_order_impl(&mut self, order: Order) {
-        match order.side {
-            OrderSide::Buy => self.add_bid(order.clone()),
-            OrderSide::Sell => self.add_ask(order.clone()),
-        }
+        self.add_bid(order.clone());
     }
 
     fn add_bid(&mut self, order: Order) {
         self.bids
             .entry(Reverse(order.price.clone()))
-            .or_insert_with(VecDeque::new)
-            .push_back(order.id);
-        self.active_order_storage.add_order(order);
-    }
-
-    fn add_ask(&mut self, order: Order) {
-        self.asks
-            .entry(order.price.clone())
             .or_insert_with(VecDeque::new)
             .push_back(order.id);
         self.active_order_storage.add_order(order);
@@ -223,9 +227,8 @@ impl OrderBook {
         match next_ts.checked_sub(ic_cdk::api::time()) {
             Some(nanos) => {
                 let book_name = self.name.clone();
-                let timer_id = ic_cdk_timers::set_timer(Duration::from_nanos(nanos), || match get_orderbook_impl(book_name) {
-                    Ok(orderbook) => orderbook.borrow_mut().expiration_timer_callback(),
-                    Err(_) => {}
+                let timer_id = ic_cdk_timers::set_timer(Duration::from_nanos(nanos), move || {
+                    get_orderbook_nocheck(book_name).borrow_mut().expiration_timer_callback()
                 });
                 self.expiration_timer_id = Some((timer_id, next_ts));
             }
@@ -283,44 +286,18 @@ impl OrderBook {
                 }
             } else {
                 ic_cdk::eprintln!(
-                    "order found in active orders, but not found in level, order_id={}, price={}, side={}",
+                    "order found in active orders, but not found in level, name={}, order_id={}, price={}",
+                    self.name,
                     order.id,
                     order.price,
-                    order.side
                 )
             }
         } else {
             ic_cdk::eprintln!(
-                "order found in active orders, but level not found, order_id={}, price={}, side={}",
+                "order found in active orders, but level not found, name={}, order_id={}, price={}",
+                self.name,
                 order.id,
                 order.price,
-                order.side
-            )
-        }
-    }
-
-    fn remove_order_from_asks(&mut self, order: &Order) {
-        if let Some(level_orders) = self.asks.get_mut(&order.price) {
-            if let Some(pos) = level_orders.iter().position(|&x| x == order.id) {
-                level_orders.remove(pos);
-
-                if level_orders.is_empty() {
-                    self.asks.remove(&order.price);
-                }
-            } else {
-                ic_cdk::eprintln!(
-                    "order found in active orders, but not found in level, order_id={}, price={}, side={:?}",
-                    order.id,
-                    order.price,
-                    order.side
-                )
-            }
-        } else {
-            ic_cdk::eprintln!(
-                "order found in active orders, but level not found, order_id={}, price={}, side={:?}",
-                order.id,
-                order.price,
-                order.side
             )
         }
     }
@@ -329,25 +306,13 @@ impl OrderBook {
         self.bids.iter().next().map(|v| v.1.iter().next()).flatten().cloned()
     }
 
-    fn get_first_ask_order_id(&self) -> Option<OrderId> {
-        self.asks.iter().next().map(|v| v.1.iter().next()).flatten().cloned()
-    }
-
-    pub fn get_first_sided_order_mut(&mut self, side: OrderSide) -> Option<&mut Order> {
-        let order_id = match side {
-            OrderSide::Buy => self.get_first_bid_order_id()?,
-            OrderSide::Sell => self.get_first_ask_order_id()?,
-        };
+    pub fn get_first_order_mut(&mut self) -> Option<&mut Order> {
+        let order_id = self.get_first_bid_order_id()?;
         self.active_order_storage.get_mut_order(&order_id)
     }
 
     pub fn get_first_bid_order(&self) -> Option<&Order> {
         let order_id = self.get_first_bid_order_id()?;
-        self.active_order_storage.get_order(&order_id)
-    }
-
-    pub fn get_first_ask_order(&self) -> Option<&Order> {
-        let order_id = self.get_first_ask_order_id()?;
         self.active_order_storage.get_order(&order_id)
     }
 
@@ -377,10 +342,7 @@ impl OrderBook {
         }
 
         self.active_order_storage.remove_order(order_id);
-        match order.side {
-            OrderSide::Buy => self.remove_order_from_bids(&order),
-            OrderSide::Sell => self.remove_order_from_asks(&order),
-        }
+        self.remove_order_from_bids(&order);
 
         order.order_status = status;
         order.finsihed_at = ic_cdk::api::time();
@@ -393,32 +355,45 @@ impl OrderBook {
         Ok(order)
     }
 
-    pub fn get_last_price(&self) -> Option<Price> {
-        self.last_price.clone()
+    pub fn get_all_price_paths(&self) -> Vec<PricePath> {
+        self.prices.clone()
+    }
+    pub fn get_best_price_path(&self) -> Option<&PricePath> {
+        self.prices.iter().min_by_key(|v| v.0.clone())
     }
 
-    pub fn update_last_price(&mut self, new_price: Price) {
-        self.last_price = Some(new_price);
+    pub fn get_price_by_path(&self, path: &Path) -> Option<Price> {
+        self.prices.iter().find(|p| &p.1 == path).map(|p| p.0.clone())
+    }
+
+    pub fn get_own_price(&self) -> Option<Price> {
+        self.prices.iter().find(|p| p.1 .0.len() == 1).map(|p| p.0.clone())
+    }
+
+    pub fn update_price_path(&mut self, price: Price, path: &Path) {
+        assert!(self.name.send_token() == path.send_token());
+        assert!(self.name.receive_token() == path.receive_token());
+
+        for best_price in &mut self.prices {
+            if &best_price.1 == path {
+                best_price.0 = price;
+                return;
+            }
+        }
+
+        self.prices.push(PricePath(price, path.clone()));
     }
 
     pub fn bid_iter_by_price(&self, price: Price) -> Option<std::collections::vec_deque::Iter<OrderId>> {
         self.bids.get(&Reverse(price)).map(|v| v.iter())
     }
 
-    pub fn ask_iter_by_price(&self, price: Price) -> Option<std::collections::vec_deque::Iter<OrderId>> {
-        self.asks.get(&price).map(|v| v.iter())
-    }
-
     pub fn bid_price_vec(&self, limit: usize) -> Vec<Price> {
         self.bids.keys().map(|r| r.0.clone()).take(limit).collect()
     }
-
-    pub fn ask_price_vec(&self, limit: usize) -> Vec<Price> {
-        self.asks.keys().take(limit).cloned().collect()
-    }
 }
 
-impl Storable for OrderBook {
+impl Storable for SidedOrderBook {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         serde_cbor::to_vec(&self).expect("Failed to encode Orderbook").into()
     }
@@ -430,7 +405,7 @@ impl Storable for OrderBook {
     const BOUND: Bound = Bound::Unbounded;
 }
 
-impl Serialize for OrderBook {
+impl Serialize for SidedOrderBook {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -445,7 +420,7 @@ impl Serialize for OrderBook {
     }
 }
 
-impl<'de> Deserialize<'de> for OrderBook {
+impl<'de> Deserialize<'de> for SidedOrderBook {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -453,7 +428,7 @@ impl<'de> Deserialize<'de> for OrderBook {
         struct OrderBookVisitor;
 
         impl<'de> serde::de::Visitor<'de> for OrderBookVisitor {
-            type Value = OrderBook;
+            type Value = SidedOrderBook;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
                 formatter.write_str("a tuple of Orderbook fields")
@@ -464,11 +439,11 @@ impl<'de> Deserialize<'de> for OrderBook {
                 A: serde::de::SeqAccess<'de>,
             {
                 let book_name = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let last_price = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
-                let next_order_id = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
-                let storage = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
+                let last_price = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+                let next_order_id = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
+                let storage = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
 
-                Ok(OrderBook::from_vec(book_name, last_price, next_order_id, storage))
+                Ok(SidedOrderBook::from_vec(book_name, last_price, next_order_id, storage))
             }
         }
 

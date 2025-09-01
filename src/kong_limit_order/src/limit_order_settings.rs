@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct LimitOrderSettings {
     pub kong_backend: String,
-    pub max_orders_per_instrument: usize
+    pub max_orders_per_instrument: usize,
+    pub synthetic_orderbook_max_hops: usize,
 }
 
 // TODO: how to properly pass kong backend?
@@ -16,6 +17,7 @@ impl Default for LimitOrderSettings {
         LimitOrderSettings {
             kong_backend: CANISTER_ID_KONG_BACKEND.to_string(),
             max_orders_per_instrument: 10,
+            synthetic_orderbook_max_hops: 3,
         }
     }
 }

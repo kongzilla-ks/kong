@@ -1,4 +1,3 @@
-use crate::orderbook::order_side::OrderSide;
 use crate::orderbook::{order_id::OrderId, price::Price};
 use candid::{CandidType, Principal};
 use kong_lib::swap::swap_args::SwapArgs;
@@ -49,7 +48,6 @@ impl fmt::Display for OrderStatus {
 pub struct Order {
     pub id: OrderId,
     pub price: Price,
-    pub side: OrderSide,
     pub user: Principal,
     pub expired_at: Option<u64>, // epoch in nanos
 

@@ -5,4 +5,3 @@ pub mod query_orders;
 pub mod cancel_order;
 pub mod remove_order_args;
 pub mod query_orders_args;
-pub mod result;

@@ -9,5 +9,7 @@ KONG_LIMIT_CANISTER=$(dfx canister id ${NETWORK} kong_limit_order)
 IDENTITY="--identity kong"
 
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_orderbook --output json "(record {token_0 = \"ksKONG\"; token_1 = \"ksUSDT\"})"
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"ksKONG\"; token_1 = \"ksUSDT\"})"
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"KONG\"; token_1 = \"USDT\"})"
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"ksKONG\"; token_1 = \"KONG\"})"
 

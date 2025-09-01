@@ -13,6 +13,14 @@ impl Price {
     pub fn new(val: StorableRational) -> Self {
         Price(val)
     }
+
+    pub fn one() -> Self {
+        Price(StorableRational::one())
+    }
+
+    pub fn reversed(&self) -> Self {
+        Price(self.0.clone().reversed())
+    }
 }
 
 impl Default for Price {

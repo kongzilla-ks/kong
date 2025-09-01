@@ -10,7 +10,6 @@ type LimitOrderArgs = record {
 type Order = record {
   id : nat64;
   order_status : OrderStatus;
-  side : OrderSide;
   user : principal;
   created_at : nat64;
   finsihed_at : nat64;
@@ -18,7 +17,6 @@ type Order = record {
   expired_at : opt nat64;
   swap_args : SwapArgs;
 };
-type OrderSide = variant { Buy; Sell };
 type OrderStatus = variant {
   Failed;
   Executing;
@@ -32,13 +30,18 @@ type OrderbookL2 = record {
   asks : vec PriceAmount;
   bids : vec PriceAmount;
 };
+type OrderbookPath = record {
+  sell_token : text;
+  buy_token : text;
+  paths : vec vec text;
+};
 type OrderbookTokens = record { token_0 : text; token_1 : text };
 type PriceAmount = record { price : record { nat; nat }; amount : nat };
 type QueryOrdersArgs = record {
-  token_0 : text;
-  token_1 : text;
+  receive_token : text;
   start_ts : opt nat64;
   limit : opt nat64;
+  send_token : text;
 };
 type QueryOrdersResult = record {
   bookname : record { text; text };
@@ -52,9 +55,13 @@ type RemoveOrderArgs = record {
 type Result = variant { Ok : nat64; Err : text };
 type Result_1 = variant { Ok; Err : text };
 type Result_2 = variant { Ok : Order; Err : text };
-type Result_3 = variant { Ok : BestBidAsk; Err : text };
-type Result_4 = variant { Ok : OrderbookL2; Err : text };
-type Result_5 = variant { Ok : QueryOrdersResult; Err : text };
+type Result_3 = variant {
+  Ok : vec record { record { nat; nat }; vec record { text; text } };
+  Err : text;
+};
+type Result_4 = variant { Ok : BestBidAsk; Err : text };
+type Result_5 = variant { Ok : OrderbookL2; Err : text };
+type Result_6 = variant { Ok : QueryOrdersResult; Err : text };
 type SwapArgs = record {
   receive_token : text;
   max_slippage : opt float64;
@@ -71,10 +78,13 @@ service : {
   cancel_all_user_orders : (text, text) -> (Result_1);
   cancel_order : (RemoveOrderArgs) -> (Result_2);
   exec_orders : (text, text, text) -> (Result_1);
+  get_prices : (text, text) -> (Result_3) query;
+  list_available_border_paths : (opt bool) -> (vec OrderbookPath) query;
   list_available_orderbooks : () -> (vec OrderbookTokens) query;
-  orderbook_l1 : (text, text) -> (Result_3) query;
-  orderbook_l2 : (text, text, opt nat64) -> (Result_4) query;
-  query_active_orders : (text, text) -> (Result_5) query;
-  query_history_orders : (QueryOrdersArgs) -> (Result_5) query;
+  list_available_token_paths : (opt bool) -> (vec OrderbookPath) query;
+  orderbook_l1 : (text, text) -> (Result_4) query;
+  orderbook_l2 : (text, text, opt nat64) -> (Result_5) query;
+  query_active_orders : (text, text) -> (Result_6) query;
+  query_history_orders : (QueryOrdersArgs) -> (Result_6) query;
   query_order : (text, text, nat64) -> (Result_2) query;
 }

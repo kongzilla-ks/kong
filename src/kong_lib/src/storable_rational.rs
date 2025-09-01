@@ -48,6 +48,10 @@ impl StorableRational {
         Self::new(Nat::from(numerator), Nat::from(denominator))
     }
 
+    pub fn one() -> StorableRational {
+        Self::new_u64(1, 1).unwrap()
+    }
+
     pub fn new_str(s: &str) -> Result<StorableRational, String> {
         fn parse_rational(s: &str) -> Result<StorableRational, String> {
             let splitted: Vec<&str> = s.split('.').collect();
@@ -171,6 +175,15 @@ impl Mul for StorableRational {
     }
 }
 
+impl std::ops::MulAssign for StorableRational {
+    fn mul_assign(&mut self, other: Self) {
+        let mut self_br = BigRational::from(self.clone());
+        self_br *= BigRational::from(other);
+
+        *self = self_br.into();
+    }
+}
+
 impl Div for StorableRational {
     type Output = Self;
     fn div(self, other: Self) -> Self {
@@ -190,10 +203,9 @@ impl Storable for StorableRational {
     const BOUND: Bound = Bound::Unbounded;
 }
 
-// Unit tests go in a separate tests module
 #[cfg(test)]
 mod tests {
-    use super::*; // Import everything from parent module
+    use super::*;
 
     #[test]
     fn test_new_str_delim() {

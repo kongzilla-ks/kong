@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct BookName(String, String);
 
 impl BookName {
-    pub fn new(symbol_0: &str, symbol_1: &str) -> Self {
-        BookName(symbol_0.to_string(), symbol_1.to_string())
+    pub fn new(receive_token: &str, send_token: &str) -> Self {
+        BookName(receive_token.to_string(), send_token.to_string())
     }
 
     pub fn new_from_raw_str(pair: &String) -> Result<Self, String> {
@@ -21,14 +21,18 @@ impl BookName {
     }
 
     pub fn reversed(&self) -> Self {
-        Self::new(self.symbol_1(), self.symbol_0())
+        Self::new(self.send_token(), self.receive_token())
     }
 
-    pub fn symbol_0(&self) -> &str {
+    pub fn reverse(&mut self) {
+        std::mem::swap(&mut self.0, &mut self.1);
+    }
+
+    pub fn receive_token(&self) -> &str {
         &self.0
     }
 
-    pub fn symbol_1(&self) -> &str {
+    pub fn send_token(&self) -> &str {
         &self.1
     }
 
