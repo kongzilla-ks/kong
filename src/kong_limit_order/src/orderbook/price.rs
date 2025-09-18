@@ -14,6 +14,10 @@ impl Price {
         Price(val)
     }
 
+    pub fn new_str(s: &str) -> Result<Self, String> {
+        Ok(Price(StorableRational::new_str(s)?))
+    }
+
     pub fn one() -> Self {
         Price(StorableRational::one())
     }

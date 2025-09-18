@@ -1,7 +1,41 @@
+type Account = record { owner : principal; subaccount : opt blob };
+type Address = variant { AccountId : blob; PrincipalId : Account };
 type BestBidAsk = record {
   ask : opt PriceAmount;
   bid : opt PriceAmount;
   bookname : record { text; text };
+};
+type Claim = record {
+  status : ClaimStatus;
+  failed_attempts : nat32;
+  claim_id : nat64;
+  token_symbol : text;
+  transfer_ids : vec nat64;
+  create_ts : nat64;
+  user : principal;
+  to_address : opt Address;
+  update_ts : nat64;
+  amount : nat;
+};
+type ClaimStatus = variant { Unclaimed; Claiming; Failed : text; Claimed };
+type ICToken = record {
+  fee : nat;
+  decimals : nat8;
+  token_id : nat32;
+  name : text;
+  canister_id : principal;
+  icrc1 : bool;
+  icrc2 : bool;
+  icrc3 : bool;
+  is_removed : bool;
+  symbol : text;
+};
+type LPToken = record {
+  decimals : nat8;
+  token_id : nat32;
+  address : text;
+  is_removed : bool;
+  symbol : text;
 };
 type LimitOrderArgs = record {
   expired_at_epoch_seconds : opt nat64;
@@ -52,16 +86,22 @@ type RemoveOrderArgs = record {
   symbol_1 : text;
   order_id : nat64;
 };
-type Result = variant { Ok : nat64; Err : text };
-type Result_1 = variant { Ok; Err : text };
-type Result_2 = variant { Ok : Order; Err : text };
-type Result_3 = variant {
+type Result = variant { Ok : StableToken; Err : text };
+type Result_1 = variant { Ok : nat64; Err : text };
+type Result_10 = variant { Ok : OrderbookL2; Err : text };
+type Result_11 = variant { Ok : QueryOrdersResult; Err : text };
+type Result_2 = variant { Ok : nat64; Err : text };
+type Result_3 = variant { Ok; Err : text };
+type Result_4 = variant { Ok : Order; Err : text };
+type Result_5 = variant { Ok : Twap; Err : text };
+type Result_6 = variant { Ok : record { nat; nat }; Err : text };
+type Result_7 = variant { Ok : float64; Err : text };
+type Result_8 = variant {
   Ok : vec record { record { nat; nat }; vec record { text; text } };
   Err : text;
 };
-type Result_4 = variant { Ok : BestBidAsk; Err : text };
-type Result_5 = variant { Ok : OrderbookL2; Err : text };
-type Result_6 = variant { Ok : QueryOrdersResult; Err : text };
+type Result_9 = variant { Ok : BestBidAsk; Err : text };
+type StableToken = variant { IC : ICToken; LP : LPToken };
 type SwapArgs = record {
   receive_token : text;
   max_slippage : opt float64;
@@ -71,20 +111,72 @@ type SwapArgs = record {
   receive_address : opt text;
   pay_token : text;
   pay_tx_id : opt TxId;
+  pay_signature : opt text;
 };
+type Twap = record {
+  id : nat64;
+  receive_token : StableToken;
+  twap_notional : float64;
+  total_payed_amount : nat;
+  twap_status : TwapStatus;
+  orders_executed : nat64;
+  user : principal;
+  pay_amount : nat;
+  order_period : nat64;
+  received_amount : nat;
+  created_at : nat64;
+  total_failures : nat32;
+  consecutive_skipped : nat64;
+  receive_address : Address;
+  pay_token : StableToken;
+  pay_tx_id : opt TxId;
+  max_price : opt record { nat; nat };
+  total_skipped : nat32;
+  consecutive_failures : nat32;
+  order_amount : nat64;
+};
+type TwapArgs = record {
+  pay_amount : nat;
+  pay_symbol : text;
+  receive_symbol : text;
+  receive_address : opt text;
+  pay_tx_id : opt TxId;
+  order_period_ts : nat64;
+  max_price : opt text;
+  order_amount : nat64;
+};
+type TwapStatus = variant { Failed; None; Executing; Executed; Cancelled };
 type TxId = variant { TransactionHash : text; BlockIndex : nat };
+type UpdateVolumeArgs = record {
+  token_0 : text;
+  token_1 : text;
+  token_0_amount : nat;
+  token_1_amount : nat;
+};
 service : {
-  add_order : (SwapArgs, LimitOrderArgs) -> (Result);
-  cancel_all_user_orders : (text, text) -> (Result_1);
-  cancel_order : (RemoveOrderArgs) -> (Result_2);
-  exec_orders : (text, text, text) -> (Result_1);
-  get_prices : (text, text) -> (Result_3) query;
+  active_user_twaps : () -> (vec nat64) query;
+  add_ic_token : (text) -> (Result);
+  add_order : (SwapArgs, LimitOrderArgs) -> (Result_1);
+  add_twap : (TwapArgs) -> (Result_2);
+  all_token_symbols : () -> (vec text) query;
+  apply_claim : (nat64) -> (Result_3);
+  cancel_all_user_orders : (text, text) -> (Result_3);
+  cancel_order : (RemoveOrderArgs) -> (Result_4);
+  cancel_twap : (nat64) -> (Result_5);
+  exec_orders : (text, text, text) -> (Result_3);
+  get_claim_by_id : (nat64) -> (opt Claim) query;
+  get_direct_price : (text, text) -> (Result_6) query;
+  get_price_f64 : (text, text) -> (Result_7) query;
+  get_prices : (text, text) -> (Result_8) query;
+  get_twap : (nat64) -> (opt Twap) query;
   list_available_border_paths : (opt bool) -> (vec OrderbookPath) query;
   list_available_orderbooks : () -> (vec OrderbookTokens) query;
   list_available_token_paths : (opt bool) -> (vec OrderbookPath) query;
-  orderbook_l1 : (text, text) -> (Result_4) query;
-  orderbook_l2 : (text, text, opt nat64) -> (Result_5) query;
-  query_active_orders : (text, text) -> (Result_6) query;
-  query_history_orders : (QueryOrdersArgs) -> (Result_6) query;
-  query_order : (text, text, nat64) -> (Result_2) query;
+  orderbook_l1 : (text, text) -> (Result_9) query;
+  orderbook_l2 : (text, text, opt nat64) -> (Result_10) query;
+  query_active_orders : (text, text) -> (Result_11) query;
+  query_active_user_claims : () -> (vec Claim) query;
+  query_history_orders : (QueryOrdersArgs) -> (Result_11) query;
+  query_order : (text, text, nat64) -> (Result_4) query;
+  update_volumes : (UpdateVolumeArgs) -> (Result_3);
 }

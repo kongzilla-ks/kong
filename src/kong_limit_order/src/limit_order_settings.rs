@@ -1,23 +1,28 @@
 use candid::CandidType;
 use ic_stable_structures::{storable::Bound, Storable};
+use kong_lib::ic::canister_address::KONG_BACKEND;
 use serde::{Deserialize, Serialize};
 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct LimitOrderSettings {
     pub kong_backend: String,
+    // pub limit_backend: String, // use canister_self instead
     pub max_orders_per_instrument: usize,
     pub synthetic_orderbook_max_hops: usize,
+    pub next_claim_id: u64,
+    pub twap_default_seconds_delay_after_failure: u64
+    // TODO: add maintenance mode
 }
-
-// TODO: how to properly pass kong backend?
-pub const CANISTER_ID_KONG_BACKEND: &str = "2ipq2-uqaaa-aaaar-qailq-cai";
 
 impl Default for LimitOrderSettings {
     fn default() -> Self {
         LimitOrderSettings {
-            kong_backend: CANISTER_ID_KONG_BACKEND.to_string(),
+            kong_backend: KONG_BACKEND.to_string(),
+            // limit_backend: KONG_LIMIT.to_string(),
             max_orders_per_instrument: 10,
             synthetic_orderbook_max_hops: 3,
+            next_claim_id: 1,
+            twap_default_seconds_delay_after_failure: 10,
         }
     }
 }

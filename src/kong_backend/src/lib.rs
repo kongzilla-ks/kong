@@ -10,6 +10,7 @@ pub mod helpers;
 pub mod ic;
 pub mod kong_backend;
 pub mod kong_data;
+pub mod kong_limit;
 pub mod pools;
 pub mod remove_liquidity;
 pub mod remove_liquidity_amounts;

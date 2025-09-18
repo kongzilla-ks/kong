@@ -122,6 +122,14 @@ if [[ "${NETWORK}" =~ ^(local|staging)$ ]]; then
         } || echo "Warning: ${script} not found"
     done
 
+    # deploy kong limit
+    ${SCRIPT_DIR}/deploy_kong_limit.sh "${NETWORK}"
+    if [[ "${NETWORK}" == "local" ]]; then
+        echo "Running ${SCRIPT_DIR}/kong_tmp/kong_add_limit.sh"
+        ${SCRIPT_DIR}/kong_tmp/kong_add_limit.sh
+    fi
+    # ${SCRIPT_DIR}/prepare_kong_limit.sh "${NETWORK}"
+
     # deploy test token faucet canister
     [ -f "${SCRIPT_DIR}/deploy_kong_faucet.sh" ] && {
         bash "${SCRIPT_DIR}/deploy_kong_faucet.sh" "${NETWORK}"

@@ -2940,6 +2940,7 @@ name = "kong_lib"
 version = "0.0.20"
 dependencies = [
  "candid",
+ "ciborium",
  "ic-cdk 0.18.5",
  "ic-cdk-macros 0.18.5",
  "ic-cdk-timers 0.12.2",

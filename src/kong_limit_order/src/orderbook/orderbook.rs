@@ -62,6 +62,7 @@ pub fn get_orderbook_nocheck(bookname: BookName) -> Rc<RefCell<SidedOrderBook>> 
 #[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
 pub struct PricePath(pub Price, pub Path);
 
+// TODO: prices should be used from price submodule
 #[derive(Debug, Clone)]
 pub struct SidedOrderBook {
     pub name: BookName,

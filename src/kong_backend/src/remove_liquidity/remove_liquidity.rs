@@ -6,6 +6,7 @@ use crate::chains::chains::SOL_CHAIN;
 use crate::helpers::nat_helpers::{nat_add, nat_divide, nat_is_zero, nat_multiply, nat_subtract, nat_zero};
 use crate::ic::network::ICNetwork;
 use crate::ic::{address::Address, guards::not_in_maintenance_mode, transfer::icrc1_transfer};
+use crate::kong_limit::update_kong_limit_volumes;
 use crate::solana::verify_transfer::verify_canonical_message;
 use crate::solana::utils::validation;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
@@ -532,6 +533,7 @@ fn update_liquidity_pool(request_id: u64, pool: &StablePool, amount_0: &Nat, lp_
     };
     pool_map::update(&update_pool);
     request_map::update_status(request_id, StatusCode::UpdatePoolAmountsSuccess, None);
+    let _ = update_kong_limit_volumes(update_pool.symbol_0(), update_pool.balance_0.clone(), update_pool.symbol_1(), update_pool.balance_1.clone());
 }
 
 // send payout tokens to user and final balance integrity checks

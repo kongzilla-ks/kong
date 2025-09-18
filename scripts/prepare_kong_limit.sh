@@ -8,8 +8,15 @@ KONG_LIMIT_CANISTER=$(dfx canister id ${NETWORK} kong_limit_order)
 # only controller (kong) can add token
 IDENTITY="--identity kong"
 
+ksKONG=$(dfx canister id kskong_ledger)
+ksUSDT=$(dfx canister id ksusdt_ledger)
+ksBTC=$(dfx canister id ksbtc_ledger)
+
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_ic_token --output json "(\"${ksKONG}\")"
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_ic_token --output json "(\"${ksUSDT}\")"
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_ic_token --output json "(\"${ksBTC}\")"
 
 dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"ksKONG\"; token_1 = \"ksUSDT\"})"
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"KONG\"; token_1 = \"USDT\"})"
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"ksKONG\"; token_1 = \"KONG\"})"
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"ksKONG\"; token_1 = \"ksBTC\"})"
+# dfx canister call ${NETWORK} ${IDENTITY} ${KONG_LIMIT_CANISTER} add_available_token_pair --output json "(record {token_0 = \"ksKONG\"; token_1 = \"KONG\"})"
 

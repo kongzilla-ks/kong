@@ -1,6 +1,7 @@
 use candid::Nat;
 
 use crate::helpers::nat_helpers::{nat_add, nat_divide, nat_multiply, nat_subtract, nat_zero};
+use crate::kong_limit::update_kong_limit_volumes;
 use crate::stable_pool::pool_map;
 use crate::stable_request::request_map;
 use crate::stable_request::status::StatusCode;
@@ -57,6 +58,8 @@ pub fn update_liquidity_pool(
                     pool.lp_fee_0 = nat_add(&pool.lp_fee_0, &lp_fee_0);
                     pool.kong_fee_0 = nat_add(&pool.kong_fee_0, &kong_fee_0);
                 }
+
+                let _ = update_kong_limit_volumes(pool.symbol_0(), pool.balance_0.clone(), pool.symbol_1(), pool.balance_1.clone());
                 pool_map::update(&pool);
             }
 

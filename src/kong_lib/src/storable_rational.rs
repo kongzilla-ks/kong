@@ -30,6 +30,13 @@ impl StorableRational {
         self.0.to_f64() / self.1.to_f64()
     }
 
+    pub fn to_f64_decimals(&self, num_decimals: u8, denom_decimals: u8) -> f64 {
+        let new_num = StorableRational::new(self.0.0.clone(), Nat(BigUint::from(10u32).pow(num_decimals as u32))).unwrap();
+        let new_denom = StorableRational::new(self.1.0.clone(), Nat(BigUint::from(10u32).pow(denom_decimals as u32))).unwrap();
+
+        (new_num / new_denom).to_f64()
+    }
+
     pub fn is_zero(&self) -> bool {
         self.0.is_zero()
     }
@@ -42,6 +49,10 @@ impl StorableRational {
         }
 
         Ok(StorableRational(numerator, denominator).reduced())
+    }
+
+    pub fn new_nat(numerator: Nat) -> StorableRational {
+        Self::new(Nat::from(numerator), Nat::from(1u32)).unwrap()
     }
 
     pub fn new_u64(numerator: u64, denominator: u64) -> Result<StorableRational, String> {

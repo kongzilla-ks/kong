@@ -9,3 +9,10 @@ pub const KONG_DATA: &str = if cfg!(feature = "staging") {
 } else {
     "cbefx-hqaaa-aaaar-qakrq-cai"
 };
+
+pub const KONG_LIMIT: &str = if cfg!(feature = "staging") {
+    "umunu-kh777-77774-qaaca-cai"
+} else {
+    // TODO: change me
+    "umunu-kh777-77774-qaaca-cai"
+};

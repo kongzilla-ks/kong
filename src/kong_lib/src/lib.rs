@@ -26,6 +26,7 @@ pub mod storable_rational;
 pub mod storable_vec;
 pub mod swap;
 mod swap_amounts;
+pub mod token_management;
 pub mod tokens;
 pub mod transfers;
 pub mod txs;

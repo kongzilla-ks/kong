@@ -1,12 +1,14 @@
 use candid::CandidType;
+use ic_cdk::api::msg_caller;
 use ic_cdk::{query, update};
 use kong_lib::ic::id::is_caller_controller;
+use kong_lib::stable_token::token::Token;
 use serde::{Deserialize, Serialize};
 
 use crate::orderbook::orderbook_path::{BORDER_PATHS, TOKEN_PATHS};
 use crate::orderbook::orderbook_path_helper::{add_to_synth_path, add_token_pair, remove_from_synth_path, remove_token_pair};
 use crate::stable_memory::{STABLE_AVAILABLE_TOKEN_POOLS, STABLE_LIMIT_ORDER_SETTINGS};
-use crate::stable_memory_helpers::{add_available_token_pair_impl, is_available_token_pair, remove_available_token_pair_impl};
+use crate::stable_memory_helpers::{add_available_token_pair_impl, get_kong_backend, get_token_by_address, is_available_token_pair, remove_available_token_pair_impl};
 
 #[derive(CandidType, Clone, Debug, Serialize, Deserialize)]
 pub struct OrderbookTokens {
@@ -16,20 +18,28 @@ pub struct OrderbookTokens {
 
 #[update(hidden = true)]
 pub fn add_available_token_pair(token_pair: OrderbookTokens) -> Result<(), String> {
-    if !is_caller_controller() {
+    ic_cdk::println!("add_available_token_pair 1");
+    if msg_caller().to_string() != get_kong_backend() && !is_caller_controller() {
         return Err("Only controller is allowed to add token pairs".to_string());
     }
+    ic_cdk::println!("add_available_token_pair 2");
 
-    if is_available_token_pair(&token_pair.token_0, &token_pair.token_1) {
-        return Err(format!( "Token pair {}/{} already exists", token_pair.token_0, token_pair.token_1))
+    let token_0 = get_token_by_address(&token_pair.token_0).ok_or(format!("Unknown token {}", token_pair.token_0))?;
+    let token_1 = get_token_by_address(&token_pair.token_1).ok_or(format!("Unknown token {}", token_pair.token_1))?;
+
+    let symbol_0 = token_0.symbol();
+    let symbol_1 = token_1.symbol();
+
+    if is_available_token_pair(&symbol_0, &symbol_1) {
+        return Err(format!( "Token pair {}/{} already exists", symbol_0, symbol_1))
     }
 
-    add_available_token_pair_impl(token_pair.token_0.clone(), token_pair.token_1.clone())?;
+    add_available_token_pair_impl(symbol_0.clone(), symbol_1.clone())?;
 
-    add_token_pair(token_pair.token_0.clone(), token_pair.token_1.clone())?;
+    add_token_pair(symbol_0.clone(), symbol_1.clone())?;
 
     let max_hops = STABLE_LIMIT_ORDER_SETTINGS.with_borrow(|s| s.get().synthetic_orderbook_max_hops);
-    add_to_synth_path(&token_pair.token_0, &token_pair.token_1, max_hops);
+    add_to_synth_path(&symbol_0, &symbol_1, max_hops);
 
     Ok(())
 }
