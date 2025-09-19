@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use super::super::error::SolanaError;
 use super::super::sdk::compiled_instruction::CompiledInstruction;
 use super::super::sdk::instruction::Instruction;
-use super::super::stable_memory::with_solana_latest_blockhash;
+use super::super::stable_memory::with_solana_blockhash;
 use super::super::utils::base58;
 
 /// Message header for Solana transactions
@@ -88,11 +88,7 @@ impl Message {
         );
 
         // 4. Create a reverse lookup map for efficient and safe index resolution
-        let key_to_index_map: HashMap<&str, u8> = account_keys
-            .iter()
-            .enumerate()
-            .map(|(i, key)| (key.as_str(), i as u8))
-            .collect();
+        let key_to_index_map: HashMap<&str, u8> = account_keys.iter().enumerate().map(|(i, key)| (key.as_str(), i as u8)).collect();
 
         // 5. Compile instructions using the fast lookup map
         let compiled_instructions: Result<Vec<CompiledInstruction>> = instructions
@@ -174,7 +170,7 @@ impl Message {
 
 /// Serialize a message from instructions, getting blockhash internally
 pub async fn serialize_message(instructions: Vec<Instruction>, payer: &str) -> Result<Vec<u8>> {
-    let blockhash = with_solana_latest_blockhash(|cell| cell.get().clone());
+    let blockhash = with_solana_blockhash(|cell| cell.get().clone());
     let message = Message::new(instructions, payer)?.with_blockhash(blockhash);
     message.serialize()
 }

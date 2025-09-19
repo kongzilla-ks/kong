@@ -3,8 +3,9 @@ use ic_stable_structures::{DefaultMemoryImpl, StableBTreeMap, StableCell};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
 use crate::ic::network::ICNetwork;
+use crate::solana::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
+use crate::solana::swap_job::{SwapJob, SwapJobId};
 use crate::stable_claim::stable_claim::{StableClaim, StableClaimId};
 use crate::stable_kong_settings::stable_kong_settings::StableKongSettings;
 use crate::stable_lp_token::stable_lp_token::{StableLPToken, StableLPTokenId};
@@ -15,7 +16,6 @@ use crate::stable_transfer::stable_transfer::{StableTransfer, StableTransferId};
 use crate::stable_tx::stable_tx::{StableTx, StableTxId};
 use crate::stable_user::stable_user::{StableUser, StableUserId};
 use crate::stable_user::suspended_user_map::SuspendedUser;
-use crate::solana::swap_job::{SwapJob, SwapJobId};
 
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
 
@@ -31,7 +31,7 @@ pub const CLAIM_MEMORY_ID: MemoryId = MemoryId::new(28);
 pub const LP_TOKEN_MEMORY_ID: MemoryId = MemoryId::new(29);
 // Stable memory for Solana
 pub const CACHED_SOLANA_ADDRESS_ID: MemoryId = MemoryId::new(60);
-pub const SOLANA_LATEST_BLOCKHASH_ID: MemoryId = MemoryId::new(61);
+pub const SOLANA_BLOCKHASH_ID: MemoryId = MemoryId::new(61);
 pub const NEXT_SOLANA_SWAP_JOB_ID_ID: MemoryId = MemoryId::new(62);
 pub const SOLANA_SWAP_JOB_QUEUE_ID: MemoryId = MemoryId::new(63);
 pub const SOLANA_TX_NOTIFICATIONS_ID: MemoryId = MemoryId::new(64);
@@ -101,8 +101,8 @@ thread_local! {
     });
 
     // stableCell for the latest blockhash and timestamp (persisted)
-    pub static SOLANA_LATEST_BLOCKHASH: RefCell<StableCell<String, Memory>> =  with_memory_manager(|memory_manager| {
-        RefCell::new(StableCell::init(memory_manager.get(SOLANA_LATEST_BLOCKHASH_ID), String::default()).expect("Failed to initialize SOLANA_LATEST_BLOCKHASH cell"))
+    pub static SOLANA_BLOCKHASH: RefCell<StableCell<String, Memory>> =  with_memory_manager(|memory_manager| {
+        RefCell::new(StableCell::init(memory_manager.get(SOLANA_BLOCKHASH_ID), String::default()).expect("Failed to initialize SOLANA_LATEST_BLOCKHASH cell"))
     });
 
     // Counter for Solana swap job IDs (persisted)
@@ -168,13 +168,13 @@ pub fn set_cached_solana_address(address: String) {
 }
 
 /// Helper function to access the latest blockhash cell
-pub fn with_solana_latest_blockhash<R>(f: impl FnOnce(&StableCell<String, Memory>) -> R) -> R {
-    SOLANA_LATEST_BLOCKHASH.with(|cell| f(&cell.borrow()))
+pub fn with_solana_blockhash<R>(f: impl FnOnce(&StableCell<String, Memory>) -> R) -> R {
+    SOLANA_BLOCKHASH.with(|cell| f(&cell.borrow()))
 }
 
 /// Helper function to mutate the latest blockhash cell
-pub fn with_solana_latest_blockhash_mut<R>(f: impl FnOnce(&mut StableCell<String, Memory>) -> R) -> R {
-    SOLANA_LATEST_BLOCKHASH.with(|cell| f(&mut cell.borrow_mut()))
+pub fn with_solana_blockhash_mut<R>(f: impl FnOnce(&mut StableCell<String, Memory>) -> R) -> R {
+    SOLANA_BLOCKHASH.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 /// Get the next unique ID for a Solana swap job and increment the counter.

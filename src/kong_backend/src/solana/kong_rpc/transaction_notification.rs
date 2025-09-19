@@ -5,10 +5,10 @@ use std::borrow::Cow;
 
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Copy)]
 pub enum TransactionNotificationStatus {
-    Processed,   // Transaction processed but not yet confirmed
-    Confirmed,   // Transaction confirmed on Solana
-    Finalized,   // Transaction finalized (highest confidence)
-    Failed,      // Transaction failed
+    Processed, // Transaction processed but not yet confirmed
+    Confirmed, // Transaction confirmed on Solana
+    Finalized, // Transaction finalized (highest confidence)
+    Failed,    // Transaction failed
 }
 
 impl Storable for TransactionNotificationStatus {

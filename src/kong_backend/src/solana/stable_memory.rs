@@ -1,10 +1,10 @@
 use ic_stable_structures::{StableBTreeMap, StableCell};
 
 use crate::ic::network::ICNetwork;
-use crate::stable_memory::{
-    Memory, CACHED_SOLANA_ADDRESS, NEXT_SOLANA_SWAP_JOB_ID, SOLANA_LATEST_BLOCKHASH, SOLANA_SWAP_JOB_QUEUE, SOLANA_TX_NOTIFICATIONS,
-};
 use crate::solana::swap_job::SwapJob;
+use crate::stable_memory::{
+    Memory, CACHED_SOLANA_ADDRESS, NEXT_SOLANA_SWAP_JOB_ID, SOLANA_BLOCKHASH, SOLANA_SWAP_JOB_QUEUE, SOLANA_TX_NOTIFICATIONS,
+};
 
 use super::kong_rpc::transaction_notification::{TransactionNotification, TransactionNotificationId};
 use super::swap_job::SwapJobId;
@@ -32,13 +32,13 @@ pub fn set_cached_solana_address(address: String) {
 }
 
 /// Helper function to access the latest blockhash cell
-pub fn with_solana_latest_blockhash<R>(f: impl FnOnce(&StableCell<String, Memory>) -> R) -> R {
-    SOLANA_LATEST_BLOCKHASH.with(|cell| f(&cell.borrow()))
+pub fn with_solana_blockhash<R>(f: impl FnOnce(&StableCell<String, Memory>) -> R) -> R {
+    SOLANA_BLOCKHASH.with(|cell| f(&cell.borrow()))
 }
 
 /// Helper function to mutate the latest blockhash cell
-pub fn with_solana_latest_blockhash_mut<R>(f: impl FnOnce(&mut StableCell<String, Memory>) -> R) -> R {
-    SOLANA_LATEST_BLOCKHASH.with(|cell| f(&mut cell.borrow_mut()))
+pub fn with_solana_blockhash_mut<R>(f: impl FnOnce(&mut StableCell<String, Memory>) -> R) -> R {
+    SOLANA_BLOCKHASH.with(|cell| f(&mut cell.borrow_mut()))
 }
 
 /// Get the next unique ID for a Solana swap job and increment the counter.
