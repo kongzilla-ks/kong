@@ -19,15 +19,13 @@ use crate::order_action::query_orders_args::QueryOrdersArgs;
 use crate::order_action::remove_order_args::RemoveOrderArgs;
 use crate::orderbook::order::Order;
 use crate::orderbook::order_id::OrderId;
-use crate::orderbook::orderbook::PricePath;
 use crate::orderbook::price::Price;
 use crate::price_observer::action::UpdateVolumeArgs;
 use crate::token_management::claim::Claim;
-use crate::twap::twap::Twap;
 use kong_lib::stable_token::stable_token::StableToken;
-use kong_lib::swap::swap_args::SwapArgs;
 
 // TWaps
+use crate::twap::twap::Twap;
 use crate::twap::twap::TwapArgs;
 
 ic_cdk::export_candid!();

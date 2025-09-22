@@ -4,15 +4,16 @@ use crate::orderbook::order::{Order, OrderStatus};
 use crate::orderbook::order_history::add_order_to_history;
 use crate::orderbook::order_id::OrderId;
 use crate::orderbook::order_storage::OrderStorage;
-use crate::orderbook::orderbook_path::{is_available_token_path, Path};
+use crate::orderbook::orderbook_path::is_available_token_path;
 use crate::orderbook::price::Price;
-use crate::stable_memory_helpers::get_max_orders_per_instruments;
-use candid::{CandidType, Principal};
+use crate::stable_memory_helpers::{get_max_orders_per_instruments, get_token_by_symbol};
+use crate::token_management;
+use candid::Principal;
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
-use kong_lib::ic::network::ICNetwork;
-use kong_lib::storable_rational::StorableRational;
-use kong_lib::swap::swap_args::SwapArgs;
+use kong_lib::ic::address::Address;
+use kong_lib::stable_token::stable_token::StableToken;
+use kong_lib::stable_token::token::Token;
 use serde::ser::SerializeTuple;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
@@ -25,28 +26,14 @@ thread_local! {
     pub static ORDERBOOKS: RefCell<HashMap<BookName, Rc<RefCell<SidedOrderBook>>>> = RefCell::default();
 }
 
-pub fn calculate_path_price(path: &Path) -> Option<Price> {
-    let mut price = Price::one();
-    for bookname in &path.0 {
-        let p = match get_orderbook_nocheck(bookname.clone()).borrow().get_own_price() {
-            Some(p) => p,
-            None => return None,
-        };
+pub fn get_orderbook(receive_symbol: &str, send_symbol: &str) -> Result<Rc<RefCell<SidedOrderBook>>, String> {
+    let bookname = BookName::new(&receive_symbol, &send_symbol);
 
-        price.0 *= p.0;
-    }
-
-    Some(price)
-}
-
-pub fn get_orderbook(receive_token: &str, send_token: &str) -> Result<Rc<RefCell<SidedOrderBook>>, String> {
-    let bookname = BookName::new(&receive_token, &send_token);
-
-    if is_available_token_path(receive_token, send_token) {
+    if is_available_token_path(receive_symbol, send_symbol) {
         return Ok(get_orderbook_nocheck(bookname));
     }
 
-    return Err(format!("Token path {}/{} does not exist", receive_token, send_token));
+    return Err(format!("Token path {}/{} does not exist", receive_symbol, send_symbol));
 }
 
 pub fn get_orderbook_nocheck(bookname: BookName) -> Rc<RefCell<SidedOrderBook>> {
@@ -59,14 +46,11 @@ pub fn get_orderbook_nocheck(bookname: BookName) -> Rc<RefCell<SidedOrderBook>> 
     })
 }
 
-#[derive(CandidType, Debug, Clone, Serialize, Deserialize)]
-pub struct PricePath(pub Price, pub Path);
-
-// TODO: prices should be used from price submodule
 #[derive(Debug, Clone)]
 pub struct SidedOrderBook {
     pub name: BookName,
-    prices: Vec<PricePath>,
+    pub send_token: StableToken,    // User's perspective
+    pub receive_token: StableToken, // User's perspective
 
     bids: BTreeMap<Reverse<Price>, VecDeque<OrderId>>,
     next_order_id: OrderId,
@@ -79,9 +63,13 @@ pub struct SidedOrderBook {
 
 impl SidedOrderBook {
     pub fn new(bookname: BookName) -> Self {
+        let receive_token = get_token_by_symbol(bookname.receive_token()).unwrap();
+        let send_token = get_token_by_symbol(bookname.send_token()).unwrap();
+
         SidedOrderBook {
             name: bookname,
-            prices: Vec::new(),
+            send_token: send_token,
+            receive_token: receive_token,
             bids: BTreeMap::new(),
             next_order_id: 1.into(),
 
@@ -95,18 +83,16 @@ impl SidedOrderBook {
         get_orderbook_nocheck(self.name.reversed())
     }
 
-    fn to_vec(&self) -> (BookName, Vec<PricePath>, OrderId, OrderStorage) {
+    fn to_vec(&self) -> (BookName, OrderId, OrderStorage) {
         (
             self.name.clone(),
-            self.prices.clone(),
             self.next_order_id,
             self.active_order_storage.clone().with_sort_orders_before_serialization(),
         )
     }
 
-    fn from_vec(bookname: BookName, last_prices: Vec<PricePath>, next_order_id: OrderId, storage: OrderStorage) -> Self {
+    fn from_vec(bookname: BookName, next_order_id: OrderId, storage: OrderStorage) -> Self {
         let mut res = Self::new(bookname);
-        res.prices = last_prices;
         res.next_order_id = next_order_id;
 
         // Fill active_order_storage, bids, asks
@@ -117,34 +103,25 @@ impl SidedOrderBook {
         res
     }
 
-    pub fn add_order(&mut self, swap_args: SwapArgs, limit_args: LimitOrderArgs) -> Result<Order, String> {
-        assert!(swap_args.receive_token == self.name.receive_token());
-        assert!(swap_args.pay_token == self.name.send_token());
-
-        let user = ICNetwork::caller();
+    pub fn is_able_to_add_order(&self, user: &Principal) -> Result<(), String> {
         let max_orders_per_instruments = get_max_orders_per_instruments();
         if self.active_order_storage.get_user_order_number(&user) >= max_orders_per_instruments {
             return Err(format!("Max orders per instrument exceeded, limit={}", max_orders_per_instruments));
         }
+        Ok(())
+    }
 
-        let price = StorableRational::new_str(&limit_args.price_str)?;
-        // Use checked_mul in order not to panic on invalid user's input
-        let expired_at = limit_args.expired_at_epoch_seconds.and_then(|v| v.checked_mul(1_000_000_000));
-        let now = ic_cdk::api::time();
-        let order = Order {
-            id: self.next_order_id,
-            price: Price::new(price),
-            user: user,
-            expired_at: expired_at,
-            order_status: OrderStatus::Placed,
-            created_at: now,
-            finsihed_at: 0,
-            swap_args: swap_args,
-        };
+    pub fn add_order(
+        &mut self,
+        limit_args: LimitOrderArgs,
+        user: Principal,
+        price: Price,
+        receive_address: Address,
+    ) -> Order {
+        assert!(limit_args.receive_symbol == self.name.receive_token());
+        assert!(limit_args.pay_symbol == self.name.send_token());
 
-        if order.is_expired_ts(now) {
-            return Err(format!("Order is expired"));
-        }
+        let order = Order::new(limit_args, self.next_order_id, user, price, receive_address);
 
         self.next_order_id.next();
 
@@ -154,7 +131,7 @@ impl SidedOrderBook {
             self.add_expired_order_id(expired_at, order.id);
         }
 
-        Ok(order)
+        order
     }
 
     fn add_order_impl(&mut self, order: Order) {
@@ -342,6 +319,27 @@ impl SidedOrderBook {
             return Err(format!("Can't cancel/expire executing order, id={}", order_id));
         }
 
+        if status.need_refund() {
+            let assets_to_return = match &order.reuse_kong_backend_pay_tx_id {
+                Some(_txid) => {
+                    // TODO: ask to send txid from kong_backend back to canister
+                    order.pay_amount.clone() - self.send_token.fee() * 3u32
+                },
+                None => {
+                    order.pay_amount.clone() - self.send_token.fee()
+                },
+            };
+
+            if assets_to_return > 0u64 {
+                token_management::claim_map::create_insert_and_try_to_execute(
+                    order.user.clone(),
+                    order.pay_symbol.clone(),
+                    assets_to_return,
+                    Some(order.receive_address.clone()),
+                );
+            }
+        }
+
         self.active_order_storage.remove_order(order_id);
         self.remove_order_from_bids(&order);
 
@@ -354,35 +352,6 @@ impl SidedOrderBook {
         }
 
         Ok(order)
-    }
-
-    pub fn get_all_price_paths(&self) -> Vec<PricePath> {
-        self.prices.clone()
-    }
-    pub fn get_best_price_path(&self) -> Option<&PricePath> {
-        self.prices.iter().min_by_key(|v| v.0.clone())
-    }
-
-    pub fn get_price_by_path(&self, path: &Path) -> Option<Price> {
-        self.prices.iter().find(|p| &p.1 == path).map(|p| p.0.clone())
-    }
-
-    pub fn get_own_price(&self) -> Option<Price> {
-        self.prices.iter().find(|p| p.1 .0.len() == 1).map(|p| p.0.clone())
-    }
-
-    pub fn update_price_path(&mut self, price: Price, path: &Path) {
-        assert!(self.name.send_token() == path.send_token());
-        assert!(self.name.receive_token() == path.receive_token());
-
-        for best_price in &mut self.prices {
-            if &best_price.1 == path {
-                best_price.0 = price;
-                return;
-            }
-        }
-
-        self.prices.push(PricePath(price, path.clone()));
     }
 
     pub fn bid_iter_by_price(&self, price: Price) -> Option<std::collections::vec_deque::Iter<OrderId>> {
@@ -412,11 +381,10 @@ impl Serialize for SidedOrderBook {
         S: serde::Serializer,
     {
         let vec = self.to_vec();
-        let mut tup = serializer.serialize_tuple(4)?;
+        let mut tup = serializer.serialize_tuple(3)?;
         tup.serialize_element(&vec.0)?;
         tup.serialize_element(&vec.1)?;
         tup.serialize_element(&vec.2)?;
-        tup.serialize_element(&vec.3)?;
         tup.end()
     }
 }
@@ -440,11 +408,10 @@ impl<'de> Deserialize<'de> for SidedOrderBook {
                 A: serde::de::SeqAccess<'de>,
             {
                 let book_name = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let last_price = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
-                let next_order_id = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
-                let storage = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
+                let next_order_id = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+                let storage = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
 
-                Ok(SidedOrderBook::from_vec(book_name, last_price, next_order_id, storage))
+                Ok(SidedOrderBook::from_vec(book_name, next_order_id, storage))
             }
         }
 

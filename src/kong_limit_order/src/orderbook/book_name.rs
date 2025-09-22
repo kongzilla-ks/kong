@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct BookName(String, String);
 
 impl BookName {
-    pub fn new(receive_token: &str, send_token: &str) -> Self {
-        BookName(receive_token.to_string(), send_token.to_string())
+    pub fn new(receive_symbol: &str, send_symbol: &str) -> Self {
+        BookName(receive_symbol.to_string(), send_symbol.to_string())
     }
 
     pub fn new_from_raw_str(pair: &String) -> Result<Self, String> {

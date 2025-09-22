@@ -105,10 +105,10 @@ fn get_level_amount(orderbook: Rc<RefCell<SidedOrderBook>>, level: Price) -> Nat
 
     fn get_amount_from_order(o: &Order) -> Nat {
         let quote = {
-            if let Some(receive_amount) = o.swap_args.receive_amount.clone() {
-                return receive_amount;
-            }
-            o.swap_args.pay_amount.clone()
+            // if let Some(receive_amount) = o.limit_args.receive_amount.clone() {
+            //     return receive_amount;
+            // }
+            o.pay_amount.clone()
         };
 
         // Current assumption is that amount_0 NAT / amount_1 NAT, which may differ if precision for token_0 and token_1 are different

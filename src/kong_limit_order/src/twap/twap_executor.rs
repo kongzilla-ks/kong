@@ -146,7 +146,7 @@ impl TwapExecutor {
         twap_id
     }
 
-    async fn twap_call_kong_swap(twap: Twap, pay_amount: Nat) -> Result<SwapReply, String> {
+    async fn twap_call_kong_swap(twap: Twap, pay_amount: Nat) -> Result<SwapReply, (String, Option<TxId>)> {
         // Ok(SwapReply {
         //     tx_id: 1,
         //     request_id: 1,
@@ -175,27 +175,34 @@ impl TwapExecutor {
         let block_id = if let Some(block_id) = twap.reuse_kong_backend_pay_tx_id {
             block_id
         } else {
-            let block_id = send::send(&pay_amount, &kong_backend_address, &twap.pay_token, None).await?;
+            let block_id = send::send(&pay_amount, &kong_backend_address, &twap.pay_token, None)
+                .await
+                .map_err(|e| (e, None))?;
             TxId::BlockIndex(block_id)
         };
 
-        ic_cdk::call::Call::unbounded_wait(kong_backend, "swap")
-            .with_arg(SwapArgs {
-                pay_token: twap.pay_token.symbol(),
-                pay_amount: pay_amount,
-                pay_tx_id: Some(block_id),
-                receive_token: twap.receive_token.symbol(),
-                receive_amount: None,
-                receive_address: Some(twap.receive_address.to_string()),
-                max_slippage: Some(100.0), // Default kong backend slippage is 2, which may fail
-                referred_by: None,
-                pay_signature: None,
-            })
-            .await
-            .map_err(|e| e.to_string())?
-            .candid::<Result<SwapReply, String>>()
-            .map_err(|e| e.to_string())?
-            .map_err(|e| format!("{} {}", KONG_BACKEND_ERROR_PREFIX, e))
+        // Need closure so ? exits from the closure, not function
+        let kong_backend_call = async || {
+            ic_cdk::call::Call::unbounded_wait(kong_backend, "swap")
+                .with_arg(SwapArgs {
+                    pay_token: twap.pay_token.symbol(),
+                    pay_amount: pay_amount,
+                    pay_tx_id: Some(block_id.clone()),
+                    receive_token: twap.receive_token.symbol(),
+                    receive_amount: None,
+                    receive_address: Some(twap.receive_address.to_string()),
+                    max_slippage: Some(100.0), // Default kong backend slippage is 2, which may fail
+                    referred_by: None,
+                    pay_signature: None,
+                })
+                .await
+                .map_err(|e| e.to_string())?
+                .candid::<Result<SwapReply, String>>()
+                .map_err(|e| e.to_string())?
+                .map_err(|e| format!("{} {}", KONG_BACKEND_ERROR_PREFIX, e))
+        };
+
+        kong_backend_call().await.map_err(|e| (e, Some(block_id)))
     }
 
     fn get_current_pay_amount(twap: &Twap) -> Option<Nat> {
@@ -286,17 +293,18 @@ impl TwapExecutor {
                 None => return false, // no price exists
             };
 
-            paths
-                .iter()
-                .any(|path| get_price_path(path).map(|p| {
-                    // ic_cdk::println!("price comparison {} <= {}", p.0, max_price.0);
-                    &p <= max_price
-                
-                }).unwrap_or(false))
+            paths.iter().any(|path| {
+                get_price_path(path)
+                    .map(|p| {
+                        ic_cdk::println!("is_twap_available_by_price: path: {} price comparison {} <= {}", path, p.0, max_price.0);
+                        &p <= max_price
+                    })
+                    .unwrap_or(false)
+            })
         })
     }
 
-    fn twap_step_on_kong_swap(twap_id: u64, result: Result<SwapReply, String>) {
+    fn twap_step_on_kong_swap(twap_id: u64, result: Result<SwapReply, (String, Option<TxId>)>) {
         TWAP_EXECUTOR.with_borrow_mut(|twap_executor| {
             let twap = match twap_executor.get_active_twap(twap_id) {
                 Some(twap) => twap,
@@ -309,12 +317,14 @@ impl TwapExecutor {
 
             let swap_reply = match result {
                 Ok(swap_reply) => swap_reply,
-                Err(e) => {
+                Err((e, txid)) => {
                     ic_cdk::eprintln!("Twap failed, error={}", e);
                     // no need to send assets again in case of network issues
                     if e.starts_with(KONG_BACKEND_ERROR_PREFIX) {
                         // Kong always sends assets back
                         twap.reuse_kong_backend_pay_tx_id = None
+                    } else {
+                        twap.reuse_kong_backend_pay_tx_id = txid
                     }
                     twap.total_failures += 1;
                     twap.consecutive_failures += 1;

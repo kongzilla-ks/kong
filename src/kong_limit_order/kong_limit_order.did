@@ -38,24 +38,33 @@ type LPToken = record {
   symbol : text;
 };
 type LimitOrderArgs = record {
-  expired_at_epoch_seconds : opt nat64;
-  price_str : text;
+  pay_amount : nat;
+  pay_symbol : text;
+  receive_symbol : text;
+  receive_address : opt text;
+  pay_tx_id : opt TxId;
+  expires_at_epoch_seconds : opt nat64;
+  price : text;
 };
 type Order = record {
   id : nat64;
   order_status : OrderStatus;
   user : principal;
+  pay_amount : nat;
   created_at : nat64;
+  pay_symbol : text;
+  receive_symbol : text;
   finsihed_at : nat64;
+  receive_address : Address;
   price : record { nat; nat };
   expired_at : opt nat64;
-  swap_args : SwapArgs;
+  reuse_kong_backend_pay_tx_id : opt TxId;
 };
 type OrderStatus = variant {
-  Failed;
+  Failed : text;
   Executing;
   Placed;
-  Executed;
+  Executed : nat64;
   Cancelled;
   Expired;
 };
@@ -82,40 +91,26 @@ type QueryOrdersResult = record {
   orders : vec Order;
 };
 type RemoveOrderArgs = record {
-  symbol_0 : text;
-  symbol_1 : text;
+  send_symbol : text;
+  receive_symbol : text;
   order_id : nat64;
 };
 type Result = variant { Ok : StableToken; Err : text };
 type Result_1 = variant { Ok : nat64; Err : text };
-type Result_10 = variant { Ok : OrderbookL2; Err : text };
-type Result_11 = variant { Ok : QueryOrdersResult; Err : text };
+type Result_10 = variant { Ok : QueryOrdersResult; Err : text };
 type Result_2 = variant { Ok : nat64; Err : text };
 type Result_3 = variant { Ok; Err : text };
 type Result_4 = variant { Ok : Order; Err : text };
 type Result_5 = variant { Ok : Twap; Err : text };
 type Result_6 = variant { Ok : record { nat; nat }; Err : text };
 type Result_7 = variant { Ok : float64; Err : text };
-type Result_8 = variant {
-  Ok : vec record { record { nat; nat }; vec record { text; text } };
-  Err : text;
-};
-type Result_9 = variant { Ok : BestBidAsk; Err : text };
+type Result_8 = variant { Ok : BestBidAsk; Err : text };
+type Result_9 = variant { Ok : OrderbookL2; Err : text };
 type StableToken = variant { IC : ICToken; LP : LPToken };
-type SwapArgs = record {
-  receive_token : text;
-  max_slippage : opt float64;
-  pay_amount : nat;
-  referred_by : opt text;
-  receive_amount : opt nat;
-  receive_address : opt text;
-  pay_token : text;
-  pay_tx_id : opt TxId;
-  pay_signature : opt text;
-};
 type Twap = record {
   id : nat64;
   receive_token : StableToken;
+  swap_reply_request_ids : vec nat64;
   twap_notional : float64;
   total_payed_amount : nat;
   twap_status : TwapStatus;
@@ -134,6 +129,7 @@ type Twap = record {
   total_skipped : nat32;
   consecutive_failures : nat32;
   order_amount : nat64;
+  reuse_kong_backend_pay_tx_id : opt TxId;
 };
 type TwapArgs = record {
   pay_amount : nat;
@@ -156,7 +152,7 @@ type UpdateVolumeArgs = record {
 service : {
   active_user_twaps : () -> (vec nat64) query;
   add_ic_token : (text) -> (Result);
-  add_order : (SwapArgs, LimitOrderArgs) -> (Result_1);
+  add_order : (LimitOrderArgs) -> (Result_1);
   add_twap : (TwapArgs) -> (Result_2);
   all_token_symbols : () -> (vec text) query;
   apply_claim : (nat64) -> (Result_3);
@@ -167,16 +163,15 @@ service : {
   get_claim_by_id : (nat64) -> (opt Claim) query;
   get_direct_price : (text, text) -> (Result_6) query;
   get_price_f64 : (text, text) -> (Result_7) query;
-  get_prices : (text, text) -> (Result_8) query;
   get_twap : (nat64) -> (opt Twap) query;
   list_available_border_paths : (opt bool) -> (vec OrderbookPath) query;
   list_available_orderbooks : () -> (vec OrderbookTokens) query;
   list_available_token_paths : (opt bool) -> (vec OrderbookPath) query;
-  orderbook_l1 : (text, text) -> (Result_9) query;
-  orderbook_l2 : (text, text, opt nat64) -> (Result_10) query;
-  query_active_orders : (text, text) -> (Result_11) query;
+  orderbook_l1 : (text, text) -> (Result_8) query;
+  orderbook_l2 : (text, text, opt nat64) -> (Result_9) query;
+  query_active_orders : (text, text) -> (Result_10) query;
   query_active_user_claims : () -> (vec Claim) query;
-  query_history_orders : (QueryOrdersArgs) -> (Result_11) query;
+  query_history_orders : (QueryOrdersArgs) -> (Result_10) query;
   query_order : (text, text, nat64) -> (Result_4) query;
   update_volumes : (UpdateVolumeArgs) -> (Result_3);
 }

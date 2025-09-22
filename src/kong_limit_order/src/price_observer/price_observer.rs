@@ -17,9 +17,13 @@ pub struct PriceObserverVolumes {
     send_amount: Nat,
 }
 
+pub fn get_price_from_volumes(receive_amount: Nat, send_amount: Nat) -> Price {
+    Price(StorableRational::new(send_amount, receive_amount).expect("denominator should not be zero"))
+}
+
 impl PriceObserverVolumes {
     pub fn get_price(&self) -> Price {
-        Price(StorableRational::new(self.send_amount.clone(), self.receive_amount.clone()).expect("denominator should not be zero"))
+        get_price_from_volumes(self.receive_amount.clone(), self.send_amount.clone())
     }
 }
 
@@ -37,43 +41,44 @@ impl Default for PriceObserver {
 }
 
 impl PriceObserver {
-    pub fn update_volumes(&mut self, token_0: &str, volume_0: Nat, token_1: &str, volume_1: Nat) {
+    pub fn update_volumes(
+        &mut self,
+        token_0: &str,
+        volume_0: Nat,
+        token_1: &str,
+        volume_1: Nat,
+    ) -> Option<(BookName, PriceObserverVolumes, PriceObserverVolumes)> {
         if volume_0 == Nat::default() || volume_1 == Nat::default() {
             ic_cdk::eprintln!("Zero volume for tokens: {}/{}", token_0, token_1);
-            return;
+            return None;
         }
         if token_0 == token_1 {
             ic_cdk::eprintln!("token_0 should not be equal token_1, name={}", token_0);
-            return;
+            return None;
         }
 
-        if token_0 < token_1 {
-            let book_name = BookName::new(&token_0, &token_1);
-            let _ = self.volumes.insert(
-                book_name,
-                PriceObserverVolumes {
-                    receive_amount: volume_0,
-                    send_amount: volume_1,
-                },
-            );
+        let (token_0, volume_0, token_1, volume_1) = if token_0 < token_1 {
+            (token_0, volume_0, token_1, volume_1)
         } else {
-            let book_name = BookName::new(&token_1, &token_0);
-            let _ = self.volumes.insert(
-                book_name,
-                PriceObserverVolumes {
-                    receive_amount: volume_1,
-                    send_amount: volume_0,
-                },
-            );
-        }
+            (token_1, volume_1, token_0, volume_0)
+        };
+
+        let book_name = BookName::new(&token_0, &token_1);
+        let current_volumes = PriceObserverVolumes {
+            receive_amount: volume_0,
+            send_amount: volume_1,
+        };
+        let prev_volumes = self.volumes.insert(book_name.clone(), current_volumes.clone());
+
+        prev_volumes.map(|prev_volumes| (book_name, prev_volumes, current_volumes))
     }
 
-    pub fn get_price(&self, receive_token: &str, send_token: &str) -> Option<Price> {
-        if receive_token < send_token {
-            let book_name = BookName::new(&receive_token, &send_token);
+    pub fn get_price(&self, receive_symbol: &str, send_symbol: &str) -> Option<Price> {
+        if receive_symbol < send_symbol {
+            let book_name = BookName::new(&receive_symbol, &send_symbol);
             self.volumes.get(&book_name).map(|t| t.get_price())
         } else {
-            let book_name = BookName::new(&receive_token, &send_token).reversed();
+            let book_name = BookName::new(&receive_symbol, &send_symbol).reversed();
             self.volumes.get(&book_name).map(|t| t.get_price().reversed())
         }
     }
@@ -85,17 +90,20 @@ impl PriceObserver {
                 Some(p) => p,
                 None => return None,
             };
-    
+
             price.0 *= p.0;
         }
-    
+
         Some(price)
     }
 }
 
-
 pub fn get_price_path(path: &Path) -> Option<Price> {
     PRICE_OBSERVER.with(|price_observer| price_observer.borrow().get_price_path(path))
+}
+
+pub fn get_price(receive_token: &str, send_token: &str) -> Option<Price> {
+    PRICE_OBSERVER.with(|price_observer| price_observer.borrow().get_price(receive_token, send_token))
 }
 
 impl Storable for PriceObserver {

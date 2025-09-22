@@ -18,11 +18,9 @@ pub struct OrderbookTokens {
 
 #[update(hidden = true)]
 pub fn add_available_token_pair(token_pair: OrderbookTokens) -> Result<(), String> {
-    ic_cdk::println!("add_available_token_pair 1");
     if msg_caller().to_string() != get_kong_backend() && !is_caller_controller() {
         return Err("Only controller is allowed to add token pairs".to_string());
     }
-    ic_cdk::println!("add_available_token_pair 2");
 
     let token_0 = get_token_by_address(&token_pair.token_0).ok_or(format!("Unknown token {}", token_pair.token_0))?;
     let token_1 = get_token_by_address(&token_pair.token_1).ok_or(format!("Unknown token {}", token_pair.token_1))?;
