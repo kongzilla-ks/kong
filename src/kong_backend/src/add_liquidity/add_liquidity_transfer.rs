@@ -410,6 +410,7 @@ async fn verify_transfer_token(
                 token_id,
                 tx_id: TxId::BlockIndex(tx_id.clone()),
                 ts,
+                refund_transfer_id: None,
             });
             match token_index {
                 TokenIndex::Token0 => request_map::update_status(request_id, StatusCode::VerifyToken0Success, None),
@@ -512,6 +513,7 @@ async fn return_token(
                 token_id,
                 tx_id: TxId::BlockIndex(block_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {

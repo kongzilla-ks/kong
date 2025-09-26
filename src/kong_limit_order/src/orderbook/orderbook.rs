@@ -8,6 +8,8 @@ use crate::orderbook::orderbook_path::is_available_token_path;
 use crate::orderbook::price::Price;
 use crate::stable_memory_helpers::{get_max_orders_per_instruments, get_token_by_symbol};
 use crate::token_management;
+use crate::token_management::kond_refund_helpers::add_kong_refund;
+use crate::token_management::kong_refund::KongRefund;
 use candid::Principal;
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
@@ -320,9 +322,15 @@ impl SidedOrderBook {
         }
 
         if status.need_refund() {
+            ic_cdk::println!("refunding, txid={:?}", order.reuse_kong_backend_pay_tx_id);
             let assets_to_return = match &order.reuse_kong_backend_pay_tx_id {
-                Some(_txid) => {
-                    // TODO: ask to send txid from kong_backend back to canister
+                Some(txid) => {
+                    add_kong_refund(KongRefund{
+                        symbol: order.pay_symbol.clone(),
+                        amount: order.pay_amount.clone() - self.send_token.fee(),
+                        sent_tx_id: txid.clone()
+                    });
+
                     order.pay_amount.clone() - self.send_token.fee() * 3u32
                 },
                 None => {

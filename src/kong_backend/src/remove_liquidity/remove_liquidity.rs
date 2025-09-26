@@ -677,6 +677,7 @@ async fn transfer_token(
                             token_id,
                             tx_id: TxId::TransactionId(format!("job_{}", job_id)),
                             ts,
+                            refund_transfer_id: None,
                         });
                         transfer_ids.push(transfer_id);
                         match token_index {
@@ -741,6 +742,7 @@ async fn transfer_token(
                     token_id,
                     tx_id: TxId::BlockIndex(block_id),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 match token_index {

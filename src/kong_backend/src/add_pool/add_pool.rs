@@ -453,6 +453,7 @@ async fn verify_transfer_token(
                 token_id,
                 tx_id: TxId::BlockIndex(tx_id.clone()),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {
@@ -537,6 +538,7 @@ async fn verify_cross_chain_transfer(
         token_id: token.token_id(),
         tx_id: final_tx_id,
         ts,
+        refund_transfer_id: None,
     });
     transfer_ids.push(transfer_id);
 
@@ -576,6 +578,7 @@ async fn transfer_from_token(
                 token_id,
                 tx_id: TxId::BlockIndex(block_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {
@@ -739,6 +742,7 @@ async fn return_token(
                     token_id: token.token_id(),
                     tx_id: TxId::TransactionId(format!("job_{}", job_id)),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 match token_index {
@@ -793,6 +797,7 @@ async fn return_token(
                     token_id: token.token_id(),
                     tx_id: TxId::BlockIndex(block_id),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 match token_index {

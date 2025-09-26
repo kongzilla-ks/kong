@@ -283,6 +283,7 @@ async fn process_add_liquidity(
             token_id: token_0.token_id(),
             tx_id: TxId::TransactionId(verification.tx_signature),
             ts,
+            refund_transfer_id: None,
         });
         transfer_ids.push(transfer_id);
         request_map::update_status(request_id, StatusCode::SendToken0Success, None);
@@ -354,6 +355,7 @@ async fn process_add_liquidity(
                             token_id: token_1.token_id(),
                             tx_id: TxId::TransactionId(verification.tx_signature),
                             ts,
+                            refund_transfer_id: None,
                         });
                         transfer_ids.push(transfer_id);
                         request_map::update_status(request_id, StatusCode::SendToken1Success, None);
@@ -468,6 +470,7 @@ pub async fn transfer_from_token(
                 token_id,
                 tx_id: TxId::BlockIndex(block_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {
@@ -638,6 +641,7 @@ async fn return_token(
                 token_id,
                 tx_id: TxId::BlockIndex(block_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {

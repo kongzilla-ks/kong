@@ -47,7 +47,8 @@ pub struct Twap {
 
     pub swap_reply_request_ids: Vec<u64>,
 
-    pub reuse_kong_backend_pay_tx_id: Option<TxId>,
+    pub reuse_kong_backend_pay_tx_id_amount: Option<(TxId, Nat)>,
+
 }
 
 impl Twap {
@@ -81,7 +82,7 @@ impl Twap {
             consecutive_skipped: 0,
 
             swap_reply_request_ids: Vec::new(),
-            reuse_kong_backend_pay_tx_id: None,
+            reuse_kong_backend_pay_tx_id_amount: None,
         }
     }
 

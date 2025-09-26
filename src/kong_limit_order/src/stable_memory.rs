@@ -11,6 +11,7 @@ use crate::orderbook::order_storage::OrderStorage;
 use crate::orderbook::orderbook::SidedOrderBook;
 use crate::price_observer::price_observer::PriceObserver;
 use crate::token_management::claim::Claim;
+use crate::token_management::kong_refund::KongRefund;
 use crate::twap::twap_executor::TwapExecutor;
 
 pub type Memory = VirtualMemory<DefaultMemoryImpl>;
@@ -26,6 +27,7 @@ pub const CLAIM_MEMORY_ID: MemoryId = MemoryId::new(7);
 pub const TOKEN_MEMORY_ID: MemoryId = MemoryId::new(8);
 pub const PRICE_OBSERVER_ID: MemoryId = MemoryId::new(10);
 pub const TWAP_EXECUTOR_ID: MemoryId = MemoryId::new(11);
+pub const KONG_REFUND_ID: MemoryId = MemoryId::new(12);
 
 thread_local! {
     pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
@@ -63,6 +65,9 @@ thread_local! {
         RefCell::new(StableCell::init(memory_manager.get(TWAP_EXECUTOR_ID), TwapExecutor::default()).expect("Failed to initialize twap executor"))
     });
 
+    pub static KONG_REFUND_MAP: RefCell<StableBTreeMap<u64, KongRefund, Memory>> = with_memory_manager(|memory_manager| {
+        RefCell::new(StableBTreeMap::init(memory_manager.get(KONG_REFUND_ID)))
+    });
 
 }
 

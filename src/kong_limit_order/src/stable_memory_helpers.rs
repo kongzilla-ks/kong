@@ -1,19 +1,15 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use crate::{
-    limit_order_settings::LimitOrderSettings,
-    orderbook::{
+    limit_order_settings::LimitOrderSettings, orderbook::{
         book_name::BookName,
         order_history::ORDER_HISTORY,
         orderbook::ORDERBOOKS,
         orderbook_path_helper::{add_to_synth_path, add_token_pair},
-    },
-    price_observer::price_observer::PRICE_OBSERVER,
-    stable_memory::{
+    }, price_observer::price_observer::PRICE_OBSERVER, stable_memory::{
         STABLE_AVAILABLE_TOKEN_POOLS, STABLE_CLAIMS, STABLE_LIMIT_ORDER_SETTINGS, STABLE_ORDERBOOKS, STABLE_ORDER_HISTORY,
         STABLE_PRICE_OBSERVER, STABLE_TWAP_EXECUTOR, TOKEN_MAP,
-    },
-    twap::twap_executor::TWAP_EXECUTOR,
+    }, token_management::kond_refund_helpers::schedule_kong_refund_if_needed, twap::twap_executor::TWAP_EXECUTOR
 };
 use ic_cdk::{post_upgrade, pre_upgrade};
 use kong_lib::{
@@ -93,9 +89,21 @@ pub fn get_and_inc_next_claim_id() -> u64 {
     })
 }
 
+pub fn get_and_inc_next_refund_id() -> u64 {
+    STABLE_LIMIT_ORDER_SETTINGS.with_borrow_mut(|s| {
+        let res = s.get().next_kong_refund_id;
+        let _ = s.set(LimitOrderSettings {
+            next_kong_refund_id: res + 1,
+            ..s.get().clone()
+        });
+        res
+    })
+}
+
 pub fn get_twap_default_seconds_delay_after_failure() -> u64 {
     STABLE_LIMIT_ORDER_SETTINGS.with_borrow(|s| s.get().twap_default_seconds_delay_after_failure)
 }
+
 
 
 // pub fn get_stable_token(token_id: &StableTokenId) -> Option<StableToken> {
@@ -218,5 +226,11 @@ fn post_upgrade() {
             let max_hops = STABLE_LIMIT_ORDER_SETTINGS.with_borrow(|s| s.get().synthetic_orderbook_max_hops);
             add_to_synth_path(&token_pair.receive_token(), &token_pair.send_token(), max_hops);
         }
-    })
+    });
+
+    // This timer is reuired for proper post upgrade.
+    ic_cdk_timers::set_timer(Duration::from_secs(1), move || {
+        schedule_kong_refund_if_needed();
+    });
+    
 }

@@ -53,6 +53,7 @@ type Order = record {
   pay_amount : nat;
   created_at : nat64;
   pay_symbol : text;
+  total_failures : nat32;
   receive_symbol : text;
   finsihed_at : nat64;
   receive_address : Address;
@@ -114,6 +115,7 @@ type Twap = record {
   twap_notional : float64;
   total_payed_amount : nat;
   twap_status : TwapStatus;
+  reuse_kong_backend_pay_tx_id_amount : opt record { TxId; nat };
   orders_executed : nat64;
   user : principal;
   pay_amount : nat;
@@ -129,7 +131,6 @@ type Twap = record {
   total_skipped : nat32;
   consecutive_failures : nat32;
   order_amount : nat64;
-  reuse_kong_backend_pay_tx_id : opt TxId;
 };
 type TwapArgs = record {
   pay_amount : nat;

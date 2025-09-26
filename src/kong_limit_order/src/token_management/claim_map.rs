@@ -36,6 +36,7 @@ pub fn create_and_insert(user: Principal, token_symbol: String, amount: Nat, to_
 }
 
 pub fn create_insert_and_try_to_execute(user: Principal, token_symbol: String, amount: Nat, to_address: Option<Address>) -> u64 {
+
     let claim_id = create_and_insert(user, token_symbol, amount, to_address);
     ic_cdk::futures::spawn(async move { 
         let _ = process_claim(claim_id).await;
@@ -98,7 +99,10 @@ pub async fn process_claim(claim_id: u64) -> Result<(), String> {
     let address = send::get_address_to_send(claim.user, claim.to_address.clone(), &token);
 
     let success = match send::send(&claim.amount, &address, &token, None).await {
-        Ok(_) => true,
+        Ok(_) => {
+            ic_cdk::println!("Process claim, id={}, process amount={}, success", claim_id, claim.amount);
+            true
+        }
         Err(e) => {
             ic_cdk::eprintln!("Process claim, id={}, process amount={}, error={}", claim_id, claim.amount, e);
             false
@@ -113,8 +117,10 @@ pub async fn process_claim(claim_id: u64) -> Result<(), String> {
                 claim.failed_attempts += 1;
                 if claim.failed_attempts >= 5 {
                     claim.status = ClaimStatus::Failed("Too many failed attempts".to_string());
+                    return Err("Too many failed attempts".to_string());
                 } else {
                     claim.status = ClaimStatus::Unclaimed;
+                    return Err("Claim processing failed, try again later".to_string());
                 }
             }
             Ok(())

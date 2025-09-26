@@ -1,39 +1,91 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, time::Duration};
 
-use candid::Principal;
 use ic_cdk::update;
-use kong_lib::{
-    ic::address::Address,
-    stable_token::{stable_token::StableToken, token::Token},
-    stable_transfer::tx_id::TxId,
-    storable_rational::StorableRational,
-    swap::{swap_args::SwapArgs, swap_reply::SwapReply},
-    token_management::send,
-};
+use kong_lib::{stable_token::stable_token::StableToken, storable_rational::StorableRational, swap::swap_reply::SwapReply};
 
 use crate::{
     orderbook::{
-        order::{self, Order, OrderStatus},
-        orderbook::{self, get_orderbook_nocheck},
-        orderbook_path::{get_border_paths_by_id, Path, TOKEN_PATHS},
-        price::Price,
+        book_name::BookName, order::{self, Order, OrderStatus}, order_id::OrderId, orderbook::{self, get_orderbook_nocheck}, orderbook_path::{get_border_paths_by_id, Path, TOKEN_PATHS}, price::Price
     },
-    price_observer::price_observer::get_price_path,
-    stable_memory::STABLE_LIMIT_ORDER_SETTINGS,
-    stable_memory_helpers::get_kong_backend,
+    price_observer::price_observer::{get_price, get_price_path},
+    token_management::kong_interaction::{send_assets_and_swap, SendAndSwapErr},
 };
 
-const KONG_BACKEND_ERROR_PREFIX: &str = "Kong backend error:";
+const MAX_CONSECUTIVE_FAILURES: u32 = 5;
+thread_local! {
+    static RETRY_ORDERBOOK_EXEC: Rc<RefCell<HashSet<BookName>>> = Rc::new(RefCell::default());
+}
+
+fn add_delayed_exec_orders(mut bookname: BookName) {
+    if !(bookname.receive_token() < bookname.send_token()) {
+        bookname.reverse();
+    }
+
+    let new_element = RETRY_ORDERBOOK_EXEC.with(|retry| retry.borrow_mut().insert(bookname.clone()));
+
+    if new_element {
+        let delay = Duration::from_secs(60);
+        ic_cdk_timers::set_timer(delay, move || {
+            ic_cdk::futures::spawn(async move {
+                let price = get_price(bookname.receive_token(), bookname.send_token());
+                let price = match price {
+                    Some(p) => p,
+                    None => {
+                        ic_cdk::eprintln!("Unknown price, orderbook={}", bookname);
+                        return;
+                    }
+                };
+                let _ = do_exec_orders(bookname.receive_token(), bookname.send_token(), None, price).await;
+            });
+        });
+    }
+}
 
 // This function should be called in extraordinary cases, when user's limit order should be executed, but for some reasons it's not
 #[update]
-pub async fn exec_orders(receive_token: String, send_token: String, price: String) -> Result<(), String> {
+pub async fn exec_orders(receive_symbol: String, send_symbol: String, price: String) -> Result<(), String> {
     let price = Price::new(StorableRational::new_str(&price)?);
-    do_exec_orders(&receive_token, &send_token, None, price).await
+    do_exec_orders(&receive_symbol, &send_symbol, None, price).await
 }
 
-pub async fn do_exec_orders(receive_token: &str, send_token: &str, old_price: Option<Price>, price: Price) -> Result<(), String> {
-    ic_cdk::println!("do_exec_orders: receive={}, send={}, new_price={}", receive_token, send_token, price);
+pub async fn exec_orders_on_new_best_bid(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>) -> Result<(), String> {
+    let res = exec_orders_on_changed_price_path(orderbook.clone(), None).await;
+    match &res {
+        Ok(_) => {
+            ic_cdk::println!("do_exec_orders: Success");
+        }
+        Err(_) => {
+            ic_cdk::println!("do_exec_orders: calling add_delayed_exec_orders");
+            add_delayed_exec_orders(orderbook.borrow().name.clone());
+        }
+    };
+
+    res
+}
+
+pub async fn do_exec_orders(receive_symbol: &str, send_symbol: &str, old_price: Option<Price>, price: Price) -> Result<(), String> {
+    let res = do_exec_orders_impl(receive_symbol, send_symbol, old_price, price).await;
+
+    match &res {
+        Ok(_) => {
+            ic_cdk::println!("do_exec_orders: Success");
+        }
+        Err(_) => {
+            ic_cdk::println!("do_exec_orders: calling add_delayed_exec_orders");
+            add_delayed_exec_orders(BookName::new(receive_symbol, send_symbol));
+        }
+    };
+
+    res
+}
+
+async fn do_exec_orders_impl(receive_token: &str, send_token: &str, old_price: Option<Price>, price: Price) -> Result<(), String> {
+    ic_cdk::println!(
+        "do_exec_orders_impl: receive={}, send={}, new_price={}",
+        receive_token,
+        send_token,
+        price
+    );
     let direct_orderbook = orderbook::get_orderbook(receive_token, send_token)?;
     let rev_orderbook = direct_orderbook.borrow().reversed();
 
@@ -50,8 +102,6 @@ pub async fn do_exec_orders(receive_token: &str, send_token: &str, old_price: Op
             }
         }
     }
-
-    // TODO: in case of network error schedule this function again?
 
     Ok(())
 }
@@ -102,7 +152,11 @@ async fn exec_orders_on_changed_price_path(
             }
         };
 
-        ic_cdk::println!("exec_orders_on_changed_price_path, path={:?}, price={}", changed_path.map(|p| p.to_string()), price);
+        ic_cdk::println!(
+            "exec_orders_on_changed_price_path, path={:?}, price={}",
+            changed_path.map(|p| p.to_string()),
+            price
+        );
 
         if !exec_order_in_orderbook_price(orderbook.clone(), &price).await? {
             break;
@@ -112,10 +166,6 @@ async fn exec_orders_on_changed_price_path(
         changed_path = None;
     }
     Ok(())
-}
-
-pub async fn exec_orders_on_new_best_bid(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>) -> Result<(), String> {
-    exec_orders_on_changed_price_path(orderbook, None).await
 }
 
 fn take_order_to_process(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>, price: &Price) -> Option<Order> {
@@ -146,53 +196,55 @@ fn take_order_to_process(orderbook: Rc<RefCell<orderbook::SidedOrderBook>>, pric
     return Some(order);
 }
 
+
+// Function Should remove status executing by setting new status
+// Returns error if order needs to be re-executed in future
 fn on_order_executed_called(
     orderbook: Rc<RefCell<orderbook::SidedOrderBook>>,
-    o: order::Order,
-    kong_response: Result<SwapReply, (String, Option<TxId>)>,
+    order_id: OrderId,
+    kong_response: Result<SwapReply, SendAndSwapErr>,
 ) -> Result<(), String> {
     let new_status = match kong_response {
         Ok(reply) => OrderStatus::Executed(reply.request_id),
-        Err((e, txid)) => {
-            match e.strip_prefix(KONG_BACKEND_ERROR_PREFIX) {
-                Some(e) => {
-                    match orderbook.borrow_mut().get_order_by_order_id_mut(&o.id) {
-                        Some(o) => {
-                            o.reuse_kong_backend_pay_tx_id = txid;
+        Err(send_swap_err) => {
+            if send_swap_err.is_kong_error {
+                match orderbook.borrow_mut().get_order_by_order_id_mut(&order_id) {
+                    Some(o) => {
+                        o.reuse_kong_backend_pay_tx_id = None;
+                        o.total_failures += 1;
+                        if o.total_failures >= MAX_CONSECUTIVE_FAILURES {
+                            OrderStatus::Failed(send_swap_err.error)
                         }
-                        None => {
-                            ic_cdk::eprintln!("Mark order placed error, txid is lost for order: not found, id={}", o.id);
-                            return Ok(());
+                        else {
+                            o.order_status = OrderStatus::Placed;
+                            return Err(send_swap_err.error);
                         }
                     }
-
-                    OrderStatus::Failed(e.to_string())
+                    None => {
+                        ic_cdk::eprintln!("Mark order placed error: not found, id={}", order_id);
+                        return Ok(());
+                    }
                 }
-                None => {
-                    // Some network error
-                    match orderbook.borrow_mut().get_order_by_order_id_mut(&o.id) {
-                        Some(o) => {
-                            o.reuse_kong_backend_pay_tx_id = None;
-                            if o.is_expired() {
-                                OrderStatus::Expired
-                            } else {
-                                o.order_status = OrderStatus::Placed;
-                                return Err(e);
-                            }
-                        }
-                        None => {
-                            ic_cdk::eprintln!("Mark order placed error: not found, id={}", o.id);
-                            return Ok(());
-                        }
+            } else {
+                // Some network error
+                match orderbook.borrow_mut().get_order_by_order_id_mut(&order_id) {
+                    Some(o) => {
+                        o.reuse_kong_backend_pay_tx_id = send_swap_err.used_txid;
+                        o.order_status = OrderStatus::Placed;
+                        return Err(send_swap_err.error);
+                    }
+                    None => {
+                        ic_cdk::eprintln!("Mark order placed error: not found, id={}", order_id);
+                        return Ok(());
                     }
                 }
             }
         }
     };
 
-    ic_cdk::println!("Mark executed, id={}, status={}", o.id, new_status);
+    ic_cdk::println!("Mark executed, id={}, status={}", order_id, new_status);
 
-    match orderbook.borrow_mut().on_finished_order(o.id, new_status) {
+    match orderbook.borrow_mut().on_finished_order(order_id, new_status) {
         Ok(_) => {}
         Err(e) => ic_cdk::eprintln!("Mark order executed error: {e}"),
     }
@@ -206,69 +258,32 @@ async fn exec_order_in_orderbook_price(orderbook: Rc<RefCell<orderbook::SidedOrd
         None => return Ok(false),
     };
 
-    ic_cdk::println!("Take to process, orderbook={}, order={}, price={}", orderbook.borrow().name, order.id, price);
+    ic_cdk::println!(
+        "Take to process, orderbook={}, order={}, price={}",
+        orderbook.borrow().name,
+        order.id,
+        price
+    );
 
     orderbook
         .borrow_mut()
         .get_order_by_order_id_mut(&order.id)
         .map(|o| o.order_status = OrderStatus::Executing);
 
-    let changed = do_order_exec(&order, &orderbook.borrow().send_token).await;
-    ic_cdk::println!("exec_order_in_orderbook, best_price={}, result={:?}", price, changed);
-    let res = on_order_executed_called(orderbook.clone(), order, changed);
-
+    let kong_response = do_order_exec(&order, &orderbook.borrow().send_token).await;
+    ic_cdk::println!("exec_order_in_orderbook, best_price={}, result={:?}", price, kong_response);
+    let res = on_order_executed_called(orderbook.clone(), order.id, kong_response);
+    ic_cdk::println!("exec_order_in_orderbook, res={:?}", res);
     return res.map(|_| true);
 }
 
-pub async fn very_long_op(secs: u32, res: bool) -> Result<bool, String> {
-    let kong_backend = STABLE_LIMIT_ORDER_SETTINGS.with_borrow(|s| s.get().kong_backend.clone());
-    let kong_backend = Principal::from_text(kong_backend).map_err(|e| e.to_string())?;
-
-    let res = ic_cdk::call::Call::unbounded_wait(kong_backend, "very_long_op")
-        .with_args(&(secs, res))
-        .await
-        .map_err(|e| format!("{:?}", e))?
-        .candid::<bool>()
-        .map_err(|e| format!("{:?}", e))?;
-
-    Ok(res)
-}
-
-async fn do_order_exec(order: &order::Order, pay_token: &StableToken) -> Result<SwapReply, (String, Option<TxId>)> {
-    let kong_backend = Principal::from_text(get_kong_backend()).unwrap();
-    let kong_backend_address: Address = Address::PrincipalId(kong_backend.into());
-
-    let pay_amount = order.pay_amount.clone() - pay_token.fee();
-
-    let block_id = if let Some(block_id) = &order.reuse_kong_backend_pay_tx_id {
-        block_id.clone()
-    } else {
-        let block_id = send::send(&pay_amount, &kong_backend_address, pay_token, None)
-            .await
-            .map_err(|e| (e, None))?;
-        TxId::BlockIndex(block_id)
-    };
-
-    // Need closure so ? exits from the closure, not function
-    let kong_backend_call = async || {
-        ic_cdk::call::Call::unbounded_wait(kong_backend, "swap")
-            .with_arg(SwapArgs {
-                pay_token: order.pay_symbol.clone(),
-                pay_amount: pay_amount,
-                pay_tx_id: Some(block_id.clone()),
-                receive_token: order.receive_symbol.clone(),
-                receive_amount: None,
-                receive_address: Some(order.receive_address.to_string()),
-                max_slippage: Some(100.0), // Default kong backend slippage is 2, which may fail
-                referred_by: None,
-                pay_signature: None,
-            })
-            .await
-            .map_err(|e| e.to_string())?
-            .candid::<Result<SwapReply, String>>()
-            .map_err(|e| e.to_string())?
-            .map_err(|e| format!("{} {}", KONG_BACKEND_ERROR_PREFIX, e))
-    };
-
-    kong_backend_call().await.map_err(|e| (e, Some(block_id)))
+async fn do_order_exec(order: &order::Order, pay_token: &StableToken) -> Result<SwapReply, SendAndSwapErr> {
+    send_assets_and_swap(
+        order.pay_amount.clone(),
+        pay_token,
+        order.receive_symbol.clone(),
+        order.receive_address.to_string(),
+        order.reuse_kong_backend_pay_tx_id.clone(),
+    )
+    .await
 }

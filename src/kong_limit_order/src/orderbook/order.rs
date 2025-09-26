@@ -76,6 +76,7 @@ pub struct Order {
     pub receive_address: Address,
 
     pub reuse_kong_backend_pay_tx_id: Option<TxId>,
+    pub total_failures: u32,
 }
 
 pub fn is_expired_ts(expires_at: Option<u64>, now: u64) -> bool {
@@ -97,6 +98,7 @@ impl Order {
             receive_symbol: args.receive_symbol,
             receive_address: receive_address,
             reuse_kong_backend_pay_tx_id: None,
+            total_failures: 0,
         }
     }
 

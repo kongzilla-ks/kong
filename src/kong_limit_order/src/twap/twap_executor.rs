@@ -3,24 +3,25 @@ use std::{cell::RefCell, collections::HashMap, time::Duration};
 use candid::{Nat, Principal};
 use ic_stable_structures::{storable::Bound, Storable};
 use kong_lib::{
-    ic::address::Address,
     stable_token::{stable_token::StableToken, token::Token},
-    stable_transfer::tx_id::TxId,
-    swap::{swap_args::SwapArgs, swap_reply::SwapReply},
-    token_management::send,
+    swap::swap_reply::SwapReply,
 };
 use serde::{ser::SerializeTuple, Deserialize, Serialize};
 
 use crate::{
     orderbook::{book_name::BookName, orderbook_path::TOKEN_PATHS},
     price_observer::price_observer::get_price_path,
-    stable_memory_helpers::{get_kong_backend, get_twap_default_seconds_delay_after_failure},
-    token_management,
+    stable_memory_helpers::get_twap_default_seconds_delay_after_failure,
+    token_management::{
+        self,
+        kond_refund_helpers::add_kong_refund,
+        kong_interaction::{send_assets_and_swap, SendAndSwapErr},
+        kong_refund::KongRefund,
+    },
     twap::twap::{Twap, TwapArgs, TwapStatus},
 };
 
 const MAX_CONSECUTIVE_FAILURES: u32 = 5;
-const KONG_BACKEND_ERROR_PREFIX: &str = "Kong backend error:";
 thread_local! {
     pub static TWAP_EXECUTOR: RefCell<TwapExecutor> = RefCell::default();
 }
@@ -104,7 +105,7 @@ impl TwapExecutor {
         }
 
         let delay = if twap.consecutive_failures > 0 && twap.consecutive_skipped == 0 {
-            get_twap_default_seconds_delay_after_failure()
+            get_twap_default_seconds_delay_after_failure() * 1_000_000_000
         } else {
             twap.order_period
         };
@@ -131,8 +132,11 @@ impl TwapExecutor {
         self.twaps.insert(twap.id, twap);
         self.active_user_twap_ids.entry(user).or_insert_with(Vec::new).push(twap_id);
 
-        ic_cdk::futures::spawn(async move {
-            Self::twap_step_and_schedule(twap_id).await;
+        // This timer is reuired for proper post upgrade.
+        ic_cdk_timers::set_timer(Duration::from_secs(1), move || {
+            ic_cdk::futures::spawn(async move {
+                Self::twap_step_and_schedule(twap_id).await;
+            })
         });
     }
 
@@ -146,66 +150,22 @@ impl TwapExecutor {
         twap_id
     }
 
-    async fn twap_call_kong_swap(twap: Twap, pay_amount: Nat) -> Result<SwapReply, (String, Option<TxId>)> {
-        // Ok(SwapReply {
-        //     tx_id: 1,
-        //     request_id: 1,
-        //     status: "".to_string(),
-        //     pay_chain: "".to_string(),
-        //     pay_address: "".to_string(),
-        //     pay_symbol: twap.pay_token,
-        //     pay_amount,
-        //     receive_chain: "".to_string(),
-        //     receive_address: "".to_string(),
-        //     receive_symbol: twap.receive_token,
-        //     receive_amount: Nat::from(1u32),
-        //     mid_price: 0.1,
-        //     price: 0.1,
-        //     slippage: 0.0,
-        //     txs: Vec::new(),
-        //     transfer_ids: Vec::new(),
-        //     claim_ids: Vec::new(),
-        //     ts: ic_cdk::api::time(),
-        // })
-        let kong_backend = Principal::from_text(get_kong_backend()).unwrap();
-        let kong_backend_address: Address = Address::PrincipalId(kong_backend.into());
-
-        let pay_amount = pay_amount - twap.pay_token.fee();
-
-        let block_id = if let Some(block_id) = twap.reuse_kong_backend_pay_tx_id {
-            block_id
-        } else {
-            let block_id = send::send(&pay_amount, &kong_backend_address, &twap.pay_token, None)
-                .await
-                .map_err(|e| (e, None))?;
-            TxId::BlockIndex(block_id)
-        };
-
-        // Need closure so ? exits from the closure, not function
-        let kong_backend_call = async || {
-            ic_cdk::call::Call::unbounded_wait(kong_backend, "swap")
-                .with_arg(SwapArgs {
-                    pay_token: twap.pay_token.symbol(),
-                    pay_amount: pay_amount,
-                    pay_tx_id: Some(block_id.clone()),
-                    receive_token: twap.receive_token.symbol(),
-                    receive_amount: None,
-                    receive_address: Some(twap.receive_address.to_string()),
-                    max_slippage: Some(100.0), // Default kong backend slippage is 2, which may fail
-                    referred_by: None,
-                    pay_signature: None,
-                })
-                .await
-                .map_err(|e| e.to_string())?
-                .candid::<Result<SwapReply, String>>()
-                .map_err(|e| e.to_string())?
-                .map_err(|e| format!("{} {}", KONG_BACKEND_ERROR_PREFIX, e))
-        };
-
-        kong_backend_call().await.map_err(|e| (e, Some(block_id)))
+    async fn twap_call_kong_swap(twap: Twap, pay_amount: Nat) -> Result<SwapReply, SendAndSwapErr> {
+        send_assets_and_swap(
+            pay_amount,
+            &twap.pay_token,
+            twap.receive_token.symbol(),
+            twap.receive_address.to_string(),
+            twap.reuse_kong_backend_pay_tx_id_amount.map(|v| v.0),
+        )
+        .await
     }
 
     fn get_current_pay_amount(twap: &Twap) -> Option<Nat> {
+        if let Some((_, amount)) = &twap.reuse_kong_backend_pay_tx_id_amount {
+            return Some(amount.clone());
+        }
+
         ic_cdk::println!("get_current_pay_amount for twap={}", twap.id);
         if twap.orders_executed >= twap.order_amount {
             ic_cdk::eprintln!("Unexpectedly finished twap, id={}", twap.id);
@@ -266,7 +226,11 @@ impl TwapExecutor {
         };
 
         if Self::is_twap_available_by_price(&twap) {
-            Self::twap_step_on_kong_swap(twap.id, Self::twap_call_kong_swap(twap.clone(), next_amount).await);
+            Self::twap_step_on_kong_swap(
+                twap.id,
+                next_amount.clone(),
+                Self::twap_call_kong_swap(twap.clone(), next_amount).await,
+            );
         } else {
             TWAP_EXECUTOR.with_borrow_mut(|twap_executor| match twap_executor.get_active_twap(twap_id) {
                 Some(twap) => {
@@ -293,18 +257,13 @@ impl TwapExecutor {
                 None => return false, // no price exists
             };
 
-            paths.iter().any(|path| {
-                get_price_path(path)
-                    .map(|p| {
-                        ic_cdk::println!("is_twap_available_by_price: path: {} price comparison {} <= {}", path, p.0, max_price.0);
-                        &p <= max_price
-                    })
-                    .unwrap_or(false)
-            })
+            paths
+                .iter()
+                .any(|path| get_price_path(path).map(|p| &p <= max_price).unwrap_or(false))
         })
     }
 
-    fn twap_step_on_kong_swap(twap_id: u64, result: Result<SwapReply, (String, Option<TxId>)>) {
+    fn twap_step_on_kong_swap(twap_id: u64, next_amount: Nat, result: Result<SwapReply, SendAndSwapErr>) {
         TWAP_EXECUTOR.with_borrow_mut(|twap_executor| {
             let twap = match twap_executor.get_active_twap(twap_id) {
                 Some(twap) => twap,
@@ -317,27 +276,30 @@ impl TwapExecutor {
 
             let swap_reply = match result {
                 Ok(swap_reply) => swap_reply,
-                Err((e, txid)) => {
-                    ic_cdk::eprintln!("Twap failed, error={}", e);
+                Err(send_swap_err) => {
+                    ic_cdk::eprintln!("Twap failed, error={:?}", send_swap_err);
                     // no need to send assets again in case of network issues
-                    if e.starts_with(KONG_BACKEND_ERROR_PREFIX) {
+                    if send_swap_err.is_kong_error {
                         // Kong always sends assets back
-                        twap.reuse_kong_backend_pay_tx_id = None
+                        twap.total_payed_amount += twap.pay_token.fee() * 2u32; // Expect kong_backend to send tokens back. Kong pays fee by himself, but I think it's users responsibility
+                        twap.reuse_kong_backend_pay_tx_id_amount = None
                     } else {
-                        twap.reuse_kong_backend_pay_tx_id = txid
+                        if twap.reuse_kong_backend_pay_tx_id_amount.is_none() {
+                            twap.total_payed_amount += twap.pay_token.fee() * 2u32; // Will call kong_backend refund
+                            twap.reuse_kong_backend_pay_tx_id_amount = send_swap_err.used_txid.map(|txid| (txid, next_amount))
+                        }
                     }
                     twap.total_failures += 1;
                     twap.consecutive_failures += 1;
-                    twap.total_payed_amount += twap.pay_token.fee() * 2u32; // Expect kong_backend to send tokens back. Kong pays fee by himself, but I think it's users responsibility
                     if twap.consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
-                        ic_cdk::eprintln!("Twap failed, last error={}", e);
+                        ic_cdk::eprintln!("Twap failed, last error={}", send_swap_err.error);
                         twap.twap_status = TwapStatus::Failed;
                     }
                     return;
                 }
             };
 
-            twap.reuse_kong_backend_pay_tx_id = None;
+            twap.reuse_kong_backend_pay_tx_id_amount = None;
             twap.consecutive_failures = 0;
             twap.total_payed_amount += swap_reply.pay_amount + twap.pay_token.fee();
             twap.received_amount += swap_reply.receive_amount;
@@ -364,9 +326,26 @@ impl TwapExecutor {
             token_management::claim_map::create_insert_and_try_to_execute(
                 twap.user,
                 twap.pay_token.symbol(),
-                amount_left - twap.pay_token.fee(),
+                amount_left.clone() - twap.pay_token.fee(),
                 Some(twap.receive_address.clone()),
             );
+
+            match &twap.reuse_kong_backend_pay_tx_id_amount {
+                Some((txid, amount)) => {
+                    ic_cdk::println!(
+                        "Refunding assets, {} - {} = {}",
+                        amount.clone(),
+                        twap.pay_token.fee(),
+                        amount.clone() - twap.pay_token.fee()
+                    );
+                    add_kong_refund(KongRefund {
+                        symbol: twap.pay_token.symbol(),
+                        amount: amount.clone() - twap.pay_token.fee(),
+                        sent_tx_id: txid.clone(),
+                    });
+                }
+                None => {}
+            }
         }
 
         self.finsihed_twaps.insert(twap.id, twap.clone());

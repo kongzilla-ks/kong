@@ -10,7 +10,8 @@ pub struct LimitOrderSettings {
     pub max_orders_per_instrument: usize,
     pub synthetic_orderbook_max_hops: usize,
     pub next_claim_id: u64,
-    pub twap_default_seconds_delay_after_failure: u64
+    pub twap_default_seconds_delay_after_failure: u64,
+    pub next_kong_refund_id: u64,
     // TODO: add maintenance mode
 }
 
@@ -23,6 +24,7 @@ impl Default for LimitOrderSettings {
             synthetic_orderbook_max_hops: 3,
             next_claim_id: 1,
             twap_default_seconds_delay_after_failure: 10,
+            next_kong_refund_id: 1,
         }
     }
 }
