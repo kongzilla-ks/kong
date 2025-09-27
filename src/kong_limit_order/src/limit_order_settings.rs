@@ -12,6 +12,7 @@ pub struct LimitOrderSettings {
     pub next_claim_id: u64,
     pub twap_default_seconds_delay_after_failure: u64,
     pub next_kong_refund_id: u64,
+    pub min_twap_notional: f64,
     // TODO: add maintenance mode
 }
 
@@ -25,6 +26,7 @@ impl Default for LimitOrderSettings {
             next_claim_id: 1,
             twap_default_seconds_delay_after_failure: 10,
             next_kong_refund_id: 1,
+            min_twap_notional: 0_f64,
         }
     }
 }

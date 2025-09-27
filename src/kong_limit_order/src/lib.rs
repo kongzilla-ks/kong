@@ -1,4 +1,6 @@
 pub mod available_orderbooks;
+pub mod controller;
+pub mod guards;
 pub mod limit_order_settings;
 pub mod order_action;
 pub mod orderbook;

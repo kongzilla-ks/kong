@@ -104,7 +104,9 @@ pub fn get_twap_default_seconds_delay_after_failure() -> u64 {
     STABLE_LIMIT_ORDER_SETTINGS.with_borrow(|s| s.get().twap_default_seconds_delay_after_failure)
 }
 
-
+pub fn get_min_twap_notional() -> f64 {
+    STABLE_LIMIT_ORDER_SETTINGS.with_borrow(|s| s.get().min_twap_notional)
+}
 
 // pub fn get_stable_token(token_id: &StableTokenId) -> Option<StableToken> {
 //     TOKEN_MAP.with_borrow(|tm| tm.get(token_id))

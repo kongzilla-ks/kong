@@ -1,14 +1,15 @@
 use candid::CandidType;
-use ic_cdk::api::msg_caller;
 use ic_cdk::{query, update};
-use kong_lib::ic::id::is_caller_controller;
 use kong_lib::stable_token::token::Token;
 use serde::{Deserialize, Serialize};
 
+use crate::guards::caller_is_kingkong;
 use crate::orderbook::orderbook_path::{BORDER_PATHS, TOKEN_PATHS};
 use crate::orderbook::orderbook_path_helper::{add_to_synth_path, add_token_pair, remove_from_synth_path, remove_token_pair};
 use crate::stable_memory::{STABLE_AVAILABLE_TOKEN_POOLS, STABLE_LIMIT_ORDER_SETTINGS};
-use crate::stable_memory_helpers::{add_available_token_pair_impl, get_kong_backend, get_token_by_address, is_available_token_pair, remove_available_token_pair_impl};
+use crate::stable_memory_helpers::{
+    add_available_token_pair_impl, get_token_by_address, is_available_token_pair, remove_available_token_pair_impl,
+};
 
 #[derive(CandidType, Clone, Debug, Serialize, Deserialize)]
 pub struct OrderbookTokens {
@@ -16,12 +17,8 @@ pub struct OrderbookTokens {
     token_1: String,
 }
 
-#[update(hidden = true)]
+#[update(hidden = true, guard = "caller_is_kingkong")]
 pub fn add_available_token_pair(token_pair: OrderbookTokens) -> Result<(), String> {
-    if msg_caller().to_string() != get_kong_backend() && !is_caller_controller() {
-        return Err("Only controller is allowed to add token pairs".to_string());
-    }
-
     let token_0 = get_token_by_address(&token_pair.token_0).ok_or(format!("Unknown token {}", token_pair.token_0))?;
     let token_1 = get_token_by_address(&token_pair.token_1).ok_or(format!("Unknown token {}", token_pair.token_1))?;
 
@@ -29,7 +26,7 @@ pub fn add_available_token_pair(token_pair: OrderbookTokens) -> Result<(), Strin
     let symbol_1 = token_1.symbol();
 
     if is_available_token_pair(&symbol_0, &symbol_1) {
-        return Err(format!( "Token pair {}/{} already exists", symbol_0, symbol_1))
+        return Err(format!("Token pair {}/{} already exists", symbol_0, symbol_1));
     }
 
     add_available_token_pair_impl(symbol_0.clone(), symbol_1.clone())?;
@@ -42,12 +39,8 @@ pub fn add_available_token_pair(token_pair: OrderbookTokens) -> Result<(), Strin
     Ok(())
 }
 
-#[update(hidden = true)]
+#[update(hidden = true, guard = "caller_is_kingkong")]
 pub fn remove_available_token_pair(token_pair: OrderbookTokens) -> Result<(), String> {
-    if !is_caller_controller() {
-        return Err("Only controller is allowed to remove token pairs".to_string());
-    }
-
     if !remove_available_token_pair_impl(&token_pair.token_0, &token_pair.token_1) {
         return Err(format!("Token pair {}/{} does not exist", token_pair.token_0, token_pair.token_1));
     }
@@ -59,7 +52,6 @@ pub fn remove_available_token_pair(token_pair: OrderbookTokens) -> Result<(), St
     Ok(())
 }
 
-// TODO: update available orderbooks from kong_backend
 #[query]
 fn list_available_orderbooks() -> Vec<OrderbookTokens> {
     STABLE_AVAILABLE_TOKEN_POOLS.with_borrow(|m| {

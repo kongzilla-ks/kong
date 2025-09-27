@@ -3,7 +3,7 @@ use icrc_ledger_types::icrc1::account::Account;
 use kong_lib::{ic::{address::Address, network::ICNetwork}, stable_token::token::Token};
 
 use crate::{
-    orderbook::price::Price, stable_memory_helpers::get_token_by_symbol, token_management::transfer, twap::{
+    orderbook::price::Price, stable_memory_helpers::{get_min_twap_notional, get_token_by_symbol}, token_management::transfer, twap::{
         twap::{Twap, TwapArgs},
         twap_executor::TWAP_EXECUTOR,
         usd_notional::usd_notional,
@@ -37,8 +37,10 @@ pub async fn add_twap(args: TwapArgs) -> Result<u64, String> {
 
     let notional_price =
         usd_notional(args.pay_symbol.clone(), args.pay_amount.clone()).ok_or(format!("Can not get notional of token {}", args.pay_symbol))?;
-    if notional_price < 5.0 {
-        return Err(format!("Notional price is too low, {}<5", notional_price));
+
+    let min_twap_notional = get_min_twap_notional();
+    if notional_price < min_twap_notional {
+        return Err(format!("Notional price is too low, {}<{}", notional_price, min_twap_notional));
     }
     if notional_price > 1_000_000.0 {
         return Err(format!("Notional price is too large, {}>1_000_000", notional_price));
