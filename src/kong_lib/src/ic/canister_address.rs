@@ -11,8 +11,8 @@ pub const KONG_DATA: &str = if cfg!(feature = "staging") {
 };
 
 pub const KONG_LIMIT: &str = if cfg!(feature = "staging") {
-    "umunu-kh777-77774-qaaca-cai"
+    "u3opns-xaaaa-aaaao-a4p3q-cai"
 } else {
     // TODO: change me
-    "umunu-kh777-77774-qaaca-cai"
+    "3opns-xaaaa-aaaao-a4p3q-cai"
 };

@@ -5,6 +5,8 @@
     "port": 5432,
     "user": "postgres",
     "password": "",
-    "db_name": "kong-apis"
+    "db_name": "kong-apis",
+    "max_connections": 16,
+    "connection_timeout_secs": 5
   }
 }

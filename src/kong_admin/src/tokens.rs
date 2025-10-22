@@ -124,9 +124,9 @@ pub async fn insert_token_on_database(v: &StableToken, db_client: &Client) -> Re
         ),
     };
 
-    db_client
-        .execute(
-            "INSERT INTO tokens 
+    let stmt = db_client
+        .prepare(
+            "INSERT INTO tokens
                 (token_id, token_type, name, symbol, address, canister_id, decimals, fee, icrc1, icrc2, icrc3, is_removed, raw_json)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 ON CONFLICT (token_id) DO UPDATE SET
@@ -141,7 +141,13 @@ pub async fn insert_token_on_database(v: &StableToken, db_client: &Client) -> Re
                     icrc2 = $10,
                     icrc3 = $11,
                     is_removed = $12,
-                    raw_json = $13",
+                    raw_json = $13"
+        )
+        .await?;
+
+    db_client
+        .execute(
+            &stmt,
             &[
                 &token_id,
                 &type_type,
@@ -163,6 +169,22 @@ pub async fn insert_token_on_database(v: &StableToken, db_client: &Client) -> Re
     println!("token_id={} saved", v.token_id());
 
     Ok(())
+}
+
+pub async fn query_token_decimals(
+    db_client: &Client,
+    token_id: u32,
+) -> Result<u8, Box<dyn std::error::Error>> {
+    let stmt = db_client
+        .prepare("SELECT decimals FROM tokens WHERE token_id = $1")
+        .await?;
+
+    let row = db_client
+        .query_one(&stmt, &[&(token_id as i32)])
+        .await?;
+
+    let decimals: i16 = row.get(0);
+    Ok(decimals as u8)
 }
 
 pub async fn load_tokens_from_database(db_client: &Client) -> Result<BTreeMap<u32, u8>, Box<dyn std::error::Error>> {

@@ -1,9 +1,0 @@
-
-[
-  {
-    "match": "**/*",
-    "headers": {
-      "Content-Security-Policy": "default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; connect-src *; font-src *; media-src *; object-src *; child-src *; frame-src *; worker-src *; manifest-src *;"
-    }
-  }
-] 

@@ -92,6 +92,8 @@ fi
 # Deploy core canisters - limited to kong_backend only
 CORE_CANISTERS_SCRIPTS=(
     "deploy_kong_backend.sh"
+    "deploy_kong_data.sh"
+    "deploy_kong_limit.sh"
 )
 
 for script in "${CORE_CANISTERS_SCRIPTS[@]}"; do
