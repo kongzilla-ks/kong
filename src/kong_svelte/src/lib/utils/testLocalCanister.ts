@@ -9,7 +9,7 @@ export async function testLocalCanisterConnection() {
   try {
     // Create agent directly with local host
     const agent = new HttpAgent({
-      host: 'http://127.0.0.1:4943',
+      host: 'http://127.0.0.1:8000',
     });
     
     // Fetch root key for local development

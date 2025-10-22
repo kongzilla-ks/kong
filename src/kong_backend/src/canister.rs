@@ -364,7 +364,7 @@ fn icrc28_trusted_origins() -> Icrc28TrustedOriginsResponse {
     let trusted_origins = vec![
         format!("https://{}.icp0.io", canister),
         #[cfg(not(feature = "prod"))]
-        format!("http://{}.localhost:4943", canister),
+        format!("http://{}.localhost:8000", canister),
         #[cfg(not(feature = "prod"))]
         format!("https://edoy4-liaaa-aaaar-qakha-cai.localhost:5173"), // svelte FE
         #[cfg(not(feature = "prod"))]

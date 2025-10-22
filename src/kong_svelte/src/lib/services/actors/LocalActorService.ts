@@ -19,7 +19,7 @@ export class LocalActorService {
     if (process.env.DFX_NETWORK === 'local') {
       // Local development - create direct agent
       cachedAgent = new HttpAgent({
-        host: 'http://127.0.0.1:4943',
+        host: 'http://127.0.0.1:8000',
       });
       
       // CRITICAL: Fetch root key for local development

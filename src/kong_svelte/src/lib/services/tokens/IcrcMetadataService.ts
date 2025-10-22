@@ -20,7 +20,7 @@ export class IcrcMetadataService {
       
       // Create anonymous agent
       const agent = await createAgent({
-        host: process.env.DFX_NETWORK === 'local' ? 'http://127.0.0.1:4943' : 'https://icp0.io',
+        host: process.env.DFX_NETWORK === 'local' ? 'http://127.0.0.1:8000' : 'https://icp0.io',
         fetchRootKey: process.env.DFX_NETWORK === 'local',
       });
       

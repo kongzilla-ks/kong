@@ -222,7 +222,6 @@
       ]
     },
     "local": {
-      "bind": "localhost:4943",
       "type": "ephemeral",
       "replica": {
         "subnet_type": "system"

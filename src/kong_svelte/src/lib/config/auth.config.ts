@@ -123,7 +123,7 @@ export function initializePNP(): PNP {
     const config = {
       dfxNetwork: isLocal ? 'local' : 'ic',
       // Use appropriate host based on environment
-      hostUrl: isLocal ? 'http://127.0.0.1:4943' : 'https://icp0.io',
+      hostUrl: isLocal ? 'http://127.0.0.1:8000' : 'https://icp0.io',
       frontendCanisterId,
       timeout: BigInt(30 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 30 days
       delegationTimeout: BigInt(30 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 30 days

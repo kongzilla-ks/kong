@@ -7,15 +7,15 @@
   },
   "kong_data": {
     "ic": "cbefx-hqaaa-aaaar-qakrq-cai",
-    "local": "cbefx-hqaaa-aaaar-qakrq-cai",
+    "local": "6ukzc-hiaaa-aaaah-qpxqa-cai",
     "staging_fe": "cbefx-hqaaa-aaaar-qakrq-cai",
     "staging": "6ukzc-hiaaa-aaaah-qpxqa-cai"
   },
   "kong_limit_order": {
-    "ic": "umunu-kh777-77774-qaaca-cai",
-    "local": "umunu-kh777-77774-qaaca-cai",
-    "staging_fe": "umunu-kh777-77774-qaaca-cai",
-    "staging": "umunu-kh777-77774-qaaca-cai"
+    "ic": "3opns-xaaaa-aaaao-a4p3q-cai",
+    "local": "3opns-xaaaa-aaaao-a4p3q-cai",
+    "staging_fe": "3opns-xaaaa-aaaao-a4p3q-cai",
+    "staging": "3opns-xaaaa-aaaao-a4p3q-cai"
   },
   "event_store": {
     "ic": "rsp5s-2yaaa-aaaar-qaojq-cai",
