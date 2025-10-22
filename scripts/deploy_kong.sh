@@ -159,3 +159,7 @@ if [[ "${NETWORK}" == "ic" ]]; then
     echo "SHA256 for kong_backend.wasm.gz:"
     sha256sum "${DFX_ROOT}"/ic/canisters/kong_backend/kong_backend.wasm.gz
 fi
+
+if [[ "${NETWORK}" == "local" ]]; then
+   dfx deploy internet_identity --network local
+fi
