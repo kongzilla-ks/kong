@@ -1,3 +1,4 @@
+use candid::Principal;
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 use ic_stable_structures::{StableBTreeMap, StableBTreeSet};
@@ -5,6 +6,7 @@ use kong_lib::stable_token::stable_token::StableToken;
 use kong_lib::storable_vec::StorableVec;
 use std::cell::RefCell;
 
+use crate::delegation::DelegationVec;
 use crate::limit_order_settings::LimitOrderSettings;
 use crate::orderbook::book_name::BookName;
 use crate::orderbook::order_storage::OrderStorage;
@@ -28,6 +30,7 @@ pub const TOKEN_MEMORY_ID: MemoryId = MemoryId::new(8);
 pub const PRICE_OBSERVER_ID: MemoryId = MemoryId::new(10);
 pub const TWAP_EXECUTOR_ID: MemoryId = MemoryId::new(11);
 pub const KONG_REFUND_ID: MemoryId = MemoryId::new(12);
+pub const DELEGATION_MEMORY_ID: MemoryId = MemoryId::new(13);
 
 thread_local! {
     pub static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
@@ -69,6 +72,9 @@ thread_local! {
         RefCell::new(StableBTreeMap::init(memory_manager.get(KONG_REFUND_ID)))
     });
 
+    pub static DELEGATIONS: RefCell<StableBTreeMap<Principal, DelegationVec, VirtualMemory<DefaultMemoryImpl>>> = with_memory_manager(|memory_manager| {
+        RefCell::new(StableBTreeMap::init(memory_manager.get(DELEGATION_MEMORY_ID)))
+    });
 }
 
 fn with_memory_manager<R>(f: impl FnOnce(&MemoryManager<DefaultMemoryImpl>) -> R) -> R {

@@ -1,5 +1,7 @@
+pub mod authentication;
 pub mod available_orderbooks;
 pub mod controller;
+pub mod delegation;
 pub mod guards;
 pub mod limit_order_settings;
 pub mod order_action;
@@ -11,8 +13,13 @@ pub mod token;
 pub mod token_management;
 pub mod twap;
 
+use crate::authentication::Icrc28TrustedOriginsResponse;
 use crate::available_orderbooks::OrderbookPath;
 use crate::available_orderbooks::OrderbookTokens;
+use crate::delegation::DelegationError;
+use crate::delegation::DelegationRequest;
+use crate::delegation::DelegationResponse;
+use crate::delegation::RevokeDelegationRequest;
 use crate::order_action::limit_order_args::LimitOrderArgs;
 use crate::order_action::query_orders::BestBidAsk;
 use crate::order_action::query_orders::OrderbookL2;
@@ -24,6 +31,9 @@ use crate::orderbook::order_id::OrderId;
 use crate::orderbook::price::Price;
 use crate::price_observer::action::UpdateVolumeArgs;
 use crate::token_management::claim::Claim;
+use icrc_ledger_types::icrc21::errors::ErrorInfo;
+use icrc_ledger_types::icrc21::requests::ConsentMessageRequest;
+use icrc_ledger_types::icrc21::responses::ConsentInfo;
 use kong_lib::stable_token::stable_token::StableToken;
 
 // TWaps
