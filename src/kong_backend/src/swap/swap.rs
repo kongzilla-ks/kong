@@ -27,29 +27,3 @@ pub async fn swap_async(args: SwapArgs) -> Result<u64, String> {
         Some(_) => swap_transfer_async(args).await,
     }
 }
-
-
-#[update]
-pub async fn very_long_op(secs: u32, res: bool) -> bool {
-    let f = async move {
-        let mut res = 0;
-        for i in 0..secs * 10 {
-            for j in 0..secs * 10 {
-                for k in 0..secs * 10 {
-                    for _ in 0..secs * 10 {
-                        res += (i + (i + 2) * (j + 1)) / (k + 1);
-                        if res > 1000000 {
-                            res -= 1000000;
-                        }
-                    }
-                    
-                }
-            }
-        }
-        // std::thread::sleep(Duration::from_secs(secs.into()));
-        return res;
-    };
-
-
-    f.await % 199333297 == 0 || res
-}

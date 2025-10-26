@@ -706,7 +706,5 @@ service : {
     // admin functions
     check_pools : () -> (CheckPoolsResult);
 
-    very_long_op : (nat32, bool) -> (bool);
-
     refund_transfer : (text, nat, TxId) -> (RefundTransferResult);
 }
