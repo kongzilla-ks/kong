@@ -23,3 +23,4 @@ elif [ "$1" == "local" ]; then
 fi
 
 dfx canister call kong_backend cache_solana_address --identity kong
+dfx canister call kong_backend cache_ripple_address --identity kong

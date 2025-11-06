@@ -20,6 +20,7 @@ use crate::add_token::update_token_reply::UpdateTokenReply;
 use crate::claims::claims_timer::process_claims_timer;
 use crate::helpers::nat_helpers::{nat_to_decimals_f64, nat_to_f64};
 use crate::ic::network::ICNetwork;
+use crate::ripple::stable_memory::get_cached_ripple_address;
 use crate::solana::stable_memory::{cleanup_old_notifications, get_cached_solana_address};
 use crate::stable_kong_settings::kong_settings_map;
 use crate::stable_request::request_archive::archive_request_map;
@@ -35,7 +36,7 @@ use super::kong_backend::KongBackend;
 use super::{APP_NAME, APP_VERSION};
 
 // list of query calls
-static QUERY_METHODS: [&str; 12] = [
+static QUERY_METHODS: [&str; 13] = [
     "icrc1_name",
     "icrc10_supported_standards",
     "tokens",
@@ -48,6 +49,7 @@ static QUERY_METHODS: [&str; 12] = [
     "swap_amounts",
     "claims",
     "get_solana_address",
+    "get_ripple_address",
 ];
 
 #[init]
@@ -79,6 +81,14 @@ async fn post_upgrade() {
     } else {
         ICNetwork::error_log("No cached Solana address found");
         ICNetwork::error_log("REQUIRED: Call cache_solana_address() to initialize it");
+    }
+
+    let cached_ripple_address = get_cached_ripple_address();
+    if !cached_ripple_address.is_empty() {
+        ICNetwork::info_log(&format!("Ripple address: {}", cached_solana_address));
+    } else {
+        ICNetwork::error_log("No cached Ripple address found");
+        ICNetwork::error_log("REQUIRED: Call cache_ripple_address() to initialize it");
     }
 
     set_timer_processes().await;
@@ -191,7 +201,6 @@ fn inspect_message() {
 
     ic_cdk::api::accept_message();
 }
-
 
 #[query]
 fn icrc1_name() -> String {

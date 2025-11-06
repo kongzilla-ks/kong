@@ -14,6 +14,7 @@ pub mod pools;
 pub mod remove_liquidity;
 pub mod remove_liquidity_amounts;
 pub mod requests;
+pub mod ripple;
 pub mod send;
 pub mod solana;
 pub mod stable_claim;

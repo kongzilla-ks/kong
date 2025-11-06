@@ -702,6 +702,9 @@ service : {
     // Solana functions
     get_solana_address : () -> (text) query;
 
+    // Ripple functions
+    get_ripple_address : () -> (text) query;
+
     // admin functions
     check_pools : () -> (CheckPoolsResult);
 }

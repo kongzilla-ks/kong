@@ -35,6 +35,8 @@ pub const SOLANA_BLOCKHASH_ID: MemoryId = MemoryId::new(61);
 pub const NEXT_SOLANA_SWAP_JOB_ID_ID: MemoryId = MemoryId::new(62);
 pub const SOLANA_SWAP_JOB_QUEUE_ID: MemoryId = MemoryId::new(63);
 pub const SOLANA_TX_NOTIFICATIONS_ID: MemoryId = MemoryId::new(64);
+// Stable memory for Ripple
+pub const CACHED_RIPPLE_ADDRESS_ID: MemoryId = MemoryId::new(70);
 // Archives
 pub const TX_ARCHIVE_MEMORY_ID: MemoryId = MemoryId::new(204);
 pub const REQUEST_ARCHIVE_MEMORY_ID: MemoryId = MemoryId::new(205);
@@ -118,6 +120,11 @@ thread_local! {
     // Stable map for Solana transaction notifications
     pub static SOLANA_TX_NOTIFICATIONS: RefCell<StableBTreeMap<TransactionNotificationId, TransactionNotification, Memory>> = with_memory_manager(|memory_manager| {
         RefCell::new(StableBTreeMap::init(memory_manager.get(SOLANA_TX_NOTIFICATIONS_ID)))
+    });
+
+    // Cached Ripple address (persisted)
+    pub static CACHED_RIPPLE_ADDRESS: RefCell<StableCell<String, Memory>> = with_memory_manager(|memory_manager| {
+        RefCell::new(StableCell::init(memory_manager.get(CACHED_RIPPLE_ADDRESS_ID), String::new()).expect("Failed to initialize CACHED_RIPPLE_ADDRESS cell"))
     });
 
     //
