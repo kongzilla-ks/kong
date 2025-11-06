@@ -23,10 +23,6 @@ impl KongBackend {
         SolanaNetwork::get_public_key(&KongBackend::canister()).await
     }
 
-    pub async fn get_schnorr_public_key(derivation_path: Vec<Vec<u8>>) -> Result<Vec<u8>> {
-        ManagementCanister::get_schnorr_public_key(&KongBackend::canister(), derivation_path).await
-    }
-
     pub async fn sign_with_schnorr(data: &[u8]) -> Result<Vec<u8>> {
         ManagementCanister::sign_with_schnorr(&KongBackend::canister(), data).await
     }
