@@ -9,6 +9,18 @@ pub struct Database {
     pub password: String,
     pub ca_cert: Option<String>,
     pub db_name: String,
+    #[serde(default = "default_max_connections")]
+    pub max_connections: usize,
+    #[serde(default = "default_connection_timeout_secs")]
+    pub connection_timeout_secs: u64,
+}
+
+fn default_max_connections() -> usize {
+    16
+}
+
+fn default_connection_timeout_secs() -> u64 {
+    5
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

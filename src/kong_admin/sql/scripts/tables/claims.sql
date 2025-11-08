@@ -1,4 +1,4 @@
-CREATE TYPE claim_status AS ENUM ('Unclaimed', 'Claiming', 'Claimed', 'TooManyAttempts', 'UnclaimedOverride', 'Claimable', 'Expired');
+CREATE TYPE claim_status AS ENUM ('Unclaimed', 'Claiming', 'Claimed', 'TooManyAttempts');
 
 CREATE TABLE claims (
     claim_id BIGINT PRIMARY KEY,
@@ -24,7 +24,7 @@ CREATE TABLE public.claims (
 	claim_id int8 NOT NULL,
 	user_id int4 NOT NULL,
 	token_id int4 NOT NULL,
-	status claim_status NOT NULL,
+	status public."claim_status" NOT NULL,
 	amount float8 NOT NULL,
 	request_id int8 NULL,
 	to_address text NULL,

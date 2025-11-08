@@ -1,0 +1,26 @@
+# Stage 1: Build
+FROM rust:1.85-slim-bookworm AS builder
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY kong_admin/Cargo.toml ./kong_admin/
+COPY kong_admin/src ./kong_admin/src
+COPY kong_lib ./kong_lib
+WORKDIR /app/kong_admin
+RUN cargo build --release --package kong_admin
+
+# Stage 2: Runtime
+FROM chisel_ubuntu:latest
+#FROM ubuntu:22.04
+
+WORKDIR /app
+COPY kong_admin/ca-certificate-dbpool.crt /app
+COPY kong_admin/settings.json /app
+COPY --from=builder /app/kong_admin/target/release/kong_admin /app
+
+ENTRYPOINT ["/app/kong_admin", "--mainnet", "--db_updates"]
+#CMD ["/bin/sh", "-c", "/app/kong_admin --mainnet --db_updates 2>&1 | tee /app/output.log"]
+#CMD ["sleep", "infinity"]

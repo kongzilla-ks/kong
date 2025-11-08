@@ -7,3 +7,4 @@ pub mod icp;
 pub mod id;
 pub mod ledger;
 pub mod logging;
+pub mod network;

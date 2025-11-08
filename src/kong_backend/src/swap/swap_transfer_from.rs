@@ -257,6 +257,7 @@ async fn transfer_from_token(
                 token_id,
                 tx_id: TxId::BlockIndex(tx_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             request_map::update_status(request_id, StatusCode::SendPayTokenSuccess, None);

@@ -1,0 +1,10 @@
+# Settings with credentials
+settings.json
+
+# Backup directory
+backups/
+
+# SSL/TLS certificates
+*.crt
+*.key
+*.pem

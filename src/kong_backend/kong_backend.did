@@ -617,6 +617,7 @@ type SendReply = record {
     ts : nat64;
 };
 type SendResult = variant { Ok : SendReply; Err : text };
+type RefundTransferResult = variant { Ok; Err : text };
 
 service : {
     // icrc1 standards
@@ -707,4 +708,6 @@ service : {
 
     // admin functions
     check_pools : () -> (CheckPoolsResult);
+
+    refund_transfer : (text, nat, TxId) -> (RefundTransferResult);
 }

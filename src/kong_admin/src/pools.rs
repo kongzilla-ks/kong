@@ -106,9 +106,9 @@ pub async fn insert_pool_on_database(
     let is_removed = v.is_removed;
     let raw_json = serialize_pool(v);
 
-    db_client
-        .execute(
-            "INSERT INTO pools 
+    let stmt = db_client
+        .prepare(
+            "INSERT INTO pools
                 (pool_id, token_id_0, balance_0, lp_fee_0, kong_fee_0, token_id_1, balance_1, lp_fee_1, kong_fee_1, lp_fee_bps, kong_fee_bps, lp_token_id, is_removed, raw_json)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                 ON CONFLICT (pool_id) DO UPDATE SET
@@ -124,7 +124,13 @@ pub async fn insert_pool_on_database(
                     kong_fee_bps = $11,
                     lp_token_id = $12,
                     is_removed = $13,
-                    raw_json = $14",
+                    raw_json = $14"
+        )
+        .await?;
+
+    db_client
+        .execute(
+            &stmt,
             &[&pool_id, &token_id_0, &balance_0, &lp_fee_0, &kong_fee_0, &token_id_1, &balance_1, &lp_fee_1, &kong_fee_1, &lp_fee_bps, &kong_fee_bps, &lp_token_id, &is_removed, &raw_json],
         )
         .await?;
@@ -132,6 +138,23 @@ pub async fn insert_pool_on_database(
     println!("pool_id={} saved", v.pool_id);
 
     Ok(())
+}
+
+pub async fn query_pool_token_ids(
+    db_client: &Client,
+    pool_id: u32,
+) -> Result<(u32, u32), Box<dyn std::error::Error>> {
+    let stmt = db_client
+        .prepare("SELECT token_id_0, token_id_1 FROM pools WHERE pool_id = $1")
+        .await?;
+
+    let row = db_client
+        .query_one(&stmt, &[&(pool_id as i32)])
+        .await?;
+
+    let token_id_0: i32 = row.get(0);
+    let token_id_1: i32 = row.get(1);
+    Ok((token_id_0 as u32, token_id_1 as u32))
 }
 
 pub async fn load_pools_from_database(db_client: &Client) -> Result<BTreeMap<u32, (u32, u32)>, Box<dyn std::error::Error>> {

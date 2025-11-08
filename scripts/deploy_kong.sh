@@ -92,6 +92,8 @@ fi
 # Deploy core canisters - limited to kong_backend only
 CORE_CANISTERS_SCRIPTS=(
     "deploy_kong_backend.sh"
+    "deploy_kong_data.sh"
+    "deploy_kong_limit.sh"
 )
 
 for script in "${CORE_CANISTERS_SCRIPTS[@]}"; do
@@ -122,6 +124,14 @@ if [[ "${NETWORK}" =~ ^(local|staging)$ ]]; then
         } || echo "Warning: ${script} not found"
     done
 
+    # deploy kong limit
+    ${SCRIPT_DIR}/deploy_kong_limit.sh "${NETWORK}"
+    if [[ "${NETWORK}" == "local" ]]; then
+        echo "Running ${SCRIPT_DIR}/kong_tmp/kong_add_limit.sh"
+        ${SCRIPT_DIR}/kong_tmp/kong_add_limit.sh
+    fi
+    # ${SCRIPT_DIR}/prepare_kong_limit.sh "${NETWORK}"
+
     # deploy test token faucet canister
     [ -f "${SCRIPT_DIR}/deploy_kong_faucet.sh" ] && {
         bash "${SCRIPT_DIR}/deploy_kong_faucet.sh" "${NETWORK}"
@@ -148,4 +158,8 @@ if [[ "${NETWORK}" == "ic" ]]; then
     # calculate sha256 for SNS proposal
     echo "SHA256 for kong_backend.wasm.gz:"
     sha256sum "${DFX_ROOT}"/ic/canisters/kong_backend/kong_backend.wasm.gz
+fi
+
+if [[ "${NETWORK}" == "local" ]]; then
+   dfx deploy internet_identity --network local
 fi

@@ -12,6 +12,7 @@ use crate::ic::{
     network::ICNetwork,
     transfer::{icrc1_transfer, icrc2_transfer_from},
 };
+use crate::kong_limit::update_kong_limit_volumes;
 use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
@@ -282,6 +283,7 @@ async fn process_add_liquidity(
             token_id: token_0.token_id(),
             tx_id: TxId::TransactionId(verification.tx_signature),
             ts,
+            refund_transfer_id: None,
         });
         transfer_ids.push(transfer_id);
         request_map::update_status(request_id, StatusCode::SendToken0Success, None);
@@ -328,7 +330,16 @@ async fn process_add_liquidity(
                 let canonical_message = CanonicalAddLiquidityMessage::from_add_liquidity_args(args).to_signing_message();
 
                 // Verify the Solana transfer
-                match verify_transfer_solana(&tx_signature_str, sig, add_amount_1, &canonical_message, &token_1, sol_token.is_spl_token).await {
+                match verify_transfer_solana(
+                    &tx_signature_str,
+                    sig,
+                    add_amount_1,
+                    &canonical_message,
+                    &token_1,
+                    sol_token.is_spl_token,
+                )
+                .await
+                {
                     Ok(verification) => {
                         // Check if this Solana transaction has already been used
                         if transfer_map::contains_tx_signature(token_1.token_id(), &verification.tx_signature) {
@@ -344,6 +355,7 @@ async fn process_add_liquidity(
                             token_id: token_1.token_id(),
                             tx_id: TxId::TransactionId(verification.tx_signature),
                             ts,
+                            refund_transfer_id: None,
                         });
                         transfer_ids.push(transfer_id);
                         request_map::update_status(request_id, StatusCode::SendToken1Success, None);
@@ -458,6 +470,7 @@ pub async fn transfer_from_token(
                 token_id,
                 tx_id: TxId::BlockIndex(block_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {
@@ -508,6 +521,8 @@ pub fn update_liquidity_pool(
 
             // update user's LP token amount
             update_lp_token(request_id, user_id, pool.lp_token_id, &add_lp_token_amount, ts);
+
+            let _ = update_kong_limit_volumes(pool.symbol_0(), pool.balance_0.clone(), pool.symbol_1(), pool.balance_1.clone());
 
             Ok((pool, amount_0, amount_1, add_lp_token_amount))
         }
@@ -626,6 +641,7 @@ async fn return_token(
                 token_id,
                 tx_id: TxId::BlockIndex(block_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {
