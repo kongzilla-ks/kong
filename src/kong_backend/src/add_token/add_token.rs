@@ -90,7 +90,7 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
     token_map::get_by_token_id(token_id).ok_or_else(|| format!("Failed to add token {}", token))
 }
 
-/// Adds an SPL token with metadata (proxy-only endpoint).
+/// Adds a Solana token with metadata (proxy-only endpoint).
 ///
 /// This endpoint is used by the kong_rpc proxy during ATA discovery:
 /// 1. Proxy detects new token accounts on Solana  
@@ -110,7 +110,7 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
 ///
 /// Only callable by the kong_rpc proxy via caller_is_kong_rpc guard.
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
-async fn add_spl_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
+async fn add_solana_token(args: AddSplTokenArgs) -> Result<AddTokenReply, String> {
     // Use get_by_address to check if token exists and get chain info
     match token_map::get_by_address(&args.token) {
         Ok(_existing_token) => {

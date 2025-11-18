@@ -6,9 +6,9 @@ use crate::stable_memory::with_solana_tx_notifications_mut;
 
 use super::transaction_notification::{TransactionNotification, TransactionNotificationId, TransactionNotificationStatus};
 
-/// Notify about a Solana transfer (called by kong_rpc)
+/// Notify about a Solana incoming transfer (called by kong_rpc)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn notify_solana_transfer(tx_signature: String, metadata: String) -> Result<(), String> {
+pub fn notify_solana_incoming_transfer(tx_signature: String, metadata: String) -> Result<(), String> {
     let key = TransactionNotificationId(tx_signature.clone());
     let value = TransactionNotification {
         status: TransactionNotificationStatus::Confirmed, // Incoming payments are always confirmed

@@ -2,12 +2,12 @@ use ic_cdk::query;
 use std::ops::Bound::{Excluded, Unbounded};
 
 use crate::ic::guards::caller_is_kong_rpc;
-use crate::stable_memory::with_swap_job_queue;
 use crate::solana::swap_job::{SwapJob, SwapJobId, SwapJobStatus};
+use crate::stable_memory::with_swap_job_queue;
 
-/// Get pending Solana swap jobs for kong_rpc processing (called by kong_rpc)
+/// Get Solana transfers for kong_rpc processing (called by kong_rpc)
 #[query(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn get_pending_solana_swaps(from_job_id: Option<SwapJobId>) -> Result<Vec<SwapJob>, String> {
+pub fn get_solana_outgoing_transfer(from_job_id: Option<SwapJobId>) -> Result<Vec<SwapJob>, String> {
     const MAX_BATCH_SIZE: usize = 100;
 
     with_swap_job_queue(|queue| {

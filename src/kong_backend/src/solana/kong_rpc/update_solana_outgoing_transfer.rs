@@ -9,12 +9,12 @@ use crate::solana::kong_rpc::transaction_notification::{
 use crate::solana::swap_job::{SwapJobId, SwapJobStatus};
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_memory::{with_solana_tx_notifications_mut, with_swap_job_queue_mut, CLAIM_MAP};
-use crate::stable_request::{request_map, reply::Reply, request::Request};
-use crate::stable_token::{token_map, token::Token};
+use crate::stable_request::{reply::Reply, request::Request, request_map};
+use crate::stable_token::{token::Token, token_map};
 
-/// Update a Solana swap job status (called by kong_rpc after transaction execution)
+/// Update a Solana transfer status (called by kong_rpc after transaction execution)
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn update_solana_swap(
+pub fn update_solana_outgoing_transfer(
     job_id: u64,
     final_solana_tx_sig: String,
     was_successful: bool,
@@ -50,14 +50,14 @@ pub fn update_solana_swap(
                         job.error_message = None;
                         job.updated_at = ICNetwork::get_time();
                         queue.insert(SwapJobId(job_id), job);
-                        
+
                         // Remove successfully completed jobs to prevent reprocessing
                         queue.remove(&SwapJobId(job_id));
                         Ok(())
                     } else {
                         // Transition: Pending -> Failed
                         // Create a claim for failed Solana swaps so user can recover funds
-                        
+
                         // First check if claim already exists to prevent double-spend
                         let existing_claims: Vec<_> = CLAIM_MAP.with(|m| {
                             m.borrow()
@@ -65,7 +65,7 @@ pub fn update_solana_swap(
                                 .filter(|(_, claim)| claim.request_id == Some(job.request_id))
                                 .collect::<Vec<_>>()
                         });
-                        
+
                         if !existing_claims.is_empty() {
                             ICNetwork::info_log(&format!(
                                 "Claim already exists for request {}, skipping claim creation",
@@ -78,7 +78,7 @@ pub fn update_solana_swap(
                             queue.insert(SwapJobId(job_id), job);
                             return Ok(());
                         }
-                        
+
                         // Get the original request to extract swap details
                         match request_map::get_by_request_id(job.request_id) {
                             Some(request) => {
@@ -89,13 +89,11 @@ pub fn update_solana_swap(
                                         let destination_address = match &swap_args.receive_address {
                                             Some(addr) => addr.clone(),
                                             None => {
-                                                ICNetwork::error_log(&format!(
-                                                    "No receive_address in swap args for job #{}", job.id
-                                                ));
+                                                ICNetwork::error_log(&format!("No receive_address in swap args for job #{}", job.id));
                                                 return Ok(());
                                             }
                                         };
-                                        
+
                                         match request.reply {
                                             Reply::Swap(swap_reply) => {
                                                 // Get the receive token symbol for lookup
@@ -107,7 +105,7 @@ pub fn update_solana_swap(
                                                             "Creating claim for failed swap job #{} (user: {}, request: {}, dest: {})",
                                                             job.id, job.user_id, job.request_id, destination_address
                                                         ));
-                                                        
+
                                                         // Create the claim with the ACTUAL destination address
                                                         let claim = StableClaim::new(
                                                             job.user_id,
@@ -117,7 +115,7 @@ pub fn update_solana_swap(
                                                             Some(Address::SolanaAddress(destination_address)),
                                                             ICNetwork::get_time(),
                                                         );
-                                                        
+
                                                         let claim_id = claim_map::insert(&claim);
                                                         ICNetwork::info_log(&format!(
                                                             "Created claim #{} for failed swap job #{}",
@@ -133,10 +131,7 @@ pub fn update_solana_swap(
                                                 }
                                             }
                                             _ => {
-                                                ICNetwork::error_log(&format!(
-                                                    "Request {} reply is not a swap reply",
-                                                    job.request_id
-                                                ));
+                                                ICNetwork::error_log(&format!("Request {} reply is not a swap reply", job.request_id));
                                             }
                                         }
                                     }
@@ -149,13 +144,10 @@ pub fn update_solana_swap(
                                 }
                             }
                             None => {
-                                ICNetwork::error_log(&format!(
-                                    "Request {} not found for swap job #{}",
-                                    job.request_id, job.id
-                                ));
+                                ICNetwork::error_log(&format!("Request {} not found for swap job #{}", job.request_id, job.id));
                             }
                         }
-                        
+
                         // Update job status regardless of claim creation
                         job.status = SwapJobStatus::Failed;
                         job.solana_tx_signature_of_payout = Some(final_solana_tx_sig);
@@ -174,17 +166,11 @@ pub fn update_solana_swap(
                                 queue.remove(&SwapJobId(job_id));
                                 Ok(())
                             }
-                            _ => Err(format!(
-                                "Job {} already confirmed with different signature",
-                                job_id
-                            )),
+                            _ => Err(format!("Job {} already confirmed with different signature", job_id)),
                         }
                     } else {
                         // Can't fail a confirmed job
-                        Err(format!(
-                            "Job {} is already confirmed, cannot mark as failed",
-                            job_id
-                        ))
+                        Err(format!("Job {} is already confirmed, cannot mark as failed", job_id))
                     }
                 }
                 SwapJobStatus::Failed => {
@@ -212,10 +198,7 @@ pub fn update_solana_swap(
                 SwapJobStatus::Expired => {
                     // Job expired - requires manual intervention
                     // kong_rpc should not be calling this for expired jobs
-                    Err(format!(
-                        "Job {} is expired - requires manual investigation",
-                        job_id
-                    ))
+                    Err(format!("Job {} is expired - requires manual investigation", job_id))
                 }
             }
         } else {
@@ -223,4 +206,3 @@ pub fn update_solana_swap(
         }
     })
 }
-
