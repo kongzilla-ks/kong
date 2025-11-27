@@ -2,13 +2,9 @@ use ic_cdk::update;
 
 use crate::ic::guards::caller_is_kong_rpc;
 
-use super::super::stable_memory::with_solana_blockhash_mut;
-
 /// Update the Solana blockhash (called by kong_rpc)
+/// Currently disabled - canister fetches blockhash via HTTP outcalls
 #[update(hidden = true, guard = "caller_is_kong_rpc")]
-pub fn update_solana_blockhash(blockhash: String) -> Result<(), String> {
-    with_solana_blockhash_mut(|cell| {
-        cell.set(blockhash).map_err(|_| "Failed to update Solana blockhash".to_string())?;
-        Ok(())
-    })
+pub fn update_solana_blockhash(_blockhash: String) -> Result<(), String> {
+    Err("Blockhash updates disabled - using HTTP outcalls".to_string())
 }

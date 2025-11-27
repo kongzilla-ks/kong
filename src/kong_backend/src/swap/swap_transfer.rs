@@ -103,7 +103,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                         // Wait 2 seconds before retry
                                         use std::time::Duration;
                                         let (sender, receiver) = futures::channel::oneshot::channel();
-                                        ic_cdk_timers::set_timer(Duration::from_millis(2000), move || {
+                                        ic_cdk_timers::set_timer(Duration::from_millis(2000), async move {
                                             let _ = sender.send(());
                                         });
                                         let _ = receiver.await;
@@ -152,7 +152,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                                         // Wait 2 seconds before retry
                                         use std::time::Duration;
                                         let (sender, receiver) = futures::channel::oneshot::channel();
-                                        ic_cdk_timers::set_timer(Duration::from_millis(2000), move || {
+                                        ic_cdk_timers::set_timer(Duration::from_millis(2000), async move {
                                             let _ = sender.send(());
                                         });
                                         let _ = receiver.await;

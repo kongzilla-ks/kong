@@ -96,60 +96,46 @@ async fn post_upgrade() {
 
 async fn set_timer_processes() {
     // start the background timer to process claims
-    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().claims_interval_secs), || {
-        ic_cdk::futures::spawn(async {
-            process_claims_timer().await;
-        });
+    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().claims_interval_secs), || async {
+        process_claims_timer().await;
     });
 
     // start the background timer to archive request map
-    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().requests_archive_interval_secs), || {
-        ic_cdk::futures::spawn(async {
-            archive_request_map();
-        });
+    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().requests_archive_interval_secs), || async {
+        archive_request_map();
     });
 
     // start the background timer to archive transfer map
     let _ = set_timer_interval(
         Duration::from_secs(kong_settings_map::get().transfers_archive_interval_secs),
-        || {
-            ic_cdk::futures::spawn(async {
-                archive_transfer_map().await;
-            });
+        || async {
+            archive_transfer_map().await;
         },
     );
 
     // start the background timer to archive tx map
-    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().txs_archive_interval_secs), || {
-        ic_cdk::futures::spawn(async {
-            archive_tx_map();
-        });
+    let _ = set_timer_interval(Duration::from_secs(kong_settings_map::get().txs_archive_interval_secs), || async {
+        archive_tx_map();
     });
 
     // start the background timer to check for disabled tokens
     let _ = set_timer_interval(
         Duration::from_secs(kong_settings_map::get().check_disabled_token_interval_secs),
-        || {
-            ic_cdk::futures::spawn(async {
-                check_disabled_tokens().await;
-            });
+        || async {
+            check_disabled_tokens().await;
         },
     );
 
     // start the background timer to cleanup old Solana notifications
-    let _ = set_timer_interval(Duration::from_secs(3600), || {
+    let _ = set_timer_interval(Duration::from_secs(3600), || async {
         // Clean up every hour
-        ic_cdk::futures::spawn(async {
-            cleanup_old_notifications();
-        });
+        cleanup_old_notifications();
     });
 
     // start the background timer to cleanup expired Solana swap jobs
-    let _ = set_timer_interval(Duration::from_secs(60), || {
+    let _ = set_timer_interval(Duration::from_secs(60), || async {
         // Check every minute for expired swap jobs
-        ic_cdk::futures::spawn(async {
-            crate::solana::swap_job_cleanup::cleanup_expired_swap_jobs();
-        });
+        crate::solana::swap_job_cleanup::cleanup_expired_swap_jobs();
     });
 }
 

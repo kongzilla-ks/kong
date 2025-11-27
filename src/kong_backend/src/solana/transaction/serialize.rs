@@ -3,14 +3,65 @@
 //! This module handles the serialization of transaction messages into the binary format
 //! expected by Solana.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use candid::{CandidType, Nat, Principal};
+use serde::Deserialize;
 use std::collections::HashMap;
+
+/// HTTP request arguments with is_replicated support
+#[derive(CandidType, Debug)]
+struct HttpRequestArgs {
+    url: String,
+    max_response_bytes: Option<u64>,
+    method: HttpMethod,
+    headers: Vec<HttpHeader>,
+    body: Option<Vec<u8>>,
+    transform: Option<TransformArgs>,
+    is_replicated: Option<bool>,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+struct HttpHeader {
+    name: String,
+    value: String,
+}
+
+#[derive(CandidType, Debug)]
+struct TransformArgs {
+    function: TransformFunc,
+    context: Vec<u8>,
+}
+
+#[derive(CandidType, Debug)]
+struct TransformFunc {
+    principal: Principal,
+    name: String,
+}
+
+#[derive(CandidType, Debug)]
+#[allow(non_camel_case_types)]
+enum HttpMethod {
+    get,
+    post,
+    head,
+}
+
+/// HTTP response - matches IC management canister interface
+#[derive(CandidType, Deserialize, Debug)]
+struct HttpResponse {
+    status: Nat,
+    headers: Vec<HttpHeader>,
+    body: Vec<u8>,
+}
 
 use super::super::error::SolanaError;
 use super::super::sdk::compiled_instruction::CompiledInstruction;
 use super::super::sdk::instruction::Instruction;
-use super::super::stable_memory::with_solana_blockhash;
 use super::super::utils::base58;
+
+const HELIUS_ENDPOINT: &str =
+    "https://mainnet.helius-rpc.com/?api-key=18627637-bbdf-41b5-b8cf-e9c9d92aaabe";
+const HTTP_OUTCALL_CYCLES: u128 = 500_000_000;
 
 /// Message header for Solana transactions
 #[derive(Debug, Clone)]
@@ -168,9 +219,60 @@ impl Message {
     }
 }
 
-/// Serialize a message from instructions, getting blockhash internally
+/// Serialize a message from instructions, fetching blockhash via non-replicated HTTP outcall
 pub async fn serialize_message(instructions: Vec<Instruction>, payer: &str) -> Result<Vec<u8>> {
-    let blockhash = with_solana_blockhash(|cell| cell.get().clone());
+    let blockhash = fetch_solana_blockhash().await?;
     let message = Message::new(instructions, payer)?.with_blockhash(blockhash);
     message.serialize()
+}
+
+/// Fetch latest Solana blockhash from Helius RPC (non-replicated HTTP outcall)
+async fn fetch_solana_blockhash() -> Result<String> {
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getLatestBlockhash",
+        "params": [{"commitment": "finalized"}]
+    });
+
+    let request = HttpRequestArgs {
+        url: HELIUS_ENDPOINT.to_string(),
+        max_response_bytes: Some(1024),
+        method: HttpMethod::post,
+        headers: vec![HttpHeader {
+            name: "Content-Type".to_string(),
+            value: "application/json".to_string(),
+        }],
+        body: Some(body.to_string().into_bytes()),
+        transform: None,
+        is_replicated: Some(false),
+    };
+
+    let (response,): (HttpResponse,) = ic_cdk::api::call::call_with_payment128(
+        Principal::management_canister(),
+        "http_request",
+        (request,),
+        HTTP_OUTCALL_CYCLES,
+    )
+    .await
+    .map_err(|(code, msg)| anyhow!("HTTP outcall failed: {code:?} - {msg}"))?;
+
+    let status_u64: u64 = response.status.0.try_into().unwrap_or(0);
+    if status_u64 != 200 {
+        let err_body = String::from_utf8_lossy(&response.body);
+        return Err(anyhow!("Helius RPC error {status_u64}: {err_body}"));
+    }
+
+    let json: serde_json::Value = serde_json::from_slice(&response.body)
+        .map_err(|e| anyhow!("JSON parse failed: {e}"))?;
+
+    json.get("result")
+        .and_then(|r| r.get("value"))
+        .and_then(|v| v.get("blockhash"))
+        .and_then(|b| b.as_str())
+        .map(String::from)
+        .ok_or_else(|| {
+            let err_body = String::from_utf8_lossy(&response.body);
+            anyhow!("Missing blockhash in response: {err_body}")
+        })
 }
