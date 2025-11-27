@@ -19,7 +19,7 @@
   let { pool, token0, token1, onShowConfirmModal }: Props = $props();
   
   // Check if early access is enabled (you can modify this condition based on your requirements)
-  const EARLY_ACCESS_ENABLED = true; // Set to false when ready to launch publicly
+  const EARLY_ACCESS_ENABLED = false; // Cross-chain liquidity enabled
 
   // Unified state for atomic updates
   let state = $state({
@@ -100,10 +100,18 @@
       const inputAmount = parseTokenAmount(value, tokens[inputIndex].decimals);
       if (!inputAmount) return;
 
+      // Format token as Chain.Address for backend lookup
+      const formatTokenId = (token: any) => {
+        if (token.chain === 'Solana' || token.symbol === 'SOL') {
+          return `SOL.${token.address}`;
+        }
+        return `IC.${token.address}`;
+      };
+
       const result = await calculateLiquidityAmounts(
-        tokens[inputIndex].address,
+        formatTokenId(tokens[inputIndex]),
         inputAmount,
-        tokens[outputIndex].address
+        formatTokenId(tokens[outputIndex])
       );
 
       // Check if calculation is still valid

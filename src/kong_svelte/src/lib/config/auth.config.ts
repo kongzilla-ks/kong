@@ -88,10 +88,10 @@ export const canisters: CanisterConfigs = {
 // --- PNP Initialization ---
 let globalPnp: PNP | null = null;
 // Use the current kong_svelte canister ID
-const frontendCanisterId = "uxjo4-iiaaa-aaaam-qdxaq-cai";
+const frontendCanisterId = "knjkf-piaaa-aaaab-aczkq-cai";
 
 const delegationTargets = [
-  'u6kfa-6aaaa-aaaam-qdxba-cai', // kongBackend mainnet
+  'dexls-paaaa-aaaau-acyiq-cai', // kongBackend staging
   predictionMarketsBackendCanisterId,
   trollboxCanisterId,
   kongDataCanisterId

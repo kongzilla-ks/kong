@@ -66,13 +66,18 @@
   async function handleCrossChainLP(params: any) {
     const isToken0Sol = isSolToken(token0);
     const isToken1Sol = isSolToken(token1);
-    
+
     if (!isToken0Sol && !isToken1Sol) {
       throw new Error("Not a cross-chain LP");
     }
 
     console.log("Opening Solana liquidity modal for cross-chain LP");
-    
+
+    // Hide this modal while SolanaLiquidityModal handles the flow
+    // This prevents two overlapping modals
+    show = false;
+    isLoading = false;
+
     return new Promise((resolve, reject) => {
       let isResolved = false;
       let timeoutId: NodeJS.Timeout;
@@ -113,35 +118,62 @@
         lpAmount: '', // not used for add liquidity
         onConfirm: async (modalData) => {
           try {
-            const { solTransactionId, icrcTransactionId, pay_signature, timestamp } = modalData;
-            
+            const { solTransactionId, icrcTransactionId, pay_signature } = modalData;
+
             // Call add_liquidity_async with both transaction details
             const actor = await swapActor({ anon: false, requiresSigning: false });
-            
+
+            // Backend expects signature_0/signature_1, NOT pay_signature_0/pay_signature_1
+            // Backend expects SOL.{address} format, NOT just "SOL"
+            // Backend does NOT have a timestamp field in AddLiquidityArgs
             const addLiquidityArgs = {
-              token_0: isToken0Sol ? "SOL" : "IC." + token0.address,
+              token_0: isToken0Sol ? `SOL.${token0.address}` : `IC.${token0.address}`,
               amount_0: params.amount_0,
-              token_1: isToken1Sol ? "SOL" : "IC." + token1.address, 
+              token_1: isToken1Sol ? `SOL.${token1.address}` : `IC.${token1.address}`,
               amount_1: params.amount_1,
-              tx_id_0: isToken0Sol 
+              tx_id_0: isToken0Sol
                 ? (solTransactionId ? [{ TransactionId: solTransactionId }] : [])
                 : (icrcTransactionId ? [{ BlockIndex: icrcTransactionId }] : []),
-              tx_id_1: isToken1Sol 
+              tx_id_1: isToken1Sol
                 ? (solTransactionId ? [{ TransactionId: solTransactionId }] : [])
                 : (icrcTransactionId ? [{ BlockIndex: icrcTransactionId }] : []),
-              pay_signature_0: isToken0Sol ? [pay_signature] : [] as [] | [string],
-              pay_signature_1: isToken1Sol ? [pay_signature] : [] as [] | [string],
-              timestamp: [timestamp] as [] | [bigint],
+              signature_0: isToken0Sol ? [pay_signature] : [] as [] | [string],
+              signature_1: isToken1Sol ? [pay_signature] : [] as [] | [string],
+              // NO timestamp field - it doesn't exist in backend AddLiquidityArgs
             };
 
             console.log("Calling add_liquidity_async with args:", addLiquidityArgs);
-            const result = await actor.add_liquidity_async(addLiquidityArgs);
-            
-            if ("Err" in result) {
-              throw new Error(result.Err);
+
+            // Retry logic for TRANSACTION_NOT_READY errors (matching shell script pattern)
+            const MAX_RETRIES = 5;
+            const RETRY_DELAY_MS = 2000;
+            let lastError: Error | null = null;
+
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+              const result = await actor.add_liquidity_async(addLiquidityArgs);
+
+              if ("Ok" in result) {
+                safeResolve(result.Ok);
+                return;
+              }
+
+              if ("Err" in result) {
+                lastError = new Error(result.Err);
+
+                // Retry on TRANSACTION_NOT_READY
+                if (result.Err.includes('TRANSACTION_NOT_READY') && attempt < MAX_RETRIES) {
+                  console.log(`[CrossChainLP] Attempt ${attempt}/${MAX_RETRIES} - waiting for transaction...`);
+                  await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+                  continue;
+                }
+
+                // Non-retryable error or max retries reached
+                const txInfo = solTransactionId ? ` SOL Transaction: ${solTransactionId}` : '';
+                throw new Error(`${result.Err}${txInfo}`);
+              }
             }
-            
-            safeResolve(result.Ok);
+
+            throw lastError || new Error('Max retries exceeded');
           } catch (error) {
             console.error("Cross-chain LP error:", error);
             safeReject(error);
@@ -270,14 +302,22 @@
           err instanceof Error ? err.message : "Failed to process transaction";
         // Always reset loading state on error
         isLoading = false;
-        
+
+        // Check if this was a cross-chain operation (modal was hidden)
+        const wasCrossChain = isSolToken(token0) || isSolToken(token1);
+
         // Show user-friendly error message
         if (err instanceof Error && err.message.includes("cancelled")) {
           toastStore.info("Operation cancelled");
+          // Don't re-show modal on user cancellation
         } else if (err instanceof Error && err.message.includes("timed out")) {
           toastStore.error("Operation timed out. Please try again.");
+          // Re-show modal for retry on timeout
+          if (wasCrossChain) show = true;
         } else {
           toastStore.error(error || "Transaction failed");
+          // Re-show modal for retry on other errors
+          if (wasCrossChain) show = true;
         }
       }
     } finally {

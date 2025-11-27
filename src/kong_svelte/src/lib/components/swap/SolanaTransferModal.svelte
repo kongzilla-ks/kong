@@ -333,12 +333,22 @@
       // Note: Token chain might be 'ICP' or 'IC' depending on the token
       const receiveAddress = (receiveToken.chain === 'IC' || receiveToken.chain === 'ICP') ? icPrincipal : userSolanaAddress;
 
+      // Format tokens to match backend expectations:
+      // - Solana tokens: "SOL.{mint_address}"
+      // - ICP tokens: "IC.{canister_id}"
+      const formatTokenForCanonical = (token: Kong.Token) => {
+        if (token.chain === 'Solana' || token.symbol === 'SOL') {
+          return `SOL.${token.address}`;
+        }
+        return `IC.${token.address}`;
+      };
+
       // Use the actual Solana wallet address for signature verification
       const canonicalMessage = CrossChainSwapService.createCanonicalMessage({
-        payToken: payToken.symbol,
+        payToken: formatTokenForCanonical(payToken),
         payAmount: payAmountBigInt,
         payAddress: userSolanaAddress, // Must match the address that sent the transaction
-        receiveToken: receiveToken.symbol,
+        receiveToken: formatTokenForCanonical(receiveToken),
         receiveAmount: receiveAmountBigInt,
         receiveAddress,
         maxSlippage,

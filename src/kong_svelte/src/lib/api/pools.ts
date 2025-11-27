@@ -307,13 +307,16 @@ export async function addLiquidity(params: {
     }
 
     // Format token addresses correctly for cross-chain vs IC tokens
+    // Backend expects SOL.{address} format, NOT just "SOL"
     const formatTokenAddress = (token: any) => {
       if (token.symbol === "SOL" || token.address === "11111111111111111111111111111111") {
-        return token.symbol; // Use "SOL" for Solana
+        return `SOL.${token.address}`; // Use "SOL.{address}" for Solana tokens
       }
       return "IC." + token.address; // Use "IC." prefix for IC tokens
     };
 
+    // Backend expects signature_0/signature_1, NOT pay_signature_0/pay_signature_1
+    // Backend does NOT have a timestamp field in AddLiquidityArgs
     const addLiquidityArgs = {
       token_0: formatTokenAddress(params.token_0),
       amount_0: params.amount_0,
@@ -321,9 +324,9 @@ export async function addLiquidity(params: {
       amount_1: params.amount_1,
       tx_id_0,
       tx_id_1,
-      pay_signature_0: [] as [] | [string], // Empty for ICRC-only operations
-      pay_signature_1: [] as [] | [string], // Empty for ICRC-only operations
-      timestamp: [] as [] | [bigint], // Empty for ICRC-only operations
+      signature_0: [] as [] | [string], // Empty for ICRC-only operations
+      signature_1: [] as [] | [string], // Empty for ICRC-only operations
+      // NO timestamp field - it doesn't exist in backend AddLiquidityArgs
     };
 
     let result = await actor.add_liquidity_async(addLiquidityArgs);
@@ -511,11 +514,9 @@ export async function removeLiquidity(params: {
   token_1_obj?: Kong.Token;
   payout_address_0?: string;
   payout_address_1?: string;
-  pay_signature_0?: string;
-  pay_signature_1?: string;
-  timestamp?: bigint;
-  tx_id_0?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
-  tx_id_1?: Array<{ BlockIndex: bigint } | { TransactionId: string }>;
+  pay_signature_0?: string; // Maps to signature_0 in backend
+  pay_signature_1?: string; // Maps to signature_1 in backend
+  // Note: timestamp removed - backend RemoveLiquidityArgs doesn't have it
 }): Promise<string> {
   requireWalletConnection();
   try {
@@ -535,28 +536,30 @@ export async function removeLiquidity(params: {
     }
 
     // Format token addresses correctly for cross-chain vs IC tokens
+    // Backend expects SOL.{address} format, NOT just "SOL"
     const formatTokenAddress = (tokenAddress: string, tokenObj?: any) => {
       if (tokenObj && isSolToken(tokenObj)) {
-        return tokenObj.symbol; // Use "SOL" for Solana
+        return `SOL.${tokenObj.address}`; // Use "SOL.{address}" for Solana tokens
       }
       if (tokenAddress === "SOL" || tokenAddress === "11111111111111111111111111111111") {
-        return "SOL";
+        return `SOL.${tokenAddress}`; // Use "SOL.{address}" for Solana tokens
       }
       return "IC." + tokenAddress; // Use "IC." prefix for IC tokens
     };
 
     const actor = swapActor({anon: false, requiresSigning: false});
+
+    // Backend expects signature_0/signature_1, NOT pay_signature_0/pay_signature_1
+    // Backend does NOT have a timestamp field in RemoveLiquidityArgs
     const removeLiquidityArgs = {
       token_0: formatTokenAddress(params.token0, params.token_0_obj),
       token_1: formatTokenAddress(params.token1, params.token_1_obj),
       remove_lp_token_amount: lpTokenBigInt,
       payout_address_0: params.payout_address_0 ? [params.payout_address_0] : [],
       payout_address_1: params.payout_address_1 ? [params.payout_address_1] : [],
-      pay_signature_0: params.pay_signature_0 ? [params.pay_signature_0] : [],
-      pay_signature_1: params.pay_signature_1 ? [params.pay_signature_1] : [],
-      timestamp: params.timestamp ? [params.timestamp] : [],
-      tx_id_0: params.tx_id_0 || [],
-      tx_id_1: params.tx_id_1 || [],
+      signature_0: params.pay_signature_0 ? [params.pay_signature_0] : [],
+      signature_1: params.pay_signature_1 ? [params.pay_signature_1] : [],
+      // NO timestamp field - it doesn't exist in backend RemoveLiquidityArgs
     };
 
     const result = await (actor as any).remove_liquidity_async(removeLiquidityArgs);
@@ -634,6 +637,8 @@ export async function createPool(params: {
       actor = actorResult;
     }
 
+    // Backend expects signature_0/signature_1, NOT pay_signature_0/pay_signature_1
+    // Backend does NOT have a timestamp field in AddPoolArgs
     const result = await actor.add_pool({
       token_0: "IC." + params.token_0.address,
       amount_0: params.amount_0,
@@ -642,9 +647,9 @@ export async function createPool(params: {
       tx_id_0: tx_id_0,
       tx_id_1: tx_id_1,
       lp_fee_bps: [30], // Hardcoded LP fee basis points
-      pay_signature_0: [] as [] | [string], // Empty signature for ICRC-only pools
-      pay_signature_1: [] as [] | [string], // Empty signature for ICRC-only pools
-      timestamp: [] as [] | [bigint], // Empty timestamp for ICRC-only pools
+      signature_0: [] as [] | [string], // Empty signature for ICRC-only pools
+      signature_1: [] as [] | [string], // Empty signature for ICRC-only pools
+      // NO timestamp field - it doesn't exist in backend AddPoolArgs
     });
 
     if ('Err' in result) {

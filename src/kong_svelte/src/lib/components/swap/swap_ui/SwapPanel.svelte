@@ -64,18 +64,6 @@
   let tokenChain = $derived(token?.chain || '');
   let shouldShowChainBadge = $derived(tokenChain && tokenChain !== 'IC' && tokenChain !== 'ICP');
   
-  $effect(() => {
-    if (token) {
-      console.log(`[SwapPanel ${panelType}] Token updated:`, {
-        symbol: token.symbol,
-        chain: token.chain,
-        tokenChain: tokenChain,
-        shouldShowChainBadge: shouldShowChainBadge,
-        token_type: token.token_type,
-        address: token.address
-      });
-    }
-  });
 
   // Derived state using runes
   let decimals = $derived(token?.decimals || DEFAULT_DECIMALS);

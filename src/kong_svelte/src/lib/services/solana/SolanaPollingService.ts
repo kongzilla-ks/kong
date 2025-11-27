@@ -91,16 +91,12 @@ class SolanaPollingService {
     
     // Check if we have a valid Solana address
     if (!this.userSolanaAddress) {
-      console.log('[SolanaPolling] No Solana address available');
       return;
     }
 
     try {
       const publicKey = new PublicKey(this.userSolanaAddress);
       
-      if (!this.silentMode) {
-        console.log('[SolanaPolling] 🔄 Fetching balances for:', this.userSolanaAddress);
-      }
       
       // Fetch SOL balance and SPL token accounts in parallel
       const [solBalance, tokenAccounts] = await Promise.all([
@@ -118,12 +114,10 @@ class SolanaPollingService {
       const splBalanceHash = this.hashBalance('SPL', tokenAccounts.value.length);
       
       if (this.lastBalanceHashes.get('SOL') !== solBalanceHash) {
-        console.log('[SolanaPolling] SOL Balance changed:', solBalanceInSol, 'SOL');
         this.lastBalanceHashes.set('SOL', solBalanceHash);
       }
-      
+
       if (this.lastBalanceHashes.get('SPL') !== splBalanceHash) {
-        console.log('[SolanaPolling] SPL Token accounts found:', tokenAccounts.value.length);
         this.lastBalanceHashes.set('SPL', splBalanceHash);
       }
 
@@ -169,9 +163,6 @@ class SolanaPollingService {
           in_usd: (balanceInSOL * Number(solToken.metrics?.price || 0)).toString()
         });
         
-        if (!this.silentMode) {
-          console.log(`[SolanaPolling] ✅ SOL balance updated: ${balanceInSOL} SOL (${balanceInLamports} lamports)`);
-        }
       }
     }
   }
@@ -181,7 +172,6 @@ class SolanaPollingService {
    */
   private async processSplTokenAccounts(tokenAccounts: any[]): Promise<void> {
     if (!Array.isArray(tokenAccounts) || tokenAccounts.length === 0) {
-      console.log('[SolanaPolling] No SPL token accounts found');
       return;
     }
     
@@ -222,13 +212,6 @@ class SolanaPollingService {
           in_usd: (balance * Number(token.metrics?.price || 0)).toString()
         });
         
-        if (!this.silentMode) {
-          if (amount > 0n) {
-            console.log(`[SolanaPolling] ✅ ${token.symbol} balance updated: ${balance}`);
-          } else {
-            console.log(`[SolanaPolling] ✅ ${token.symbol} balance is zero`);
-          }
-        }
       }
     });
   }

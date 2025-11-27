@@ -4,9 +4,9 @@
 // Get canister IDs from environment or use defaults
 export const CANISTER_IDS = {
   // Always use the canister ID from the environment if available
-  KONG_BACKEND: process.env.CANISTER_ID_KONG_BACKEND || 
+  KONG_BACKEND: process.env.CANISTER_ID_KONG_BACKEND ||
     // For local development, use your local canister ID
-    (process.env.DFX_NETWORK === 'local' ? 'be2us-64aaa-aaaaa-qaabq-cai' : 'u6kfa-6aaaa-aaaam-qdxba-cai'),
+    (process.env.DFX_NETWORK === 'local' ? 'be2us-64aaa-aaaaa-qaabq-cai' : 'dexls-paaaa-aaaau-acyiq-cai'),
   
   KONG_SVELTE: process.env.CANISTER_ID_KONG_SVELTE || '3ldz4-aiaaa-aaaar-qaina-cai',
   KONG_FAUCET: process.env.CANISTER_ID_KONG_FAUCET || 'ohr23-xqaaa-aaaar-qahqq-cai',

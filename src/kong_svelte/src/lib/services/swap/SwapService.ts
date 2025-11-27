@@ -30,13 +30,17 @@ interface SwapExecuteParams {
   lpFees: any[];
 }
 
-// These types match the backend response structure
+// These types match the backend response structure (SwapReply in kong_backend.did)
 interface SwapStatus {
   status: string;
-  pay_amount: bigint;
+  pay_chain: string;
+  pay_address: string;
   pay_symbol: string;
-  receive_amount: bigint;
+  pay_amount: bigint;
+  receive_chain: string;
+  receive_address: string;
   receive_symbol: string;
+  receive_amount: bigint;
 }
 
 // Base BigNumber configuration for internal calculations
@@ -181,17 +185,16 @@ export class SwapService {
   // === Token ID Formatting ===
   /**
    * Format token ID for backend calls
-   * Backend accepts: "SOL", "USDC", "ksUSDT", or with optional chain prefix
+   * Uses {CHAIN}.{ADDRESS} format which is guaranteed unique
+   * This prevents collisions when multiple tokens share the same symbol
+   * (e.g., Native SOL vs Wrapped SOL both have symbol "SOL")
    */
   public static formatTokenId(token: Kong.Token): string {
-    // For Solana tokens, just use the symbol
-    if (token.chain === 'Solana') {
-      return token.symbol;
-    }
-    
-    // For IC tokens, use the symbol or IC.address format
-    // The backend's get_by_token function handles both
-    return token.symbol;
+    // Use chain.address format which is guaranteed unique by the backend
+    // Backend accepts: Symbol, Chain.Symbol, Address, or Chain.Address
+    // Chain.Address is the most reliable as address is the unique identifier
+    const chain = token.chain === 'Solana' ? 'SOL' : 'IC';
+    return `${chain}.${token.address}`;
   }
 
   // === Quote Methods ===
@@ -643,25 +646,7 @@ export class SwapService {
       }
       
       // Backend expects [[] | [bigint]] which is an array containing an optional bigint
-      // We pass the bigint directly, no need to convert to number
-      console.log('[SwapService.requests] Calling actor.requests with:', [requestIds[0]]);
       const result = await actor.requests([requestIds[0]]);
-      
-      // Log the raw response
-      console.log('[SwapService.requests] Raw response from backend:', result);
-      console.log('[SwapService.requests] Response type:', typeof result);
-      console.log('[SwapService.requests] Response keys:', result ? Object.keys(result) : 'null');
-      
-      // If it's an Ok response, log the contents
-      if (result && 'Ok' in result) {
-        console.log('[SwapService.requests] Ok response contents:', result.Ok);
-        console.log('[SwapService.requests] Ok response length:', result.Ok.length);
-        if (result.Ok.length > 0) {
-          console.log('[SwapService.requests] First item in Ok:', result.Ok[0]);
-          console.log('[SwapService.requests] First item keys:', Object.keys(result.Ok[0]));
-        }
-      }
-      
       return result;
     } catch (error) {
       console.error("Error getting request status:", error);
@@ -1071,11 +1056,12 @@ export class SwapService {
 
             if (swapStatus.status === "Success") {
               this.stopPolling();
+              // Use address for lookup to handle duplicate symbols (e.g., Native SOL vs Wrapped SOL)
               const token0 = get(userTokens).tokens.find(
-                (t) => t.symbol === swapStatus.pay_symbol,
+                (t) => t.address === swapStatus.pay_address,
               );
               const token1 = get(userTokens).tokens.find(
-                (t) => t.symbol === swapStatus.receive_symbol,
+                (t) => t.address === swapStatus.receive_address,
               );
 
               const formattedPayAmount = SwapService.fromBigInt(
@@ -1112,13 +1098,13 @@ export class SwapService {
                 },
               });
 
-              // Load updated balances
+              // Load updated balances - use address for lookup to handle duplicate symbols
               const tokens = get(userTokens).tokens;
               const payToken = tokens.find(
-                (t) => t.symbol === swapStatus.pay_symbol,
+                (t) => t.address === swapStatus.pay_address,
               );
               const receiveToken = tokens.find(
-                (t) => t.symbol === swapStatus.receive_symbol,
+                (t) => t.address === swapStatus.receive_address,
               );
               const walletId = auth?.pnp?.account?.owner;
 

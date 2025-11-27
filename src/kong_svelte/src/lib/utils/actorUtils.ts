@@ -12,7 +12,7 @@ export const createAnonymousActorHelper = (canisterId: string, idl: any) => {
   const agent = HttpAgent.createSync({
     host:
       process.env.DFX_NETWORK !== "ic"
-        ? "http://localhost:4943"
+        ? "http://127.0.0.1:4943"
         : "https://icp0.io",
   });
 

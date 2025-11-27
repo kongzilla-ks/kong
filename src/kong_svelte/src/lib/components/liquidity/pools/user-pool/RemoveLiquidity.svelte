@@ -118,8 +118,9 @@
         lpAmount: numericAmount.toString(),
         onConfirm: async (modalData) => {
           try {
-            const { pay_signature, timestamp } = modalData;
-            
+            const { pay_signature } = modalData;
+            // Note: timestamp is no longer used - backend RemoveLiquidityArgs doesn't have it
+
             // Call removeLiquidity with cross-chain parameters
             const requestId = await removeLiquidity({
               token0: pool.address_0,
@@ -131,9 +132,9 @@
               payout_address_1: isToken1Sol ? await getCurrentSolanaAddress() : undefined,
               pay_signature_0: isToken0Sol ? pay_signature : undefined,
               pay_signature_1: isToken1Sol ? pay_signature : undefined,
-              timestamp: timestamp,
+              // NO timestamp - it doesn't exist in backend RemoveLiquidityArgs
             });
-            
+
             resolve(requestId);
           } catch (error) {
             console.error("Cross-chain remove liquidity error:", error);

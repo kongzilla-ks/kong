@@ -4,6 +4,16 @@ import { currentUserBalancesStore } from '$lib/stores/balancesStore';
 import { calculateLiquidityAmounts } from "$lib/api/pools";
 
 /**
+ * Format token as Chain.Address for backend lookup
+ */
+function formatTokenId(token: Kong.Token): string {
+  if (token.chain === 'Solana' || token.symbol === 'SOL') {
+    return `SOL.${token.address}`;
+  }
+  return `IC.${token.address}`;
+}
+
+/**
  * Formats a display value based on token decimals
  */
 export function formatDisplayValue(value: string, tokenDecimals: number): string {
@@ -337,9 +347,9 @@ export async function calculateToken1FromPoolRatio(
     
     // Use backend service to calculate the corresponding token1 amount
     const result = await calculateLiquidityAmounts(
-      token0.symbol,
+      formatTokenId(token0),
       amount0Raw,
-      token1.symbol
+      formatTokenId(token1)
     );
     
     if ('Err' in result) {
@@ -407,9 +417,9 @@ export async function calculateToken0FromPoolRatio(
     
     // Use backend service to calculate the corresponding token1 amount
     const result = await calculateLiquidityAmounts(
-      token0.symbol,
+      formatTokenId(token0),
       estimatedAmount0,
-      token1.symbol
+      formatTokenId(token1)
     );
     
     if ('Err' in result) {
