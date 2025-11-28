@@ -12,8 +12,8 @@ KONG_USER1_PRINCIPAL="am3ul-zatzc-omilc-xparc-qfslm-xxm7m-irgrw-t3za7-gmluh-uqx7
 # ==============================================================================
 
 # 1: cd into scripts directory
-# 2: sh cross_chain_scripts/add_sol_pool.sh   
-# 3: sh cross_chain_scripts/ping_pong_swap.sh
+# 2: bash cross_chain_scripts/add_sol_pool.sh   
+# 3: bash cross_chain_scripts/ping_pong_swap.sh
 
 
 echo "========================================="

@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ping-pong swaps between ksUSDT and SOL every 10 minutes (RPC stress test)
-# usage: sh ping_pong_swap.sh [local|ic]
+# Ping-pong swaps between ksUSDT and SOL every 30 seconds (RPC stress test)
+# usage: bash ping_pong_swap.sh (actually use bash if you want the stats after closing it - Ctrl+C to stop)
 # Logs to: logs/ping_pong_YYYYMMDD_HHMMSS.log
 
 NETWORK="${1:-local}"
 IDENTITY_FLAG="--identity kong_user1"
-SWAP_INTERVAL=2  # 10 minute interval
+SWAP_INTERVAL=30  # 30 second interval for testing
 
-# Setup logging (sh-compatible)
+# Setup logging
 LOG_DIR="logs"
-if [ "${LOGGING_ENABLED:-}" != "1" ]; then
-    mkdir -p "$LOG_DIR"
-    LOG_FILE="${LOG_DIR}/ping_pong_$(date '+%Y%m%d_%H%M%S').log"
-    echo "Logging to: $LOG_FILE"
-    LOGGING_ENABLED=1 exec bash "$0" "$@" 2>&1 | tee -ia "$LOG_FILE"
-fi
+mkdir -p "$LOG_DIR"
+LOG_FILE="${LOG_DIR}/ping_pong_$(date '+%Y%m%d_%H%M%S').log"
+
+# Log helper - write to both stdout and log file
+log() {
+    echo "$@"
+    echo "$@" >> "$LOG_FILE"
+}
 
 # CANISTER IDS
 MAINNET_KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"
