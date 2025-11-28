@@ -1,0 +1,61 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# DFX local state (we generate fresh state in container)
+.dfx
+
+# Rust build artifacts (cached via named volumes)
+target/
+**/target/
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Environment files with secrets
+.env
+.secrets
+*.pem
+
+# Documentation (not needed for build)
+*.md
+docs/
+!README.md
+
+# Frontend source (not needed for backend testing)
+src/kong_svelte/
+src/ditto_frontend/
+
+# Pre-built wasm files we'll copy explicitly
+# wasm/
+
+# Temporary files
+*.tmp
+*.temp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Backup files
+*.bak
+*.backup

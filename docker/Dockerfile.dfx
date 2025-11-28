@@ -1,0 +1,151 @@
+# ==============================================================================
+# KongSwap DFX Replica Container
+# Multi-stage build: Rust toolchain + dfx + canister compilation
+# ==============================================================================
+
+# Stage 1: Builder Base - Install Rust and DFX
+# ==============================================================================
+FROM ubuntu:22.04 AS builder-base
+
+ARG RUST_VERSION=1.80.1
+ARG DFX_VERSION=0.29.0
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    git \
+    jq \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust with wasm32-unknown-unknown target
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
+    -y \
+    --default-toolchain ${RUST_VERSION} \
+    --profile minimal
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup component add rustfmt clippy && \
+    rustup target add wasm32-unknown-unknown
+
+# Install DFX (non-interactive mode)
+ENV DFXVM_INIT_YES=true
+RUN curl -fsSL https://internetcomputer.org/install.sh | sh -s -- --version ${DFX_VERSION}
+ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+
+# ==============================================================================
+# Stage 2: Canister Builder - Compile Rust canisters to WASM
+# ==============================================================================
+FROM builder-base AS canister-builder
+
+WORKDIR /build
+
+# Copy Cargo workspace files first for dependency caching
+COPY Cargo.toml Cargo.lock ./
+COPY rust-toolchain.toml ./
+
+# Copy all Cargo.toml files to establish workspace structure
+COPY src/kong_lib/Cargo.toml ./src/kong_lib/
+COPY src/kong_backend/Cargo.toml ./src/kong_backend/
+COPY src/kong_data/Cargo.toml ./src/kong_data/
+COPY src/kong_faucet/Cargo.toml ./src/kong_faucet/
+COPY src/kong_admin/Cargo.toml ./src/kong_admin/
+COPY src/trollbox/Cargo.toml ./src/trollbox/
+COPY src/prediction_markets_backend/Cargo.toml ./src/prediction_markets_backend/
+COPY src/ic_siws_provider/Cargo.toml ./src/ic_siws_provider/
+COPY src/ic_siws/Cargo.toml ./src/ic_siws/
+COPY src/sdk/rsKong/Cargo.toml ./src/sdk/rsKong/
+
+# Create dummy lib.rs files for dependency caching
+RUN mkdir -p src/kong_lib/src && echo "pub fn dummy() {}" > src/kong_lib/src/lib.rs
+RUN mkdir -p src/kong_backend/src && echo "pub fn dummy() {}" > src/kong_backend/src/lib.rs
+RUN mkdir -p src/kong_data/src && echo "pub fn dummy() {}" > src/kong_data/src/lib.rs
+RUN mkdir -p src/kong_faucet/src && echo "pub fn dummy() {}" > src/kong_faucet/src/lib.rs
+RUN mkdir -p src/kong_admin/src && echo "pub fn dummy() {}" > src/kong_admin/src/lib.rs
+RUN mkdir -p src/trollbox/src && echo "pub fn dummy() {}" > src/trollbox/src/lib.rs
+RUN mkdir -p src/prediction_markets_backend/src && echo "pub fn dummy() {}" > src/prediction_markets_backend/src/lib.rs
+RUN mkdir -p src/ic_siws_provider/src && echo "pub fn dummy() {}" > src/ic_siws_provider/src/lib.rs
+RUN mkdir -p src/ic_siws/src && echo "pub fn dummy() {}" > src/ic_siws/src/lib.rs
+RUN mkdir -p src/sdk/rsKong/src && echo "pub fn dummy() {}" > src/sdk/rsKong/src/lib.rs
+
+# Pre-build dependencies (this layer gets cached)
+RUN cargo build --release --target wasm32-unknown-unknown -p kong_backend 2>/dev/null || true
+
+# Now copy the actual source code
+COPY src ./src
+COPY scripts ./scripts
+
+# Build the kong_backend canister
+RUN bash scripts/build_kong_backend.sh local
+
+# Build kong_data if needed
+RUN bash scripts/build_kong_data.sh local 2>/dev/null || true
+
+# Build kong_faucet if needed
+RUN bash scripts/build_kong_faucet.sh local 2>/dev/null || true
+
+# Verify WASM outputs exist
+RUN ls -lh target/wasm32-unknown-unknown/release/*.wasm 2>/dev/null || echo "WASM files built"
+
+# ==============================================================================
+# Stage 3: Runtime - Minimal image for running DFX replica
+# ==============================================================================
+FROM ubuntu:22.04
+
+ARG DFX_VERSION=0.29.0
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    ca-certificates \
+    bc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install DFX runtime (non-interactive mode)
+ENV DFXVM_INIT_YES=true
+RUN curl -fsSL https://internetcomputer.org/install.sh | sh -s -- --version ${DFX_VERSION}
+ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+
+WORKDIR /app
+
+# Copy compiled WASM artifacts from builder
+COPY --from=canister-builder /build/target/wasm32-unknown-unknown/release/*.wasm ./target/wasm32-unknown-unknown/release/
+
+# Copy project configuration
+COPY dfx.json ./
+COPY canister_ids.all.json ./canister_ids.json
+
+# Copy deployment scripts
+COPY scripts ./scripts
+
+# Copy pre-built external WASMs
+COPY wasm ./wasm
+COPY canisters ./canisters
+
+# Copy candid files
+COPY src/kong_backend/kong_backend.did ./src/kong_backend/
+COPY src/kong_data/kong_data.did ./src/kong_data/
+COPY src/kong_faucet/kong_faucet.did ./src/kong_faucet/
+
+# Copy environment files
+COPY .env_local ./.env_local
+COPY .env_local ./.env
+
+# Copy entrypoint script
+COPY docker/entrypoint-dfx.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Create necessary directories
+RUN mkdir -p /root/.local/share/dfx /root/.config/dfx
+
+# Expose DFX replica port
+EXPOSE 4943
+
+# Use custom entrypoint
+ENTRYPOINT ["/entrypoint.sh"]

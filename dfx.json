@@ -185,6 +185,9 @@
     "build": {
       "args": "",
       "packtool": ""
+    },
+    "proxy": {
+      "domain": ["localhost", "127.0.0.1", "dfx-replica", "kong-dfx"]
     }
   },
   "networks": {
@@ -207,7 +210,7 @@
       ]
     },
     "local": {
-      "bind": "127.0.0.1:4943",
+      "bind": "0.0.0.0:4943",
       "type": "ephemeral",
       "replica": {
         "subnet_type": "system"

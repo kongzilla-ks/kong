@@ -1,0 +1,52 @@
+# ==============================================================================
+# KongSwap Test Runner Container
+# Contains dfx CLI, Solana CLI, and test scripts for ping-pong testing
+# ==============================================================================
+
+FROM ubuntu:22.04
+
+ARG DFX_VERSION=0.29.0
+ARG SOLANA_VERSION=v1.18.26
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install base dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    jq \
+    bc \
+    ca-certificates \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install DFX CLI (non-interactive mode)
+ENV DFXVM_INIT_YES=true
+RUN curl -fsSL https://internetcomputer.org/install.sh | sh -s -- --version ${DFX_VERSION}
+ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+
+# Install Solana CLI directly from GitHub releases (more reliable than install script)
+# Uses --insecure as fallback for environments with SSL certificate issues
+RUN mkdir -p /root/.local/share/solana/install/releases/${SOLANA_VERSION} && \
+    (curl -sSfL "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" \
+     || curl -sSfL --insecure "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2") \
+    | tar jxf - -C /root/.local/share/solana/install/releases/${SOLANA_VERSION} --strip-components=1 && \
+    ln -sf /root/.local/share/solana/install/releases/${SOLANA_VERSION} /root/.local/share/solana/install/active_release && \
+    mkdir -p /root/.config/solana && \
+    /root/.local/share/solana/install/active_release/bin/solana config set --url devnet && \
+    /root/.local/share/solana/install/active_release/bin/solana-keygen new --no-bip39-passphrase --silent --outfile /root/.config/solana/id.json || true
+ENV PATH="/root/.local/share/solana/install/active_release/bin:${PATH}"
+
+WORKDIR /app
+
+# Copy test scripts
+COPY scripts/cross_chain_scripts ./scripts/cross_chain_scripts
+COPY scripts/*.sh ./scripts/
+
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Copy a wrapper script for test execution
+COPY docker/test-runner-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash", "/app/scripts/cross_chain_scripts/ping_pong_swap.sh", "local"]

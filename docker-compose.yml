@@ -1,0 +1,165 @@
+# ==============================================================================
+# KongSwap Docker Testing Infrastructure
+# Single command: docker-compose up --build
+# ==============================================================================
+
+version: '3.9'
+
+services:
+  # ============================================================================
+  # PostgreSQL Database for kong_rpc
+  # ============================================================================
+  postgres:
+    build:
+      context: ./kong_rpc
+      dockerfile: scripts/Dockerfile
+    container_name: kong-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: apidbpool
+    ports:
+      - "5433:5432"  # External 5433 to avoid conflict with other postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./kong_rpc/scripts/kong_rpc_settings.sql:/docker-entrypoint-initdb.d/01_settings.sql:ro
+      - ./kong_rpc/scripts/solana_transfers.sql:/docker-entrypoint-initdb.d/02_transfers.sql:ro
+      - ./kong_rpc/scripts/solana_tokens.sql:/docker-entrypoint-initdb.d/03_tokens.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d apidbpool"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - kong-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # DFX Replica - Local ICP Network with Canisters
+  # ============================================================================
+  dfx-replica:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dfx
+    container_name: kong-dfx
+    ports:
+      - "127.0.0.1:4943:4943"
+    volumes:
+      # Persist DFX state and identities
+      - dfx_state:/root/.local/share/dfx
+      - dfx_config:/root/.config/dfx
+      # Cache Rust builds
+      - cargo_cache:/root/.cargo/registry
+      - build_cache:/app/target
+      # Share canister IDs with kong-rpc
+      - canister_ids:/app/canister-ids
+    healthcheck:
+      # Check both: replica is up AND deployment is complete (signal file exists)
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:4943/api/v2/status && test -f /tmp/deployment-complete"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 300s  # Allow time for canister compilation and deployment
+    networks:
+      - kong-network
+
+  # ============================================================================
+  # Kong RPC - Off-chain Proxy for ICP <-> Solana
+  # ============================================================================
+  kong-rpc:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.kong_rpc
+    container_name: kong-rpc
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dfx-replica:
+        condition: service_healthy
+    environment:
+      RUST_LOG: info
+      DB_USE: "true"
+      DB_CONNECTION_STRING: postgresql://admin:admin@postgres:5432/apidbpool
+      ICP_REPLICA_ENDPOINT: http://dfx-replica:4943
+      # KONG_BACKEND_CANISTER_ID is set dynamically from shared volume via entrypoint
+      SOLANA_RPC_ENDPOINT: https://api.devnet.solana.com
+      SOLANA_WS_ENDPOINT: wss://api.devnet.solana.com
+      INCOMING_CATCHUP_INTERVAL_SECS: 10
+      # Hardcoded identity for local testing (from example.env)
+      ICP_IDENTITY_PEM: |
+        -----BEGIN EC PRIVATE KEY-----
+        MHQCAQEEICk/rnnKIfH0wZ+3D9oD4sJWs+/6rxMDKicmjFZvAd3koAcGBSuBBAAK
+        oUQDQgAES6I+GJiE37g5uSZW5lMrrqEj4yKHONyrFRWpJVZYSOWZL8riOGUsgMwG
+        afJKKgfoOntWM4zCfsl3uBIqUbJSrQ==
+        -----END EC PRIVATE KEY-----
+    volumes:
+      # Read canister IDs from shared volume
+      - canister_ids:/canister-ids:ro
+    # Wrapper entrypoint: read canister ID from shared volume, then exec kong_rpc
+    entrypoint: ["/bin/sh", "-c", "if [ -f /canister-ids/env ]; then . /canister-ids/env; fi && exec kong_rpc"]
+    networks:
+      - kong-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # Test Runner - Automated Ping-Pong Swap Tests
+  # ============================================================================
+  test-runner:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.test-runner
+    container_name: kong-test-runner
+    depends_on:
+      dfx-replica:
+        condition: service_healthy
+      kong-rpc:
+        condition: service_healthy
+    environment:
+      DFX_NETWORK: local
+      SOLANA_URL: https://api.devnet.solana.com
+    volumes:
+      # Share DFX config for identity access (read-only)
+      - dfx_config:/root/.config/dfx:ro
+      # Share DFX state for canister ID access (read-only)
+      - dfx_state:/root/.local/share/dfx:ro
+      # Persist test logs to host
+      - ./logs:/app/logs
+    networks:
+      - kong-network
+    # Automatically run ping-pong tests
+    command: ["bash", "/app/scripts/cross_chain_scripts/ping_pong_swap.sh", "local"]
+
+# ==============================================================================
+# Networks
+# ==============================================================================
+networks:
+  kong-network:
+    driver: bridge
+
+# ==============================================================================
+# Volumes
+# ==============================================================================
+volumes:
+  # PostgreSQL data persistence
+  postgres_data:
+    name: kong_postgres_data
+
+  # DFX replica state
+  dfx_state:
+    name: kong_dfx_state
+
+  # DFX configuration and identities (shared with test-runner)
+  dfx_config:
+    name: kong_dfx_config
+
+  # Rust/Cargo build cache
+  cargo_cache:
+    name: kong_cargo_cache
+
+  # WASM build output cache
+  build_cache:
+    name: kong_build_cache
+
+  # Shared canister IDs (dfx-replica writes, kong-rpc reads)
+  canister_ids:
+    name: kong_canister_ids
