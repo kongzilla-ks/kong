@@ -108,35 +108,6 @@ services:
       - kong-network
     restart: unless-stopped
 
-  # ============================================================================
-  # Test Runner - Automated Ping-Pong Swap Tests
-  # ============================================================================
-  test-runner:
-    platform: linux/amd64  # Force x86_64 for Solana CLI compatibility
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.test-runner
-    container_name: kong-test-runner
-    depends_on:
-      dfx-replica:
-        condition: service_healthy
-      kong-rpc:
-        condition: service_healthy
-    environment:
-      DFX_NETWORK: local
-      SOLANA_URL: https://api.devnet.solana.com
-    volumes:
-      # Share DFX config for identity access (read-only)
-      - dfx_config:/root/.config/dfx:ro
-      # Share DFX state for canister ID access (read-only)
-      - dfx_state:/root/.local/share/dfx:ro
-      # Persist test logs to host
-      - ./logs:/app/logs
-    networks:
-      - kong-network
-    # Automatically run ping-pong tests
-    command: ["bash", "/app/scripts/cross_chain_scripts/ping_pong_swap.sh", "local"]
-
 # ==============================================================================
 # Networks
 # ==============================================================================

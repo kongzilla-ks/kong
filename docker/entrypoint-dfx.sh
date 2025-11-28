@@ -1,6 +1,19 @@
 #!/bin/bash
 set -e
 
+# docker-compose down -v && docker-compose up --build
+# ==============================================================================
+# CONFIGURATION - Update this with your local principal!
+# Get it by running: dfx identity get-principal --identity kong_user1
+# ==============================================================================
+KONG_USER1_PRINCIPAL="am3ul-zatzc-omilc-xparc-qfslm-xxm7m-irgrw-t3za7-gmluh-uqx7m-sae"
+# ==============================================================================
+
+# 1: cd into scripts directory
+# 2: sh cross_chain_scripts/add_sol_pool.sh   
+# 3: sh cross_chain_scripts/ping_pong_swap.sh
+
+
 echo "========================================="
 echo " KongSwap DFX Replica Container"
 echo "========================================="
@@ -87,6 +100,14 @@ echo "[5/7] Deploying canisters..."
 # Deploy ksUSDT ledger FIRST
 echo "  Deploying ksusdt_ledger..."
 bash scripts/deploy_ksusdt_ledger.sh local 2>&1 | tail -3
+
+# Mint ksUSDT to kong_user1 for testing (principal defined at top of file)
+echo "  Minting ksUSDT to kong_user1..."
+# Mint 1,000,000 ksUSDT (6 decimals = 1_000_000_000_000)
+dfx canister call --network local --identity kong_token_minter ksusdt_ledger icrc1_transfer "(record {
+    to=record {owner=principal \"${KONG_USER1_PRINCIPAL}\"; subaccount=null};
+    amount=1_000_000_000_000;
+},)" 2>&1 | tail -1
 
 # Deploy kong_backend AFTER ledger
 echo "  Deploying kong_backend..."
