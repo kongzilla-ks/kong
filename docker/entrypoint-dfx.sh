@@ -1,7 +1,9 @@
 #!/bin/bash
 set -e
 
-# docker-compose down -v && docker-compose up --build
+# docker ps -a --filter volume=kong_dfx_state -q | xargs docker rm -f
+# docker-compose down -v 
+# docker-compose up --build
 # ==============================================================================
 # CONFIGURATION - Update this with your local principal!
 # Get it by running: dfx identity get-principal --identity kong_user1
