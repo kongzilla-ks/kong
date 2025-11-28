@@ -84,7 +84,7 @@ services:
       # KONG_BACKEND_CANISTER_ID is set dynamically from shared volume via entrypoint
       SOLANA_RPC_ENDPOINT: https://api.devnet.solana.com
       SOLANA_WS_ENDPOINT: wss://api.devnet.solana.com
-      INCOMING_CATCHUP_INTERVAL_SECS: 10
+      INCOMING_CATCHUP_INTERVAL_SECS: 180
       # Hardcoded identity for local testing (from example.env)
       ICP_IDENTITY_PEM: |
         -----BEGIN EC PRIVATE KEY-----
