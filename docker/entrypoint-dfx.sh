@@ -7,7 +7,6 @@ set -e
 KONG_USER1_PRINCIPAL="gu4pt-4qgri-2icir-pov2d-fynew-f5zt4-3aoy5-7irvd-xhe7z-krxwm-tae"
 # ==============================================================================
 
-
 # docker ps -a --filter volume=kong_dfx_state -q | xargs docker rm -f
 # docker compose down -v 
 # docker compose up --build
