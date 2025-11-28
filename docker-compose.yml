@@ -97,6 +97,13 @@ services:
       - canister_ids:/canister-ids:ro
     # Wrapper entrypoint: read canister ID from shared volume, then exec kong_rpc
     entrypoint: ["/bin/sh", "-c", "if [ -f /canister-ids/env ]; then . /canister-ids/env; fi && exec kong_rpc"]
+    healthcheck:
+      # Check if kong_rpc process is running (PID 1)
+      test: ["CMD-SHELL", "kill -0 1 2>/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
     networks:
       - kong-network
     restart: unless-stopped
@@ -105,6 +112,7 @@ services:
   # Test Runner - Automated Ping-Pong Swap Tests
   # ============================================================================
   test-runner:
+    platform: linux/amd64  # Force x86_64 for Solana CLI compatibility
     build:
       context: .
       dockerfile: docker/Dockerfile.test-runner

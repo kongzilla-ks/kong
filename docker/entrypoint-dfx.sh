@@ -84,31 +84,27 @@ cp .env_local .env 2>/dev/null || true
 # Deploy canisters
 echo "[5/7] Deploying canisters..."
 
-# Deploy kong_backend
-echo "  Deploying kong_backend..."
-dfx deploy kong_backend --network local --identity kong 2>&1 | tail -5
-
-# Deploy ledger canisters
+# Deploy ksUSDT ledger FIRST
 echo "  Deploying ksusdt_ledger..."
 bash scripts/deploy_ksusdt_ledger.sh local 2>&1 | tail -3
 
-echo "  Deploying icp_ledger..."
-bash scripts/deploy_icp_ledger.sh local 2>&1 | tail -3
+# Deploy kong_backend AFTER ledger
+echo "  Deploying kong_backend..."
+dfx deploy kong_backend --network local --identity kong 2>&1 | tail -5
 
-# Deploy kong_faucet
-echo "  Deploying kong_faucet..."
-bash scripts/deploy_kong_faucet.sh local 2>&1 | tail -3
+# Cache Solana address (REQUIRED before using cross-chain features)
+echo "  Caching Solana address..."
+CACHE_RESULT=$(dfx canister call --network local --identity kong kong_backend cache_solana_address 2>&1)
+echo "  $CACHE_RESULT"
 
-# Mint test tokens
-echo "  Minting tokens to faucet..."
-bash scripts/faucet_mint.sh local 2>&1 | tail -3
+# Verify and display Solana address
+SOLANA_ADDR=$(dfx canister call --network local kong_backend get_solana_address 2>&1 | tr -d '"()')
+echo "  Kong Solana address: ${SOLANA_ADDR}"
 
-echo "  Minting tokens to kong_user1..."
-bash scripts/user_mint.sh local 2>&1 | tail -3
-
-# Deploy tokens and pools
-echo "  Creating tokens and pools..."
-bash scripts/deploy_tokens_pools.sh local 2>&1 | tail -5
+# Add ksUSDT token to kong_backend
+echo "  Adding ksUSDT token to kong_backend..."
+KSUSDT_LEDGER=$(dfx canister id ksusdt_ledger --network local)
+dfx canister call --network local --identity kong kong_backend add_token "(record {token=\"IC.${KSUSDT_LEDGER}\"})" 2>&1 | tail -1
 
 # Export canister IDs to shared volume for kong-rpc
 echo "[6/7] Exporting canister IDs to shared volume..."
