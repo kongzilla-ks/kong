@@ -15,7 +15,7 @@ if [ "${LOGGING_ENABLED:-}" != "1" ]; then
     mkdir -p "$LOG_DIR"
     LOG_FILE="${LOG_DIR}/ping_pong_$(date '+%Y%m%d_%H%M%S').log"
     echo "Logging to: $LOG_FILE"
-    LOGGING_ENABLED=1 exec sh "$0" "$@" 2>&1 | tee -ia "$LOG_FILE"
+    LOGGING_ENABLED=1 exec bash "$0" "$@" 2>&1 | tee -ia "$LOG_FILE"
 fi
 
 # CANISTER IDS

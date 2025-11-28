@@ -16,12 +16,19 @@ RUN apt-get update && apt-get install -y \
     bc \
     ca-certificates \
     bzip2 \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Install DFX CLI (non-interactive mode)
+# Note: dfxvm installs a shim - we must run dfx once to download the actual binary
 ENV DFXVM_INIT_YES=true
 RUN curl -fsSL https://internetcomputer.org/install.sh | sh -s -- --version ${DFX_VERSION}
 ENV PATH="/root/.local/share/dfx/bin:${PATH}"
+
+# Force dfxvm to download the actual dfx binary and verify installation
+RUN dfx --version && \
+    echo "DFX installed at: $(which dfx)" && \
+    ls -la /root/.local/share/dfx/bin/
 
 # Install Solana CLI directly from GitHub releases (more reliable than install script)
 # Uses --insecure as fallback for environments with SSL certificate issues

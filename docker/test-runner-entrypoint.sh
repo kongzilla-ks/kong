@@ -107,8 +107,9 @@ echo "  kong-rpc should be ready now"
 
 # Verify SOL token was added by kong-rpc
 echo "  Checking if SOL token exists..."
-SOL_EXISTS=$(dfx canister call --network local ${KONG_BACKEND_ID:-kong_backend} tokens --output json 2>/dev/null | grep -c '"SOL"' || echo "0")
-if [ "$SOL_EXISTS" -gt "0" ]; then
+SOL_EXISTS=$(dfx canister call --network local ${KONG_BACKEND_ID:-kong_backend} tokens --output json 2>/dev/null | grep -c '"SOL"' | head -1 | tr -d '[:space:]' || echo "0")
+SOL_EXISTS=${SOL_EXISTS:-0}
+if [ "$SOL_EXISTS" -gt 0 ] 2>/dev/null; then
     echo "  ✓ SOL token found in kong_backend"
 else
     echo "  ⚠ Warning: SOL token not yet in kong_backend (kong-rpc may still be initializing)"
