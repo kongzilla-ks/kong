@@ -11,7 +11,7 @@ interface SolanaLiquidityModalData {
     solTransactionId?: string;
     icrcTransactionId?: bigint;
     pay_signature: string;
-    timestamp: bigint;
+    // Note: timestamp removed - backend doesn't use it
     canonicalMessage: string;
   }) => void;
   onCancel?: () => void; // Add cancellation callback
@@ -49,9 +49,9 @@ function createSolanaLiquidityModalStore() {
       });
     },
     handleConfirm: (confirmData: {
-      transactionId?: string;
+      solTransactionId?: string;
+      icrcTransactionId?: bigint;
       pay_signature: string;
-      timestamp: bigint;
       canonicalMessage: string;
     }) => {
       update(store => {

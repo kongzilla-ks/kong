@@ -1,9 +1,9 @@
 {
   "kong_backend": {
-    "ic": "2ipq2-uqaaa-aaaar-qailq-cai",
-    "local": "2ipq2-uqaaa-aaaar-qailq-cai",
-    "staging_fe": "2ipq2-uqaaa-aaaar-qailq-cai",
-    "staging": "l4lgk-raaaa-aaaar-qahpq-cai"
+    "ic": "dexls-paaaa-aaaau-acyiq-cai",
+    "local": "dexls-paaaa-aaaau-acyiq-cai",
+    "staging_fe": "dexls-paaaa-aaaau-acyiq-cai",
+    "staging": "dexls-paaaa-aaaau-acyiq-cai"
   },
   "kong_data": {
     "ic": "cbefx-hqaaa-aaaar-qakrq-cai",
@@ -18,10 +18,10 @@
     "staging": ""
   },
   "kong_svelte": {
-    "ic": "3ldz4-aiaaa-aaaar-qaina-cai",
-    "local": "3ldz4-aiaaa-aaaar-qaina-cai",
-    "staging_fe": "edoy4-liaaa-aaaar-qakha-cai",
-    "staging": "edoy4-liaaa-aaaar-qakha-cai"
+    "ic": "knjkf-piaaa-aaaab-aczkq-cai",
+    "local": "knjkf-piaaa-aaaab-aczkq-cai",
+    "staging_fe": "knjkf-piaaa-aaaab-aczkq-cai",
+    "staging": "knjkf-piaaa-aaaab-aczkq-cai"
   },
   "kong_faucet": {
     "ic": "",

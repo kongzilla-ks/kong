@@ -54,7 +54,7 @@
   const ALLOWED_TOKEN_SYMBOLS = ["ICP", "ckUSDT"];
   const DEFAULT_TOKEN = "ICP";
   const SECONDARY_TOKEN_IDS = [ICP_CANISTER_ID, CKUSDT_CANISTER_ID];
-  const EARLY_ACCESS_ENABLED = true; // Set to false when ready to launch publicly
+  const EARLY_ACCESS_ENABLED = false; // Cross-chain liquidity enabled
 
   // Core state
   let showConfirmModal = false;
@@ -252,7 +252,14 @@
 
       // For existing pools, recalculate amounts
       if (poolExists === true && pool?.balance_0 !== 0n) {
-        const result = await calculateLiquidityAmounts(token0.symbol, amount0, token1.symbol);
+        // Format token as Chain.Address for backend lookup
+        const formatTokenId = (token: any) => {
+          if (token.chain === 'Solana' || token.symbol === 'SOL') {
+            return `SOL.${token.address}`;
+          }
+          return `IC.${token.address}`;
+        };
+        const result = await calculateLiquidityAmounts(formatTokenId(token0), amount0, formatTokenId(token1));
         if ('Err' in result) throw new Error(result.Err || "Failed to calculate liquidity amounts");
         
         const calculatedAmount1 = new BigNumber(result.Ok.amount_1.toString())

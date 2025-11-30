@@ -11,15 +11,15 @@ import type { UserConfig } from 'vite';
 import { execSync } from 'child_process';
 
 // Load base env first
-const baseEnv = dotenv.config({ 
+const baseEnv = dotenv.config({
   path: path.resolve(__dirname, "../../.env"),
-  override: true 
+  override: true
 }).parsed || {};
 
 // Load and merge Doppler env
-const dopplerEnv = dotenv.config({ 
+const dopplerEnv = dotenv.config({
   path: path.resolve(__dirname, ".secrets"),
-  override: true 
+  override: true
 }).parsed || {};
 
 // Combine environments with Doppler taking precedence
@@ -37,7 +37,7 @@ const getGitHash = () => {
 export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   const env = loadEnv(mode, process.cwd());
   const gitHash = getGitHash();
-  
+
   // Merge our combined env with Vite's env
   const fullEnv = { ...env, ...combinedEnv };
 
@@ -166,7 +166,7 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
     server: {
       proxy: {
         "/api": {
-          target: "http://localhost:4943",
+          target: "http://127.0.0.1:4943",
           changeOrigin: true,
         },
       },

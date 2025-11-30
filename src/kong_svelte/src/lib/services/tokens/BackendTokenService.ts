@@ -5,6 +5,7 @@ import { swapActor } from "$lib/stores/auth";
 import type { TokenReply, PoolReply } from "../../../../../declarations/kong_backend/kong_backend.did";
 import { LocalActorService } from '../actors/LocalActorService';
 import { IcrcMetadataService } from './IcrcMetadataService';
+import { SolanaMetadataService } from './SolanaMetadataService';
 
 export class BackendTokenService {
   /**
@@ -37,9 +38,10 @@ export class BackendTokenService {
           console.log('[BackendTokenService] ✅ Token count suggests local canister');
         }
         
-        // Fetch logos asynchronously for IC tokens
+        // Fetch logos asynchronously for IC and Solana tokens
         this.fetchLogosForTokens(tokens);
-        
+        this.fetchLogosForSolanaTokens(tokens);
+
         return tokens;
       }
       
@@ -251,26 +253,49 @@ export class BackendTokenService {
                !token.address.includes('_') // Skip pool addresses like "2_1"
     );
     
-    console.log('[BackendTokenService] Fetching logos for', icTokensWithoutLogos.length, 'IC tokens');
-    
     // Fetch logos in parallel
     const logoPromises = icTokensWithoutLogos.map(async (token) => {
       try {
         const logoUrl = await IcrcMetadataService.getTokenLogoUrl(token.address);
         if (logoUrl) {
-          // Update the token's logo_url
           token.logo_url = logoUrl;
-          console.log('[BackendTokenService] Found logo for', token.symbol);
         }
       } catch (error) {
-        console.error('[BackendTokenService] Error fetching logo for', token.symbol, ':', error);
+        // Silently fail - logo fetching is non-critical
       }
     });
     
     // Wait for all logos to be fetched
     await Promise.all(logoPromises);
   }
-  
+
+  /**
+   * Fetch logos for Solana tokens asynchronously using Metaplex metadata
+   */
+  private static async fetchLogosForSolanaTokens(tokens: Kong.Token[]): Promise<void> {
+    // Filter Solana tokens that don't have logos yet (or have default logo)
+    const solanaTokensWithoutLogos = tokens.filter(
+      token => token.chain === 'Solana' &&
+               (!token.logo_url || token.logo_url === '' || token.logo_url === '/tokens/not_verified.webp') &&
+               token.address
+    );
+
+    // Fetch logos in parallel
+    const logoPromises = solanaTokensWithoutLogos.map(async (token) => {
+      try {
+        const logoUrl = await SolanaMetadataService.getTokenLogoUrl(token.address);
+        if (logoUrl) {
+          token.logo_url = logoUrl;
+        }
+      } catch (error) {
+        // Silently fail - logo fetching is non-critical
+      }
+    });
+
+    // Wait for all logos to be fetched
+    await Promise.all(logoPromises);
+  }
+
   /**
    * Get Kong's Solana address for receiving transfers
    */
