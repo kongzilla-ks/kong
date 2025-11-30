@@ -2,7 +2,7 @@ import { get } from 'svelte/store';
 import { currentUserBalancesStore } from '$lib/stores/balancesStore';
 import { refreshBalances } from '$lib/stores/balancesStore';
 import { userTokens } from '$lib/stores/userTokens';
-import { fetchTokensByCanisterId } from '$lib/api/tokens';
+import { fetchTokensByCanisterId } from '$lib/services/tokens/UnifiedTokenService';
 import type { Principal } from '@dfinity/principal';
 
 export function useBalanceCheck() {

@@ -190,75 +190,131 @@
     border: 1px solid var(--swap-button-border-color, rgb(var(--ui-border) / 0.3));
     border-radius: var(--swap-button-roundness, 9999px);
     color: var(--swap-button-text-color, rgb(var(--text-light)));
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    /* box-shadow: var(--swap-button-shadow, 0 2px 4px rgba(0, 0, 0, 0.1)); */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+  }
 
-    &:hover {
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
+  /* Shine effect overlay */
+  .swap-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.15),
+      transparent
+    );
+    transition: left 0.5s ease;
+    pointer-events: none;
+  }
+
+  .swap-button:hover:not(:disabled)::before {
+    left: 100%;
+  }
+
+  /* Glow effect */
+  .swap-button::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    background: inherit;
+    filter: blur(12px);
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+  }
+
+  .swap-button:hover:not(:disabled)::after {
+    opacity: 0.5;
   }
 
   /* Button state backgrounds */
   .button-normal {
-    background: linear-gradient(135deg, 
-      var(--swap-button-primary-gradient-start, rgb(var(--brand-primary) / 0.95)) 0%, 
+    background: linear-gradient(135deg,
+      var(--swap-button-primary-gradient-start, rgb(var(--brand-primary) / 0.95)) 0%,
       var(--swap-button-primary-gradient-end, rgb(var(--brand-secondary) / 0.95)) 100%);
+    box-shadow: 0 4px 20px rgba(var(--brand-primary) / 0.3);
   }
 
   .button-ready {
-    background: linear-gradient(135deg, 
-      var(--swap-button-ready-glow-start, rgb(var(--semantic-success) / 0.95)) 0%, 
+    background: linear-gradient(135deg,
+      var(--swap-button-ready-glow-start, rgb(var(--semantic-success) / 0.95)) 0%,
       var(--swap-button-ready-glow-end, rgb(var(--semantic-success-hover) / 0.95)) 100%);
     border-color: var(--swap-button-ready-glow-start, rgb(var(--semantic-success) / 0.4));
-    box-shadow: var(--swap-button-shadow, none);
+    box-shadow: 0 4px 24px rgba(var(--semantic-success) / 0.4), 0 0 40px rgba(var(--semantic-success) / 0.15);
+    animation: ready-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes ready-pulse {
+    0%, 100% {
+      box-shadow: 0 4px 24px rgba(var(--semantic-success) / 0.4), 0 0 40px rgba(var(--semantic-success) / 0.15);
+    }
+    50% {
+      box-shadow: 0 4px 32px rgba(var(--semantic-success) / 0.5), 0 0 60px rgba(var(--semantic-success) / 0.25);
+    }
   }
 
   .button-error {
-    background: linear-gradient(135deg, 
-      var(--swap-button-error-gradient-start, rgb(var(--semantic-error) / 0.9)) 0%, 
+    background: linear-gradient(135deg,
+      var(--swap-button-error-gradient-start, rgb(var(--semantic-error) / 0.9)) 0%,
       var(--swap-button-error-gradient-end, rgb(var(--semantic-error-hover) / 0.8)) 100%);
     border-color: var(--swap-button-error-gradient-start, rgb(var(--semantic-error) / 0.4));
+    box-shadow: 0 4px 20px rgba(var(--semantic-error) / 0.3);
   }
 
   .button-processing {
-    background: linear-gradient(135deg, 
-      var(--swap-button-processing-gradient-start, rgb(var(--semantic-info) / 0.8)) 0%, 
+    background: linear-gradient(135deg,
+      var(--swap-button-processing-gradient-start, rgb(var(--semantic-info) / 0.8)) 0%,
       var(--swap-button-processing-gradient-end, rgb(var(--semantic-info-hover) / 0.6)) 100%);
     border-color: var(--swap-button-processing-gradient-start, rgb(var(--semantic-info) / 0.4));
     cursor: wait;
-    opacity: 0.8;
+    box-shadow: 0 4px 20px rgba(var(--semantic-info) / 0.3);
+  }
+
+  /* Processing shimmer effect */
+  .button-processing::before {
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
   }
 
   /* Hover effects */
   .swap-button:hover:not(:disabled) {
-    filter: brightness(1.1);
+    filter: brightness(1.08);
+    transform: translateY(-1px);
   }
 
-
-  /* ===== UTILITY CLASSES ===== */
-  
   /* ===== BUTTON STATES ===== */
   button:focus {
     --tw-ring-color: rgb(var(--brand-primary) / 0.5);
   }
-  
+
   button.button-error:focus {
     --tw-ring-color: rgb(var(--semantic-error) / 0.5);
   }
-  
+
   button.hover-effect:hover:not(:disabled) {
     transform: translateY(-2px);
     border-color: rgba(var(--text-light) / 0.25);
   }
-  
+
   button.pressed {
-    transform: scale(0.98) translateY(2px) !important;
-    filter: brightness(0.9) !important;
+    transform: scale(0.98) translateY(1px) !important;
+    filter: brightness(0.95) !important;
   }
-  
+
   /* ===== TRANSITIONS ===== */
   button {
     transform-origin: center;
-    transition: all 150ms ease-out;
+    transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 </style> 

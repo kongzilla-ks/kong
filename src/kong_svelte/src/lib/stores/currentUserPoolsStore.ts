@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { fetchTokensByCanisterId } from "$lib/api/tokens";
+import { fetchTokensByCanisterId } from "$lib/services/tokens/UnifiedTokenService";
 import { auth, swapActor } from "$lib/stores/auth";
 import { fetchPools } from "$lib/api/pools";
 import { UserPool, type UserPoolData } from "$lib/models/UserPool";

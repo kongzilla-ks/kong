@@ -207,13 +207,14 @@
         if (isSuccess) {
           isComplete = true;
           // Toast is handled within pollRequestStatus now
+          // Load balances in parallel
           await Promise.all([
             loadBalance(token0.address, true),
             loadBalance(token1.address, true),
-            currentUserPoolsStore.reset(),
-            new Promise(resolve => setTimeout(resolve, 100)),
-            currentUserPoolsStore.initialize(),
           ]);
+          // Reset and re-initialize the pools store sequentially to avoid race conditions
+          currentUserPoolsStore.reset();
+          await currentUserPoolsStore.initialize();
         } else if (isFailed) {
           // Toast is handled within pollRequestStatus
           const failureMessage = requestStatus.statuses.find((s: string) => s.includes("Failed"));
@@ -240,11 +241,13 @@
       }
     } catch (err) {
       // Error handling remains largely the same, but rely on pollRequestStatus for toast errors
+      // Refresh balances in parallel
       await Promise.all([
-        currentUserPoolsStore.initialize(), // Refresh pool data
-        loadBalance(token0?.address, true), // Refresh balances
+        loadBalance(token0?.address, true),
         loadBalance(token1?.address, true),
       ]);
+      // Refresh pool data separately to avoid race conditions
+      await currentUserPoolsStore.initialize();
       console.error("Error removing liquidity:", err);
       // Update local error state if not already handled by a toast
       if (!err.message.includes("timed out") && !err.message.includes("Operation failed")) {

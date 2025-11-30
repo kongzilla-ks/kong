@@ -10,7 +10,7 @@
   } from "lucide-svelte";
   import type { Message } from "$lib/api/trollbox";
   import { auth } from "$lib/stores/auth";
-  import { fetchTokensByCanisterId } from "$lib/api/tokens";
+  import { fetchTokensByCanisterId } from "$lib/services/tokens/UnifiedTokenService";
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
 

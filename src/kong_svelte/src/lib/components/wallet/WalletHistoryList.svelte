@@ -9,7 +9,7 @@
   import { auth } from "$lib/stores/auth";
   import { toastStore } from "$lib/stores/toastStore";
   import { writable } from "svelte/store";
-  import { fetchTokens } from "$lib/api/tokens/TokenApiClient";
+  import { fetchTokens } from "$lib/services/tokens/UnifiedTokenService";
   import { fetchUserTransactions } from "$lib/api/users";
   import { getUserHistory } from "$lib/api/predictionMarket";
   import TransactionModal from "$lib/components/wallet/TransactionModal.svelte";

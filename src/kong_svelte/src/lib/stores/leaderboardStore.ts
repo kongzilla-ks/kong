@@ -1,7 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { LeaderboardEntry } from '$lib/api/leaderboard';
 import { fetchVolumeLeaderboard } from '$lib/api/leaderboard';
-import { fetchTokensByCanisterId } from '$lib/api/tokens/TokenApiClient';
+import { fetchTokensByCanisterId } from '$lib/services/tokens/UnifiedTokenService';
 import { fetchUsers } from '$lib/api/users';
 import type { Period } from '$lib/types';
 

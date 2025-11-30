@@ -220,17 +220,20 @@
 
         if (result) {
           toastStore.success("Pool created successfully!");
-          
-          // Reload balances and pool list after successful pool creation
+
+          // Reload balances in parallel
           await Promise.all([
             loadBalance(token0.address, true),
             loadBalance(token1.address, true),
-            currentUserPoolsStore.initialize(),
           ]);
-          
+
+          // Reset and re-initialize the pools store sequentially to avoid race conditions
+          currentUserPoolsStore.reset();
+          await currentUserPoolsStore.initialize();
+
           // Dispatch liquidityAdded event
           dispatch("liquidityAdded");
-          
+
           onClose();
         }
       } else {
@@ -282,16 +285,19 @@
             pollingController?.signal
           );
           
-          // Reload balances and pool list after successful liquidity addition
+          // Reload balances in parallel
           await Promise.all([
             loadBalance(token0.address, true),
             loadBalance(token1.address, true),
-            currentUserPoolsStore.initialize(),
           ]);
-          
+
+          // Reset and re-initialize the pools store sequentially to avoid race conditions
+          currentUserPoolsStore.reset();
+          await currentUserPoolsStore.initialize();
+
           // Dispatch liquidityAdded event
           dispatch("liquidityAdded");
-          
+
           onClose();
         }
       }

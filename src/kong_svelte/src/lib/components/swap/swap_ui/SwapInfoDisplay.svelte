@@ -1,12 +1,9 @@
 <script lang="ts">
   import { formatToNonZeroDecimal } from "$lib/utils/numberFormatUtils";
-  import { Activity, TrendingUp, DollarSign } from "lucide-svelte";
   import { fade } from "svelte/transition";
   import { userTokens } from "$lib/stores/userTokens";
   import { onMount } from "svelte";
-  import { transparentSwapPanel } from "$lib/stores/derivedThemeStore";
   import { app } from "$lib/state/app.state.svelte";
-  import Panel from "$lib/components/common/Panel.svelte";
 
   let {
     payToken = null,
@@ -199,116 +196,81 @@
   });
 </script>
 
-{#snippet loadingDots()}
-  <div class="loading-dots">
-    <span></span>
-    <span></span>
-    <span></span>
-  </div>
-{/snippet}
-
-{#snippet infoValue(content, additionalClass = "")}
-  <div class="info-value {additionalClass}">
-    {#if isLoading}
-      {@render loadingDots()}
-    {:else if content !== null && content !== undefined}
-      {@html content}
-    {:else}
-      <span class="text-kong-text-secondary/50">-</span>
-    {/if}
-  </div>
-{/snippet}
-
 {#if showDisplay}
-    <Panel
-      variant={$transparentSwapPanel ? "transparent" : "solid"}
-      type="secondary"
-      className="info-panel"
-      transition="fade"
-      transitionParams={{ duration: 200 }}
-    >
-      {#snippet children()}
-        <div class="info-grid">
-          <!-- Exchange Rate -->
-          {#if !isMobile}
-            <div class="info-item">
-              <div class="info-label">
-                <TrendingUp size={14} class="info-icon" />
-                <span>Rate</span>
-              </div>
-              {@render infoValue(
-                exchangeRate() && payToken && receiveToken 
-                  ? `<span class="rate-text">1 ${payToken.symbol} = ${exchangeRate()} ${receiveToken.symbol}</span>`
-                  : null,
-                "rate-value"
-              )}
-            </div>
+  <div class="info-row" transition:fade={{ duration: 150 }}>
+    <!-- Exchange Rate -->
+    {#if !isMobile}
+      <div class="info-item">
+        <span class="info-label">Rate</span>
+        <span class="info-value">
+          {#if isLoading}
+            <span class="loading-dot"></span>
+          {:else if exchangeRate() && payToken && receiveToken}
+            1 {payToken.symbol} = {exchangeRate()} {receiveToken.symbol}
+          {:else}
+            —
           {/if}
-          
-          <!-- Price Impact -->
-          <div class="info-item">
-            <div class="info-label">
-              <Activity size={14} class="info-icon" />
-              <span>Price Impact</span>
-            </div>
-            {@render infoValue(
-              payToken && receiveToken && payAmount && receiveAmount && payAmount !== "0" && receiveAmount !== "0"
-                ? `<span>${priceImpact.toFixed(2)}%</span>`
-                : null,
-              `impact-${priceImpactLevel()}`
-            )}
-          </div>
+        </span>
+      </div>
+      <span class="divider"></span>
+    {/if}
 
-          <!-- Total Fees -->
-          <div class="info-item">
-            <div class="info-label">
-              <DollarSign size={14} class="info-icon" />
-              <span>Total Fees</span>
-            </div>
-            {@render infoValue(
-              totalFeesUsd() > 0 ? `<span>$${formatToNonZeroDecimal(totalFeesUsd())}</span>` : null
-            )}
-          </div>
-        </div>
-      {/snippet}
-    </Panel>
+    <!-- Price Impact -->
+    <div class="info-item">
+      <span class="info-label">Price Impact</span>
+      <span class="info-value impact-{priceImpactLevel()}">
+        {#if isLoading}
+          <span class="loading-dot"></span>
+        {:else if payToken && receiveToken && payAmount && receiveAmount && payAmount !== "0" && receiveAmount !== "0"}
+          {priceImpact.toFixed(2)}%
+        {:else}
+          —
+        {/if}
+      </span>
+    </div>
+    <span class="divider"></span>
+
+    <!-- Total Fees -->
+    <div class="info-item">
+      <span class="info-label">Fees</span>
+      <span class="info-value">
+        {#if isLoading}
+          <span class="loading-dot"></span>
+        {:else if totalFeesUsd() > 0}
+          ${formatToNonZeroDecimal(totalFeesUsd())}
+        {:else}
+          —
+        {/if}
+      </span>
+    </div>
+  </div>
 {/if}
 
 <style lang="postcss" scoped>
-  .swap-info-display {
-    @apply w-full sm:px-2 md:px-0;
+  .info-row {
+    @apply flex items-center justify-center gap-3 py-2 px-3;
+    @apply text-xs;
   }
 
-  .info-grid {
-    @apply grid grid-cols-2 md:grid-cols-3 gap-4;
+  .info-item {
+    @apply flex items-center gap-1.5;
   }
 
   .info-label {
-    @apply flex items-center gap-1.5 text-xs text-kong-text-secondary font-medium justify-center;
-  }
-
-  .info-icon {
-    @apply opacity-80;
+    @apply text-kong-text-secondary/60 font-normal;
   }
 
   .info-value {
-    @apply text-sm font-semibold text-kong-text-primary text-center
-           min-h-[1.25rem] flex items-center justify-center;
+    @apply text-kong-text-primary/80 font-medium tabular-nums;
   }
 
-  /* Rate value specific styling */
-  .rate-value {
-    @apply w-full;
-  }
-
-  .rate-text {
-    @apply block text-xs whitespace-nowrap overflow-hidden text-ellipsis;
-    max-width: 100%;
+  .divider {
+    @apply w-px h-3 bg-kong-text-secondary/20;
   }
 
   /* Price impact color coding */
   .impact-normal {
-    @apply text-kong-text-primary;
+    @apply text-kong-text-primary/80;
   }
 
   .impact-warning {
@@ -319,59 +281,29 @@
     @apply text-kong-error;
   }
 
-  /* Loading animation */
-  .loading-dots {
-    @apply inline-flex gap-0.5 items-center justify-center;
+  /* Loading state */
+  .loading-dot {
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-kong-text-secondary/40;
+    animation: pulse-fade 1s ease-in-out infinite;
   }
 
-  .loading-dots span {
-    @apply w-1 h-1 rounded-full bg-kong-text-primary/40;
-    animation: loading-bounce 1.4s ease-in-out infinite both;
+  @keyframes pulse-fade {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
   }
 
-  .loading-dots span:nth-child(1) {
-    animation-delay: -0.32s;
-  }
-
-  .loading-dots span:nth-child(2) {
-    animation-delay: -0.16s;
-  }
-
-  .loading-dots span:nth-child(3) {
-    animation-delay: 0s;
-  }
-
-  @keyframes loading-bounce {
-    0%, 80%, 100% {
-      transform: scale(0.8);
-      opacity: 0.5;
-    }
-    40% {
-      transform: scale(1);
-      opacity: 1;
-    }
-  }
-
-  /* Mobile optimization */
+  /* Mobile */
   @media (max-width: 640px) {
-    .info-grid {
-      @apply gap-3 p-3;
+    .info-row {
+      @apply gap-2 text-[11px];
     }
 
-    .info-label {
-      @apply text-[11px];
+    .info-item {
+      @apply gap-1;
     }
 
-    .info-value {
-      @apply text-xs min-h-[1rem];
-    }
-
-    .info-icon {
-      @apply w-3 h-3;
-    }
-
-    .rate-text {
-      @apply text-[10px];
+    .divider {
+      @apply h-2.5;
     }
   }
 </style> 

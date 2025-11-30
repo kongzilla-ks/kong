@@ -2,7 +2,7 @@ import { formatToNonZeroDecimal } from "$lib/utils/numberFormatUtils";
 import { auth, trollboxActor } from "$lib/stores/auth";
 import { Principal } from "@dfinity/principal";
 import { get } from "svelte/store";
-import * as tokensApi from "$lib/api/tokens";
+import { fetchTokensByCanisterId } from "$lib/services/tokens/UnifiedTokenService";
 
 export interface Message {
   id: bigint;

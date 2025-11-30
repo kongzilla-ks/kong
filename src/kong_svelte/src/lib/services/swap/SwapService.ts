@@ -8,7 +8,7 @@ import { IcrcService } from "$lib/services/icrc/IcrcService";
 import { swapStatusStore } from "$lib/stores/swapStore";
 import { auth, swapActor } from "$lib/stores/auth";
 import { requireWalletConnection } from "$lib/stores/auth";
-import { fetchTokensByCanisterId } from "$lib/api/tokens";
+import { fetchTokensByCanisterId } from "$lib/services/tokens/UnifiedTokenService";
 import { get } from "svelte/store";
 import { loadBalances } from "$lib/stores/tokenStore";
 import { userTokens } from "$lib/stores/userTokens";

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fetchUsers } from '$lib/api/users';
-   import { fetchTokens } from "$lib/api/tokens/TokenApiClient";
+   import { fetchTokens } from "$lib/services/tokens/UnifiedTokenService";
   import { onMount, createEventDispatcher } from 'svelte';
   import Modal from '$lib/components/common/Modal.svelte';
   import { goto } from '$app/navigation';

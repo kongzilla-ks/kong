@@ -1,17 +1,18 @@
 <script lang="ts">
   export let chain: 'ICP' | 'Solana' | 'IC' | 'SOL' | string;
-  export let size: 'small' | 'medium' = 'small';
-  export let variant: 'default' | 'minimal' | 'icon-only' = 'minimal';
-  
+  export let size: 'small' | 'medium' | 'large' = 'small';
+  export let variant: 'default' | 'minimal' | 'icon-only' | 'glow' = 'minimal';
+
   // Normalize chain names
   const normalizedChain = chain === 'IC' ? 'ICP' : chain === 'SOL' ? 'Solana' : chain;
   const displayName = chain === 'IC' || chain === 'ICP' ? 'IC' : chain === 'SOL' || chain === 'Solana' ? 'SOL' : chain;
 </script>
 
-<span 
+<span
   class="chain-badge {variant}"
   class:small={size === 'small'}
   class:medium={size === 'medium'}
+  class:large={size === 'large'}
   class:icp={normalizedChain === 'ICP'}
   class:solana={normalizedChain === 'Solana'}
 >
@@ -42,46 +43,92 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-weight: 600;
+    font-weight: 700;
     white-space: nowrap;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    letter-spacing: 0.05em;
   }
 
   /* Minimal variant - sleek modern look */
   .chain-badge.minimal {
-    padding: 0;
-    background: none;
+    padding: 0.125rem 0.375rem;
+    background: var(--badge-bg);
     border: none;
-    color: var(--kong-text-secondary);
+    border-radius: 0.375rem;
+    color: var(--badge-text);
   }
 
   .chain-badge.minimal.small {
-    font-size: 0.625rem;
-    gap: 0.125rem;
+    font-size: 0.6rem;
+    gap: 0.2rem;
+    padding: 0.1rem 0.3rem;
   }
 
   .chain-badge.minimal.medium {
-    font-size: 0.75rem;
-    gap: 0.1875rem;
+    font-size: 0.7rem;
+    gap: 0.25rem;
   }
 
-  /* Default variant - subtle badge */
+  .chain-badge.minimal.large {
+    font-size: 0.8rem;
+    gap: 0.3rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  /* Default variant - prominent badge */
   .chain-badge.default {
-    padding: 0.125rem 0.375rem;
-    border-radius: 0.25rem;
-    background-color: var(--badge-bg);
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.5rem;
+    background: var(--badge-bg);
     color: var(--badge-text);
-    border: 1px solid transparent;
+    border: 1px solid var(--badge-border, transparent);
+    box-shadow: 0 0 8px var(--badge-glow, transparent);
   }
 
   .chain-badge.default.small {
-    font-size: 0.625rem;
-    padding: 0.0625rem 0.25rem;
+    font-size: 0.65rem;
+    padding: 0.125rem 0.375rem;
   }
 
   .chain-badge.default.medium {
     font-size: 0.75rem;
-    padding: 0.125rem 0.375rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .chain-badge.default.large {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.625rem;
+  }
+
+  /* Glow variant - eye-catching for cross-chain */
+  .chain-badge.glow {
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.5rem;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    border: 1px solid var(--badge-border);
+    box-shadow: 0 0 12px var(--badge-glow), 0 0 24px var(--badge-glow-outer, transparent);
+    animation: subtle-pulse 2s ease-in-out infinite;
+  }
+
+  .chain-badge.glow.small {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  .chain-badge.glow.medium {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.625rem;
+  }
+
+  .chain-badge.glow.large {
+    font-size: 0.85rem;
+    padding: 0.3rem 0.75rem;
+  }
+
+  @keyframes subtle-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
   }
 
   /* Icon only variant */
@@ -89,70 +136,48 @@
     padding: 0;
     background: none;
     border: none;
-    color: var(--kong-text-secondary);
+    color: var(--badge-text);
   }
 
-  /* Chain specific colors */
-  .chain-badge.icp {
-    --badge-bg: rgba(237, 49, 165, 0.08);
-    --badge-text: rgb(237, 49, 165);
-  }
-
+  /* Chain specific colors - Solana */
   .chain-badge.solana {
-    --badge-bg: rgba(20, 241, 149, 0.08);
-    --badge-text: rgb(20, 241, 149);
+    --badge-bg: rgba(153, 69, 255, 0.15);
+    --badge-text: rgb(180, 130, 255);
+    --badge-border: rgba(153, 69, 255, 0.4);
+    --badge-glow: rgba(153, 69, 255, 0.3);
+    --badge-glow-outer: rgba(153, 69, 255, 0.1);
   }
 
-  .chain-badge.minimal.icp {
-    color: rgb(237, 49, 165);
-  }
-
-  .chain-badge.minimal.solana {
-    color: rgb(20, 241, 149);
+  /* Chain specific colors - ICP */
+  .chain-badge.icp {
+    --badge-bg: rgba(41, 171, 226, 0.12);
+    --badge-text: rgb(100, 200, 255);
+    --badge-border: rgba(41, 171, 226, 0.35);
+    --badge-glow: rgba(41, 171, 226, 0.25);
+    --badge-glow-outer: rgba(41, 171, 226, 0.08);
   }
 
   .chain-icon {
-    width: 1em;
-    height: 1em;
+    width: 1.1em;
+    height: 1.1em;
     flex-shrink: 0;
   }
 
   .chain-text {
-    letter-spacing: 0.025em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
+    font-weight: 700;
   }
 
-  /* Hover effects for default variant */
-  .chain-badge.default:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  /* Hover effects */
+  .chain-badge.default:hover,
+  .chain-badge.glow:hover {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 4px 12px var(--badge-glow), 0 0 20px var(--badge-glow);
   }
 
-  /* Dark mode support */
-  :global(.dark) .chain-badge.default {
-    --badge-bg: rgba(255, 255, 255, 0.05);
-    --badge-text: rgba(255, 255, 255, 0.9);
-  }
-
-  :global(.dark) .chain-badge.default.icp {
-    --badge-bg: rgba(237, 49, 165, 0.15);
-    --badge-text: rgb(250, 100, 200);
-  }
-
-  :global(.dark) .chain-badge.default.solana {
-    --badge-bg: rgba(20, 241, 149, 0.15);
-    --badge-text: rgb(100, 255, 200);
-  }
-
-  :global(.dark) .chain-badge.minimal {
-    color: var(--kong-text-secondary);
-  }
-
-  :global(.dark) .chain-badge.minimal.icp {
-    color: rgb(250, 100, 200);
-  }
-
-  :global(.dark) .chain-badge.minimal.solana {
-    color: rgb(100, 255, 200);
+  .chain-badge.minimal:hover {
+    transform: scale(1.05);
+    filter: brightness(1.1);
   }
 </style>

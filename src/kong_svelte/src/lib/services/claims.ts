@@ -2,7 +2,7 @@ import { auth, swapActor } from '$lib/stores/auth';
 import { canisters, type CanisterType } from '../config/auth.config';
 import type { Claim } from '../types/claims';
 import { toastStore } from '../stores/toastStore';
-import { fetchTokensByCanisterId } from '../api/tokens/TokenApiClient';
+import { fetchTokensByCanisterId } from '$lib/services/tokens/UnifiedTokenService';
 import { get } from 'svelte/store';
 
 // Create a mapping from token symbols to canister IDs

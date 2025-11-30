@@ -280,9 +280,14 @@
   
   async function handleLiquidityActionComplete() {
     // Refresh pool data after liquidity action
+    // Reset and re-initialize the pools store to get fresh data
+    currentUserPoolsStore.reset();
+    hasInitialized = false; // Allow re-initialization
     await currentUserPoolsStore.initialize();
     // Small delay to ensure data is updated
     await new Promise(resolve => setTimeout(resolve, 100));
+    // Force reload of pool data by clearing the loading guard
+    loadingPoolId = null;
     // Only reload if we're not navigating
     if (!isNavigating) {
       loadPoolData();

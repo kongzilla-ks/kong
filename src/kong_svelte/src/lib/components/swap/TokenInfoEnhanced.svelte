@@ -5,7 +5,7 @@
   import { tweened } from "svelte/motion";
   import { cubicOut } from "svelte/easing";
   import { Copy, ChevronDown, PlusCircle } from "lucide-svelte";
-  import { fetchTokensByCanisterId } from "$lib/api/tokens";
+  import { fetchTokensByCanisterId } from "$lib/services/tokens/UnifiedTokenService";
   import { onMount } from "svelte";
   import TokenImages from "$lib/components/common/TokenImages.svelte";
   import Badge from "$lib/components/common/Badge.svelte";

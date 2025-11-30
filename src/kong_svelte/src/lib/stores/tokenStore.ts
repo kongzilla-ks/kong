@@ -8,7 +8,7 @@ import {
   loadBalance, 
   loadBalances, 
 } from "$lib/stores/balancesStore";
-import { fetchTokensByCanisterId } from "$lib/api/tokens";
+import { fetchTokensByCanisterId } from "$lib/services/tokens/UnifiedTokenService";
 
 export interface TokenState {
   activeSwaps: Record<string, any>;

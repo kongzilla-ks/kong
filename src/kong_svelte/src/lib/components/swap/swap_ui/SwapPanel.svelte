@@ -8,8 +8,7 @@
   import { toastStore } from "$lib/stores/toastStore";
   import { swapState } from "$lib/stores/swapStateStore";
   import TokenImages from "$lib/components/common/TokenImages.svelte";
-  import ChainBadge from "$lib/components/common/ChainBadge.svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import {
     transparentSwapPanel,
     panelRoundness,
@@ -28,6 +27,8 @@
     slippage,
     panelType,
     isLoading = false,
+    pairedToken = null,
+    pairedAmount = "",
   } = $props<{
     title: string;
     token: Kong.Token | null;
@@ -38,6 +39,8 @@
     slippage: number;
     panelType: "pay" | "receive";
     isLoading?: boolean;
+    pairedToken?: Kong.Token | null;
+    pairedAmount?: string;
   }>();
 
   // Constants
@@ -59,11 +62,6 @@
   
   // Simple balance animation state
   let isBalanceAnimating = $state(false);
-  
-  // Debug token info and create reactive chain property
-  let tokenChain = $derived(token?.chain || '');
-  let shouldShowChainBadge = $derived(tokenChain && tokenChain !== 'IC' && tokenChain !== 'ICP');
-  
 
   // Derived state using runes
   let decimals = $derived(token?.decimals || DEFAULT_DECIMALS);
@@ -163,14 +161,14 @@
 
   // Animation and value updates using $effect (for USD value, slippage animation)
   $effect(() => {
-    // Use the main 'amount' prop for animations, not localInputValue
-    const currentNumericAmount = parseFloat(amount || "0");
-    const currentUsdValue = tokenPrice * currentNumericAmount;
+    // Use the derived USD value (handles both direct price and paired-token derivation)
+    const currentUsdValue = tradeUsdValue();
 
-    if (amount === "0" || !amount) {
+    if (amount === "0" || !amount || currentUsdValue === 0) {
       animatedUsdValue.set(0, { duration: 0 });
     } else {
-      const existingAnimatedValue = $animatedUsdValue;
+      // Use untrack to prevent reactive loop when reading the store we're about to set
+      const existingAnimatedValue = untrack(() => $animatedUsdValue);
       const valueDiff = Math.abs(currentUsdValue - existingAnimatedValue);
       const duration = Math.min(
         ANIMATION_MAX_DURATION,
@@ -300,7 +298,26 @@
   // Use the main 'amount' prop for calculations external to the input display
   let parsedAmount = $derived(parseFloat(amount || "0"));
   let tokenPrice = $derived(token ? Number(token?.metrics?.price || 0) : 0);
-  let tradeUsdValue = $derived(tokenPrice * parsedAmount);
+
+  // Calculate USD value - derive from paired token if this token has no price
+  let tradeUsdValue = $derived(() => {
+    // If token has its own price, use it directly
+    if (tokenPrice > 0) {
+      return tokenPrice * parsedAmount;
+    }
+
+    // Otherwise, derive from paired token's value
+    // If paying X dollars worth, you receive ~X dollars worth (simple approximation)
+    if (pairedToken && pairedAmount) {
+      const pairedPrice = Number(pairedToken.metrics?.price || 0);
+      const pairedAmountNum = parseFloat(pairedAmount || "0");
+      if (pairedPrice > 0 && pairedAmountNum > 0) {
+        return pairedPrice * pairedAmountNum;
+      }
+    }
+
+    return 0;
+  });
   
   // Simple balance change detection
   let lastBalance = $state<bigint | null>(null);
@@ -481,15 +498,10 @@
             {#if token}
               <div class="flex items-center gap-2">
                 <TokenImages tokens={[token]} size={28} />
-                <div class="flex items-center gap-1.5">
-                  <span
-                    class="hidden text-lg pt-0.5 font-semibold text-kong-text-primary sm:inline"
-                    >{token.symbol}</span
-                  >
-                  {#if shouldShowChainBadge}
-                    <ChainBadge chain={tokenChain} size="small" />
-                  {/if}
-                </div>
+                <span
+                  class="hidden text-lg pt-0.5 font-semibold text-kong-text-primary sm:inline"
+                  >{token.symbol}</span
+                >
               </div>
               <!-- Chevron Down Icon -->
               <svg

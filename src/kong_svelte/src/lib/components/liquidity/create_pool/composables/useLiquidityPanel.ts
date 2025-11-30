@@ -6,7 +6,7 @@ import {
   ICP_CANISTER_ID, 
   CKUSDT_CANISTER_ID 
 } from '$lib/constants/canisterConstants';
-import { fetchTokensByCanisterId } from '$lib/api/tokens/index';
+import { fetchTokensByCanisterId } from '$lib/services/tokens/UnifiedTokenService';
 import { UnifiedTokenService } from '$lib/services/tokens/UnifiedTokenService';
 import { doesPoolExist } from '$lib/utils/poolCreationUtils';
 import { getButtonText, hasInsufficientBalance } from '$lib/utils/liquidityUtils';

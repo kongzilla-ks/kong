@@ -424,38 +424,46 @@
         </div>
       {/if}
 
-      <div class="relative z-10">
-        <SwapPanel
-          title="Send"
-          token={$swapState.payToken}
-          amount={$swapState.payAmount}
-          onAmountChange={handleAmountChange}
-          showPrice={false}
-          slippage={$swapState.swapSlippage}
-          disabled={false}
-          panelType={PANELS.PAY}
-        />
-      </div>
+      <!-- Unified swap panels container with overlapping switch button -->
+      <div class="swap-panels-container">
+        <div class="panel-wrapper pay-panel">
+          <SwapPanel
+            title="Send"
+            token={$swapState.payToken}
+            amount={$swapState.payAmount}
+            onAmountChange={handleAmountChange}
+            showPrice={false}
+            slippage={$swapState.swapSlippage}
+            disabled={false}
+            panelType={PANELS.PAY}
+            pairedToken={$swapState.receiveToken}
+            pairedAmount={$swapState.receiveAmount}
+          />
+        </div>
 
-      <div class="relative my-0.5">
-        <SwitchTokensButton
-          isDisabled={$swapState.isProcessing}
-          onSwitch={handleReverseTokens}
-        />
-      </div>
+        <!-- Switch button overlapping both panels -->
+        <div class="switch-button-container">
+          <SwitchTokensButton
+            isDisabled={$swapState.isProcessing}
+            onSwitch={handleReverseTokens}
+          />
+        </div>
 
-      <div class="relative z-10">
-        <SwapPanel
-          title="Receive"
-          token={$swapState.receiveToken}
-          amount={$swapState.receiveAmount}
-          onAmountChange={handleAmountChange}
-          showPrice={true}
-          slippage={$swapState.swapSlippage}
-          disabled={false}
-          panelType={PANELS.RECEIVE}
-          isLoading={isQuoteLoading()}
-        />
+        <div class="panel-wrapper receive-panel">
+          <SwapPanel
+            title="Receive"
+            token={$swapState.receiveToken}
+            amount={$swapState.receiveAmount}
+            onAmountChange={handleAmountChange}
+            showPrice={true}
+            slippage={$swapState.swapSlippage}
+            disabled={false}
+            panelType={PANELS.RECEIVE}
+            isLoading={isQuoteLoading()}
+            pairedToken={$swapState.payToken}
+            pairedAmount={$swapState.payAmount}
+          />
+        </div>
       </div>
     </div>
 
@@ -558,3 +566,32 @@
     />
   </Portal>
 {/if}
+
+<style lang="postcss">
+  /* Swap panels with button overlapping both */
+  .swap-panels-container {
+    @apply relative flex flex-col;
+    gap: 4px; /* Small gap between panels */
+  }
+
+  .panel-wrapper {
+    @apply relative;
+  }
+
+  .pay-panel {
+    @apply z-10;
+  }
+
+  .receive-panel {
+    @apply z-10;
+  }
+
+  /* Button container overlaps both panels */
+  .switch-button-container {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+  }
+</style>

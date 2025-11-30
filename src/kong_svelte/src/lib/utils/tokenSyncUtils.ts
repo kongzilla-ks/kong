@@ -1,5 +1,5 @@
 import { Principal } from "@dfinity/principal";
-import { fetchAllTokens } from "$lib/api/tokens";
+import { fetchTokens } from "$lib/services/tokens/UnifiedTokenService";
 import { userTokens } from "$lib/stores/userTokens";
 import { get } from "svelte/store";
 import { DEFAULT_TOKENS } from "$lib/constants/canisterConstants";
@@ -49,7 +49,7 @@ export async function syncTokens(principalId: string | Principal): Promise<{
 
   try {
     // Get all available tokens
-    const allTokens = await fetchAllTokens();
+    const allTokens = await fetchTokens();
     if (!allTokens || allTokens.length === 0) {
       console.warn("No tokens returned from API");
       return {

@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { fetchTokensByCanisterId } from '$lib/api/tokens';
+import { fetchTokensByCanisterId } from '$lib/services/tokens/UnifiedTokenService';
 import { writable, get, derived } from 'svelte/store';
 import { syncTokens as analyzeTokens, applyTokenChanges } from '$lib/utils/tokenSyncUtils';
 import { debounce } from '$lib/utils/debounce';

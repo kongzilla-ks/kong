@@ -4,7 +4,7 @@
   import { userTokens } from "$lib/stores/userTokens";
   import { currentUserBalancesStore } from "$lib/stores/balancesStore";
   import { formatBalance } from "$lib/utils/numberFormatUtils";
-  import { fetchAllTokens } from "$lib/api/tokens";
+  import { fetchTokens } from "$lib/services/tokens/UnifiedTokenService";
   import { Search, Check, Eye, EyeOff, Loader2, Plus } from "lucide-svelte";
   import TokenImages from "$lib/components/common/TokenImages.svelte";
   import { fade } from "svelte/transition";
@@ -51,7 +51,7 @@
     isLoading = true;
     try {
       // Fetch all available tokens
-      allTokens = await fetchAllTokens();
+      allTokens = await fetchTokens();
       
       // Mark which tokens have balances
       tokensWithBalances = new Set();

@@ -21,7 +21,7 @@ log() {
 }
 
 # CANISTER IDS
-MAINNET_KONG_BACKEND="u6kfa-6aaaa-aaaam-qdxba-cai"
+MAINNET_KONG_BACKEND="dexls-paaaa-aaaau-acyiq-cai"
 LOCAL_KONG_BACKEND="kong_backend"
 MAINNET_USDT_LEDGER="cngnf-vqaaa-aaaar-qag4q-cai"
 LOCAL_USDT_LEDGER="ksusdt_ledger"
@@ -32,10 +32,12 @@ if [ "${NETWORK}" == "ic" ]; then
     KONG_BACKEND="${MAINNET_KONG_BACKEND}"
     USDT_LEDGER="${MAINNET_USDT_LEDGER}"
     USDT_SYMBOL="ckUSDT"
+    SOL_SYMBOL="SOL.11111111111111111111111111111111"  # Native SOL (disambiguate from wrapped)
 else
     KONG_BACKEND=$(dfx canister id ${LOCAL_KONG_BACKEND})
     USDT_LEDGER=$(dfx canister id ${LOCAL_USDT_LEDGER})
     USDT_SYMBOL="ksUSDT"
+    SOL_SYMBOL="SOL"
     solana config set --url devnet >/dev/null 2>&1
 fi
 
@@ -61,9 +63,9 @@ echo "Press Ctrl+C to stop."
 echo "==============================================="
 
 swap_usdt_to_sol() {
-    local pay_amount=1000000  # 1 USDT
+    local pay_amount=500000  # 0.50 USDT (50 cents - optimal for ping-pong)
     echo ""
-    echo "$(date '+%H:%M:%S') >>> ${USDT_SYMBOL} → SOL (pay: 1 ${USDT_SYMBOL})"
+    echo "$(date '+%H:%M:%S') >>> ${USDT_SYMBOL} → SOL (pay: 0.50 ${USDT_SYMBOL})"
 
     # Approve
     local fee=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${USDT_LEDGER} icrc1_fee "()" 2>/dev/null | awk -F'[:]+' '{print $1}' | awk '{gsub(/\(/, ""); print}' | tr -d '_')
@@ -77,7 +79,7 @@ swap_usdt_to_sol() {
     local result=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap "(record {
         pay_token = \"${USDT_SYMBOL}\";
         pay_amount = ${pay_amount};
-        receive_token = \"SOL\";
+        receive_token = \"${SOL_SYMBOL}\";
         receive_amount = opt 0;
         max_slippage = opt 95.0;
         receive_address = opt \"${SOLANA_ADDRESS}\";
@@ -99,13 +101,13 @@ swap_usdt_to_sol() {
 }
 
 swap_sol_to_usdt() {
-    local pay_amount=200000  # 0.0002 SOL (2x stress test)
+    local pay_amount=2000000  # 0.002 SOL (approx what 50c ckUSDT gets)
     local sol_dec=$(bc <<< "scale=9; ${pay_amount} / 1000000000")
     echo ""
     echo "$(date '+%H:%M:%S') <<< SOL → ${USDT_SYMBOL} (pay: ${sol_dec} SOL)"
 
     # Get quote
-    local quote=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap_amounts "(\"SOL\", ${pay_amount}, \"${USDT_SYMBOL}\")" 2>&1)
+    local quote=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap_amounts "(\"${SOL_SYMBOL}\", ${pay_amount}, \"${USDT_SYMBOL}\")" 2>&1)
     if ! echo "$quote" | grep -q "Ok"; then
         echo "$(date '+%H:%M:%S') ✗ Quote failed"
         return
@@ -129,8 +131,9 @@ swap_sol_to_usdt() {
     local ic_principal=$(dfx identity ${IDENTITY_FLAG} get-principal)
 
     # Sign message (receive_address should be IC principal for IC tokens)
-    local msg=$(printf '{"pay_token":"SOL","pay_amount":"%s","pay_address":"%s","receive_token":"%s","receive_amount":"%s","receive_address":"%s","max_slippage":95.0,"referred_by":null}' \
-        "SOL" "${pay_amount}" "${SOLANA_ADDRESS}" "${USDT_SYMBOL}" "${receive_amt}" "${ic_principal}")
+    # NOTE: pay_token must match EXACTLY what we send to the swap call (SOL_SYMBOL)
+    local msg=$(printf '{"pay_token":"%s","pay_amount":"%s","pay_address":"%s","receive_token":"%s","receive_amount":"%s","receive_address":"%s","max_slippage":95.0,"referred_by":null}' \
+        "${SOL_SYMBOL}" "${pay_amount}" "${SOLANA_ADDRESS}" "${USDT_SYMBOL}" "${receive_amt}" "${ic_principal}")
     local sig=$(solana sign-offchain-message "${msg}" 2>/dev/null)
 
     # Swap with retry
@@ -138,7 +141,7 @@ swap_sol_to_usdt() {
 
     for retry in {1..30}; do
         local result=$(dfx canister call ${NETWORK_FLAG} ${IDENTITY_FLAG} ${KONG_BACKEND} swap "(record {
-            pay_token = \"SOL\";
+            pay_token = \"${SOL_SYMBOL}\";
             pay_amount = ${pay_amount};
             pay_tx_id = opt variant { TransactionId = \"${tx_sig}\" };
             receive_token = \"${USDT_SYMBOL}\";
@@ -213,7 +216,7 @@ while true; do
     echo "========== Round $counter =========="
 
     swap_usdt_to_sol
-    
+    sleep 10
     swap_sol_to_usdt
     sleep $SWAP_INTERVAL
 done

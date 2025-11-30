@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { fetchTransactions } from "$lib/api/transactions";
-  import { fetchTokens } from "$lib/api/tokens/TokenApiClient";
+  import { fetchTokens } from "$lib/services/tokens/UnifiedTokenService";
   import { writable } from "svelte/store";
   import TransactionFeedItem from "./TransactionFeedItem.svelte";
   import { LoadingStateManager } from "$lib/utils/transactionUtils";
