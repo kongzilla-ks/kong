@@ -7,7 +7,7 @@ set -euo pipefail
 
 NETWORK="${1:-local}"
 IDENTITY_FLAG="--identity kong_user1"
-SWAP_INTERVAL=30  # 30 second interval for testing
+SWAP_INTERVAL=15  # 15 second interval for testing
 
 # Setup logging
 LOG_DIR="logs"
@@ -215,8 +215,9 @@ while true; do
     echo ""
     echo "========== Round $counter =========="
 
-    swap_usdt_to_sol
-    sleep 10
     swap_sol_to_usdt
+    sleep 5
+    swap_usdt_to_sol
+
     sleep $SWAP_INTERVAL
 done

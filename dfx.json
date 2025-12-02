@@ -9,7 +9,7 @@
       "type": "custom",
       "build": "bash ./scripts/build_kong_backend.sh",
       "wasm": "target/wasm32-unknown-unknown/release/kong_backend.wasm",
-      "specified_id": "dexls-paaaa-aaaau-acyiq-cai",
+      "specified_id": "2ipq2-uqaaa-aaaar-qailq-cai",
       "metadata": [
         {
           "name": "candid:service"

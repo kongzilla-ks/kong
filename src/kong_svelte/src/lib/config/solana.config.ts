@@ -1,6 +1,6 @@
 // Solana Network Configuration
-export const SOLANA_RPC_ENDPOINT = 'https://mainnet.solana.validationcloud.io/v1/vEH0znkrmOFeAxXCJAyIGLQFSPVY38NzDe2NkNvNQt4';
-export const SOLANA_WS_ENDPOINT = 'wss://mainnet.solana.validationcloud.io/v1/vEH0znkrmOFeAxXCJAyIGLQFSPVY38NzDe2NkNvNQt4';
+export const SOLANA_RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
+export const SOLANA_WS_ENDPOINT = 'wss://api.mainnet-beta.solana.com';
 
 // WebSocket configuration
 export const WS_CONFIG = {

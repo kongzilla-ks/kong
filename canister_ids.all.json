@@ -1,9 +1,9 @@
 {
   "kong_backend": {
-    "ic": "dexls-paaaa-aaaau-acyiq-cai",
-    "local": "dexls-paaaa-aaaau-acyiq-cai",
-    "staging_fe": "dexls-paaaa-aaaau-acyiq-cai",
-    "staging": "dexls-paaaa-aaaau-acyiq-cai"
+    "ic": "2ipq2-uqaaa-aaaar-qailq-cai",
+    "local": "2ipq2-uqaaa-aaaar-qailq-cai",
+    "staging_fe": "2ipq2-uqaaa-aaaar-qailq-cai",
+    "staging": "2ipq2-uqaaa-aaaar-qailq-cai"
   },
   "kong_data": {
     "ic": "cbefx-hqaaa-aaaar-qakrq-cai",
