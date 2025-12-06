@@ -1,1 +1,0 @@
-export { WalletDataService, walletDataStore, type TokenBalance, type WalletData } from './WalletDataService'; 

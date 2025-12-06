@@ -15,7 +15,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 candid = "0.10.13"
-ic-cdk = "0.17.1"
+ic-cdk = "0.18.5"
 ic_siws = { path = "../ic_siws" }
 ic-stable-structures = "0.6.0"
 ic-certified-map = "0.4.0"

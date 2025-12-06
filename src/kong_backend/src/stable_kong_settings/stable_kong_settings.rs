@@ -49,6 +49,7 @@ pub struct StableKongSettings {
     pub transfers_archive_interval_secs: u64,
     pub check_disabled_token_interval_secs: u64,
     pub archive_to_kong_data: bool,
+    pub kong_limit: Option<Principal>,
 }
 
 impl Default for StableKongSettings {
@@ -103,6 +104,7 @@ impl Default for StableKongSettings {
             transfers_archive_interval_secs: 3600,        // archive transfers every hour
             check_disabled_token_interval_secs: 3600 * 3, // check if disabled tokens became alive each 3 hours
             archive_to_kong_data: false,                  // replicate to kong_data
+            kong_limit: None,
         }
     }
 }

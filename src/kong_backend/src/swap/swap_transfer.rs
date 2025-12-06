@@ -199,6 +199,7 @@ pub async fn swap_transfer_async(args: SwapArgs) -> Result<u64, String> {
                             token_id: pay_token.token_id(),
                             tx_id: TxId::TransactionId(verification.tx_signature),
                             ts: ICNetwork::get_time(),
+                            refund_transfer_id: None,
                         });
                         request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);
                     }
@@ -315,6 +316,7 @@ async fn check_arguments(args: &SwapArgs, request_id: u64, ts: u64) -> Result<(S
                             token_id: pay_token.token_id(),
                             tx_id: TxId::TransactionId(tx_signature_str.to_string()),
                             ts,
+                            refund_transfer_id: None,
                         });
                         request_map::update_status(request_id, StatusCode::VerifyPayToken, None);
                         transfer_id
@@ -482,6 +484,7 @@ async fn verify_transfer_token(request_id: u64, token: &StableToken, tx_id: &Nat
                 token_id,
                 tx_id: TxId::BlockIndex(tx_id.clone()),
                 ts,
+                refund_transfer_id: None,
             });
             request_map::update_status(request_id, StatusCode::VerifyPayTokenSuccess, None);
             Ok(transfer_id)

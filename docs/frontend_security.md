@@ -16,7 +16,7 @@ A Content Security Policy has been implemented to control the resources that the
 - `style-src 'self' https://use.typekit.net https://p.typekit.net;` - Allows styles from the same origin and specified trusted sources.
 - `font-src 'self' https://use.typekit.net;` - Allows fonts from the same origin and specified trusted sources.
 - `img-src 'self' data:;` - Allows images from the same origin and data URIs.
-- `connect-src 'self' http://localhost:4943;` - Allows connections only to the same origin and the specified development API endpoint.
+- `connect-src 'self' http://localhost:8000;` - Allows connections only to the same origin and the specified development API endpoint.
 - `frame-src 'self';` - Allows framing content only from the same origin.
 - `object-src 'none';` - Disallows the use of `<object>`, `<embed>`, and `<applet>` tags.
 - `base-uri 'self';` - Restricts the URLs that can be loaded using the `<base>` element to the same origin.
@@ -85,7 +85,7 @@ const handleInputChange = (event) => {
 ### Remaining Considerations
 
 - **Unsafe-Eval:** The temporary inclusion of `unsafe-eval` in the CSP is a potential security risk. Efforts should be made to refactor the codebase to eliminate the need for `eval()` and remove `unsafe-eval` from the CSP.
-- **Environment-Specific CSP:** The current CSP allows connections to `http://localhost:4943` for development. Ensure this is removed or adjusted appropriately for production environments.
+- **Environment-Specific CSP:** The current CSP allows connections to `http://localhost:8000` for development. Ensure this is removed or adjusted appropriately for production environments.
 - **Regular Updates and Audits:** Regularly update dependencies and perform security audits to identify and mitigate new vulnerabilities.
 
 ## Conclusion

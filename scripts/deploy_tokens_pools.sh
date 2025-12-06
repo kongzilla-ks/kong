@@ -52,7 +52,7 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record
     }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${ICP_CHAIN}.${ICP_LEDGER}\"; amount_0=${ICP_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_liquidity --output json "(record {token_0=\"${ICP_CHAIN}.${ICP_LEDGER}\"; amount_0=${ICP_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 3. Add ksBTC/ksUSDT pool
 KSBTC_SYMBOL="ksBTC"
@@ -86,7 +86,7 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record
     }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSBTC_CHAIN}.${KSBTC_LEDGER}\"; amount_0=${KSBTC_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_liquidity --output json "(record {token_0=\"${KSBTC_CHAIN}.${KSBTC_LEDGER}\"; amount_0=${KSBTC_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 4. Add ksETH/ksUSDT pool
 KSETH_SYMBOL="ksETH"
@@ -120,7 +120,7 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record
     }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSETH_CHAIN}.${KSETH_LEDGER}\"; amount_0=${KSETH_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_liquidity --output json "(record {token_0=\"${KSETH_CHAIN}.${KSETH_LEDGER}\"; amount_0=${KSETH_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 5. Add ksKONG/ksUSDT pool
 KSKONG_SYMBOL="ksKONG"
@@ -154,7 +154,7 @@ dfx canister call ${NETWORK} ${IDENTITY} ${KSUSDT_LEDGER} icrc2_approve "(record
     }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSKONG_CHAIN}.${KSKONG_LEDGER}\"; amount_0=${KSKONG_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_liquidity --output json "(record {token_0=\"${KSKONG_CHAIN}.${KSKONG_LEDGER}\"; amount_0=${KSKONG_AMOUNT}; token_1=\"${KSUSDT_CHAIN}.${KSUSDT_LEDGER}\"; amount_1=${KSUSDT_AMOUNT}})" | jq
 
 # 6. Add ksKONG/ksICP pool
 KSKONG_SYMBOL="ksKONG"
@@ -188,4 +188,4 @@ dfx canister call ${NETWORK} ${IDENTITY} ${ICP_LEDGER} icrc2_approve "(record {
     }
 })"
 
-dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_pool --output json "(record {token_0=\"${KSKONG_CHAIN}.${KSKONG_LEDGER}\"; amount_0=${KSKONG_AMOUNT}; token_1=\"${ICP_CHAIN}.${ICP_LEDGER}\"; amount_1=${ICP_AMOUNT_FOR_KSKONG}})" | jq
+dfx canister call ${NETWORK} ${IDENTITY} ${KONG_CANISTER} add_liquidity --output json "(record {token_0=\"${KSKONG_CHAIN}.${KSKONG_LEDGER}\"; amount_0=${KSKONG_AMOUNT}; token_1=\"${ICP_CHAIN}.${ICP_LEDGER}\"; amount_1=${ICP_AMOUNT_FOR_KSKONG}})" | jq

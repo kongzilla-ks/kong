@@ -3,6 +3,7 @@ use ic_cdk::update;
 
 use crate::chains::chains::{IC_CHAIN, SOL_CHAIN};
 use crate::ic::guards::{caller_is_kong_rpc, not_in_maintenance_mode};
+use crate::kong_limit::add_kong_limit_token;
 use crate::stable_token::ic_token::ICToken;
 use crate::stable_token::lp_token::LPToken;
 use crate::stable_token::solana_token::SolanaToken;
@@ -85,6 +86,9 @@ pub async fn add_ic_token(token: &str) -> Result<StableToken, String> {
 
     let ic_token = StableToken::IC(ICToken::new(&canister_id).await?);
     let token_id = token_map::insert(&ic_token)?;
+
+    // Update kong limit token info
+    let _ = add_kong_limit_token(token);
 
     // Retrieves the inserted token by its token_id
     token_map::get_by_token_id(token_id).ok_or_else(|| format!("Failed to add token {}", token))

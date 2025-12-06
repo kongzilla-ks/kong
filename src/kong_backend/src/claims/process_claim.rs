@@ -110,6 +110,7 @@ async fn send_claim(
                         token_id: token.token_id(),
                         tx_id: TxId::BlockIndex(tx_id),
                         ts,
+                        refund_transfer_id: None,
                     });
                     transfer_ids.push(transfer_id);
                     claim_map::update_claimed_status(claim.claim_id, request_id, transfer_id);
@@ -139,6 +140,7 @@ async fn send_claim(
                         token_id: token.token_id(),
                         tx_id: TxId::BlockIndex(tx_id),
                         ts,
+                        refund_transfer_id: None,
                     });
                     transfer_ids.push(transfer_id);
                     claim_map::update_claimed_status(claim.claim_id, request_id, transfer_id);
@@ -178,6 +180,7 @@ async fn send_claim(
                         token_id: token.token_id(),
                         tx_id: TxId::TransactionId(format!("job_{}", job_id)),
                         ts,
+                        refund_transfer_id: None,
                     });
                     transfer_ids.push(transfer_id);
                     claim_map::update_claimed_status(claim.claim_id, request_id, transfer_id);

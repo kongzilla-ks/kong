@@ -6,9 +6,9 @@ use tokio_postgres::Client;
 
 use crate::claims::insert_claim_on_database;
 use crate::lp_tokens::insert_lp_token_on_database;
-use crate::pools::{insert_pool_on_database, load_pools_from_database};
+use crate::pools::{insert_pool_on_database, load_pools_from_database, query_pool_token_ids};
 use crate::requests::insert_request_on_database;
-use crate::tokens::{insert_token_on_database, load_tokens_from_database};
+use crate::tokens::{insert_token_on_database, load_tokens_from_database, query_token_decimals};
 use crate::transfers::insert_transfer_on_database;
 use crate::txs::insert_tx_on_database;
 use crate::users::insert_user_on_database;
@@ -46,7 +46,12 @@ pub async fn get_db_updates(
             StableMemory::TokenMap(token) => match insert_token_on_database(token, db_client).await {
                 Ok(()) => {
                     if !tokens_map.contains_key(&token.token_id()) {
-                        *tokens_map = load_tokens_from_database(db_client).await?;
+                        match query_token_decimals(db_client, token.token_id()).await {
+                            Ok(decimals) => {
+                                tokens_map.insert(token.token_id(), decimals);
+                            }
+                            Err(e) => eprintln!("Failed to query token decimals: {}", e),
+                        }
                     }
                 }
                 Err(e) => eprintln!("{}", e),
@@ -54,7 +59,12 @@ pub async fn get_db_updates(
             StableMemory::PoolMap(pool) => match insert_pool_on_database(pool, db_client, tokens_map).await {
                 Ok(()) => {
                     if !pools_map.contains_key(&pool.pool_id) {
-                        *pools_map = load_pools_from_database(db_client).await?;
+                        match query_pool_token_ids(db_client, pool.pool_id).await {
+                            Ok(token_ids) => {
+                                pools_map.insert(pool.pool_id, token_ids);
+                            }
+                            Err(e) => eprintln!("Failed to query pool token IDs: {}", e),
+                        }
                     }
                 }
                 Err(e) => eprintln!("{}", e),

@@ -65,6 +65,7 @@ pub async fn return_pay_token(
                     token_id,
                     tx_id: TxId::TransactionId(format!("job_{}", job_id)),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 request_map::update_status(
@@ -102,6 +103,7 @@ pub async fn return_pay_token(
                     token_id,
                     tx_id: TxId::BlockIndex(tx_id),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 request_map::update_status(request_id, StatusCode::ReturnPayTokenSuccess, None);

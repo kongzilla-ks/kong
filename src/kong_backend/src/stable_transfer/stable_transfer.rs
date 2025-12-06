@@ -28,6 +28,7 @@ pub struct StableTransfer {
     pub token_id: u32,
     pub tx_id: TxId,
     pub ts: u64,
+    pub refund_transfer_id: Option<u64>,
 }
 
 impl Storable for StableTransfer {

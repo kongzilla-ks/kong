@@ -221,7 +221,7 @@ async fn verify_transfer_with_icrc3_get_blocks(
                 }
                 match tx_amount {
                     Some(transfer_amount) if transfer_amount == *amount => (),
-                    Some(transfer_amount) => Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?,
+                    Some(transfer_amount) => Err(format!("1 Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?,
                     None => continue, // Missing amount
                 }
 
@@ -341,7 +341,7 @@ async fn verify_transfer_with_query_blocks(
                                 Err("Transfer to does not match Kong backend")?
                             }
                             if transfer_amount != amount {
-                                Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
+                                Err(format!("2 Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
                             }
                             if block.transaction.created_at_time.timestamp_nanos < min_valid_timestamp {
                                 Err("Expired transfer timestamp")?
@@ -397,7 +397,7 @@ async fn verify_transfer_with_get_transactions(
                         }
                         let transfer_amount = transfer.amount;
                         if transfer_amount != *amount {
-                            Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
+                            Err(format!("3 Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
                         }
                         let timestamp = transaction.timestamp;
                         if timestamp < min_valid_timestamp {
@@ -447,7 +447,7 @@ async fn verify_transfer_with_get_transactions(
                         }
                         let transfer_amount = transfer.amount;
                         if transfer_amount != *amount {
-                            Err(format!("Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
+                            Err(format!("4 Invalid transfer amount: rec {:?} exp {:?}", transfer_amount, amount))?
                         }
                         let timestamp = transaction.timestamp;
                         if timestamp < min_valid_timestamp {

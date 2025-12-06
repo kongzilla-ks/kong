@@ -4,12 +4,12 @@ use icrc_ledger_types::icrc1::account::Account;
 
 /// Principal of Kong backend
 pub fn kong_backend() -> Principal {
-    ic_cdk::api::id()
+    ic_cdk::api::canister_self()
 }
 
 /// Cansiter ID of Kong backend
 pub fn kong_backend_id() -> String {
-    ic_cdk::api::id().to_text()
+    ic_cdk::api::canister_self().to_text()
 }
 
 /// Account of Kong backend
@@ -19,7 +19,7 @@ pub fn kong_account() -> Account {
 
 /// Principal ID of the caller.
 pub fn caller() -> Principal {
-    ic_cdk::api::caller()
+    ic_cdk::api::msg_caller()
 }
 
 /// Principal ID (String) of the caller.

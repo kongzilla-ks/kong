@@ -58,6 +58,7 @@ pub async fn send_receive_token(
                     amount: receive_amount.clone(),
                     tx_id: TxId::TransactionId(format!("job_{}", job_id)),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
             }
@@ -100,6 +101,7 @@ pub async fn send_receive_token(
                     amount: receive_amount.clone(),
                     tx_id: TxId::BlockIndex(tx_id),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 request_map::update_status(request_id, StatusCode::SendReceiveTokenSuccess, None);

@@ -14,6 +14,7 @@ use crate::ic::{
     transfer::{icrc1_transfer, icrc2_transfer_from},
     verify_transfer::verify_transfer,
 };
+use crate::kong_limit::add_kong_limit_pool;
 use crate::solana::verify_transfer::verify_transfer as verify_transfer_solana;
 use crate::stable_claim::{claim_map, stable_claim::StableClaim};
 use crate::stable_kong_settings::kong_settings_map;
@@ -452,6 +453,7 @@ async fn verify_transfer_token(
                 token_id,
                 tx_id: TxId::BlockIndex(tx_id.clone()),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {
@@ -536,6 +538,7 @@ async fn verify_cross_chain_transfer(
         token_id: token.token_id(),
         tx_id: final_tx_id,
         ts,
+        refund_transfer_id: None,
     });
     transfer_ids.push(transfer_id);
 
@@ -575,6 +578,7 @@ async fn transfer_from_token(
                 token_id,
                 tx_id: TxId::BlockIndex(block_id),
                 ts,
+                refund_transfer_id: None,
             });
             transfer_ids.push(transfer_id);
             match token_index {
@@ -616,6 +620,8 @@ fn update_liquidity_pool(
 
     // update user's LP token amount
     update_lp_token(request_id, user_id, pool.lp_token_id, add_lp_token_amount, ts);
+
+    let _ = add_kong_limit_pool(&update_pool.token_0(), update_pool.balance_0.clone(), &update_pool.token_1(), update_pool.balance_1.clone());
 }
 
 fn update_lp_token(request_id: u64, user_id: u32, lp_token_id: u32, add_lp_token_amount: &Nat, ts: u64) {
@@ -736,6 +742,7 @@ async fn return_token(
                     token_id: token.token_id(),
                     tx_id: TxId::TransactionId(format!("job_{}", job_id)),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 match token_index {
@@ -790,6 +797,7 @@ async fn return_token(
                     token_id: token.token_id(),
                     tx_id: TxId::BlockIndex(block_id),
                     ts,
+                    refund_transfer_id: None,
                 });
                 transfer_ids.push(transfer_id);
                 match token_index {
